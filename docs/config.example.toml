@@ -1,0 +1,16 @@
+# Copy to ~/.config/kan/config.toml and uncomment values to override defaults.
+
+database = "/absolute/path/to/kan.db"
+log_file = "/absolute/path/to/kan.log"
+log_level = "info"
+# show_card_tags = true
+
+[theme]
+# primary = "#7D7AFF"
+# muted = "#909090"
+# text = "#C4C4D0"
+# background = "#24243A"
+# selected_foreground = "#FFFFFF"
+# selected_background = "#5A56E0"
+# danger = "#FF6B6B"
+# border = "rounded"

@@ -1,0 +1,631 @@
+package app
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/google/uuid"
+	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
+)
+
+type controlKind uint8
+
+const (
+	commentControl controlKind = iota
+	dropdownControl
+	calendarControl
+	linksControl
+	checklistControl
+)
+
+type formControl struct {
+	kind       controlKind
+	field      int
+	value      string
+	cursor     int
+	selection  int
+	date       time.Time
+	query      string
+	selected   map[string]bool
+	standalone bool
+	checklist  []domain.ChecklistItem
+	inputMode  bool
+	input      string
+	editIndex  int
+}
+
+type linkCandidate struct {
+	id    string
+	label string
+}
+
+func loadLinkCandidates(ctx context.Context, repo domain.Repository, projectID, excludeID string) tea.Cmd {
+	return func() tea.Msg {
+		boards, err := repo.ListBoards(ctx, projectID)
+		if err != nil {
+			return linkCandidatesLoadedMsg{err: err}
+		}
+		values := []linkCandidate{}
+		for _, board := range boards {
+			cards, listErr := repo.ListCards(ctx, board.ID)
+			if listErr != nil {
+				return linkCandidatesLoadedMsg{err: listErr}
+			}
+			for _, card := range cards {
+				if card.ID != excludeID {
+					values = append(values, linkCandidate{id: card.ID, label: board.Name + " / " + card.Title})
+				}
+			}
+		}
+		sort.Slice(values, func(i, j int) bool { return values[i].label < values[j].label })
+		return linkCandidatesLoadedMsg{candidates: values}
+	}
+}
+
+func (form *formModal) openControl() {
+	field := form.fields[form.focus]
+	control := &formControl{field: form.focus, value: field.value, cursor: utf8.RuneCountInString(field.value)}
+	switch field.kind {
+	case commentField:
+		control.kind = commentControl
+	case dropdownField:
+		control.kind = dropdownControl
+		for index, option := range field.options {
+			if strings.EqualFold(option, field.value) {
+				control.selection = index
+			}
+		}
+	case calendarField:
+		control.kind = calendarControl
+		control.date, _ = time.ParseInLocation("2006-01-02", field.value, time.Local)
+		if control.date.IsZero() {
+			control.date = time.Now()
+		}
+	case linksField:
+		control.kind = linksControl
+		control.selected = map[string]bool{}
+		for _, id := range splitIDs(field.value) {
+			control.selected[id] = true
+		}
+	case checklistField:
+		control.kind = checklistControl
+		control.editIndex = -1
+		_ = json.Unmarshal([]byte(field.value), &control.checklist)
+	}
+	form.control = control
+}
+
+func (model *Model) handleFormControlKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	control := model.form.control
+	switch control.kind {
+	case commentControl:
+		return model.handleCommentKey(key)
+	case dropdownControl:
+		return model.handleDropdownKey(key)
+	case calendarControl:
+		return model.handleCalendarKey(key)
+	case linksControl:
+		return model.handleLinksKey(key)
+	case checklistControl:
+		return model.handleChecklistKey(key)
+	}
+	return model, nil
+}
+
+func (model *Model) handleChecklistKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	control := model.form.control
+	if key.String() == "ctrl+c" {
+		return model, tea.Quit
+	}
+	if control.inputMode {
+		switch key.String() {
+		case "esc":
+			control.inputMode = false
+			control.input = ""
+		case "enter":
+			text := strings.TrimSpace(control.input)
+			if text != "" {
+				if control.editIndex >= 0 {
+					control.checklist[control.editIndex].Text = text
+				} else {
+					control.checklist = append(control.checklist, domain.ChecklistItem{ID: uuid.NewString(), Text: text, Position: nextChecklistPosition(control.checklist)})
+					control.selection = len(control.checklist) - 1
+				}
+			}
+			control.inputMode = false
+			control.input = ""
+			control.editIndex = -1
+		case "backspace":
+			runes := []rune(control.input)
+			if len(runes) > 0 {
+				control.input = string(runes[:len(runes)-1])
+			}
+		case "ctrl+u":
+			control.input = ""
+		case " ":
+			control.input += " "
+		default:
+			if key.Type == tea.KeyRunes {
+				control.input += string(key.Runes)
+			}
+		}
+		return model, nil
+	}
+	switch key.String() {
+	case "esc":
+		model.form.control = nil
+	case "ctrl+s":
+		encoded, _ := json.Marshal(control.checklist)
+		model.form.fields[control.field].value = string(encoded)
+		model.form.control = nil
+	case "up", "k":
+		control.selection = max(control.selection-1, 0)
+	case "down", "j":
+		control.selection = min(control.selection+1, max(len(control.checklist)-1, 0))
+	case " ", "enter":
+		if len(control.checklist) > 0 {
+			control.checklist[control.selection].Done = !control.checklist[control.selection].Done
+		}
+	case "a":
+		control.inputMode = true
+		control.input = ""
+		control.editIndex = -1
+	case "e":
+		if len(control.checklist) > 0 {
+			control.inputMode = true
+			control.editIndex = control.selection
+			control.input = control.checklist[control.selection].Text
+		}
+	case "D":
+		if len(control.checklist) > 0 {
+			control.checklist = append(control.checklist[:control.selection], control.checklist[control.selection+1:]...)
+			renumberChecklist(control.checklist)
+			control.selection = clampIndex(control.selection, len(control.checklist))
+		}
+	case "J":
+		if control.selection < len(control.checklist)-1 {
+			control.checklist[control.selection], control.checklist[control.selection+1] = control.checklist[control.selection+1], control.checklist[control.selection]
+			control.selection++
+			renumberChecklist(control.checklist)
+		}
+	case "K":
+		if control.selection > 0 {
+			control.checklist[control.selection], control.checklist[control.selection-1] = control.checklist[control.selection-1], control.checklist[control.selection]
+			control.selection--
+			renumberChecklist(control.checklist)
+		}
+	}
+	return model, nil
+}
+
+func (model *Model) handleCommentKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	control := model.form.control
+	runes := []rune(control.value)
+	switch key.String() {
+	case "ctrl+c":
+		return model, tea.Quit
+	case "esc":
+		model.form.control = nil
+	case "ctrl+s":
+		model.form.fields[control.field].value = control.value
+		model.form.control = nil
+		if control.standalone {
+			return model.submitForm()
+		}
+	case "left":
+		control.cursor = max(control.cursor-1, 0)
+	case "right":
+		control.cursor = min(control.cursor+1, len(runes))
+	case "up":
+		control.cursor = verticalCursor(runes, control.cursor, -1)
+	case "down":
+		control.cursor = verticalCursor(runes, control.cursor, 1)
+	case "home":
+		control.cursor = lineStart(runes, control.cursor)
+	case "end":
+		control.cursor = lineEnd(runes, control.cursor)
+	case "backspace":
+		if control.cursor > 0 {
+			runes = append(runes[:control.cursor-1], runes[control.cursor:]...)
+			control.cursor--
+			control.value = string(runes)
+		}
+	case "delete":
+		if control.cursor < len(runes) {
+			control.value = string(append(runes[:control.cursor], runes[control.cursor+1:]...))
+		}
+	case "enter":
+		runes = append(runes[:control.cursor], append([]rune{'\n'}, runes[control.cursor:]...)...)
+		control.cursor++
+		control.value = string(runes)
+	case "tab":
+		runes = append(runes[:control.cursor], append([]rune{'\t'}, runes[control.cursor:]...)...)
+		control.cursor++
+		control.value = string(runes)
+	default:
+		if key.Type == tea.KeyRunes {
+			insert := key.Runes
+			runes = append(runes[:control.cursor], append(insert, runes[control.cursor:]...)...)
+			control.cursor += len(insert)
+			control.value = string(runes)
+		}
+	}
+	return model, nil
+}
+
+func (model *Model) handleDropdownKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	control := model.form.control
+	options := model.form.fields[control.field].options
+	switch key.String() {
+	case "esc":
+		model.form.control = nil
+	case "up", "k", "left", "h":
+		control.selection = max(control.selection-1, 0)
+	case "down", "j", "right", "l", "tab":
+		control.selection = min(control.selection+1, len(options)-1)
+	case "enter", "ctrl+s":
+		if len(options) > 0 {
+			model.form.fields[control.field].value = options[control.selection]
+		}
+		model.form.control = nil
+	}
+	return model, nil
+}
+
+func (model *Model) handleCalendarKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	control := model.form.control
+	switch key.String() {
+	case "esc":
+		model.form.control = nil
+	case "left", "h":
+		control.date = control.date.AddDate(0, 0, -1)
+	case "right", "l":
+		control.date = control.date.AddDate(0, 0, 1)
+	case "up", "k":
+		control.date = control.date.AddDate(0, 0, -7)
+	case "down", "j":
+		control.date = control.date.AddDate(0, 0, 7)
+	case "pgup":
+		control.date = control.date.AddDate(0, -1, 0)
+	case "pgdown":
+		control.date = control.date.AddDate(0, 1, 0)
+	case "x", "delete":
+		model.form.fields[control.field].value = ""
+		model.form.control = nil
+	case "enter", "ctrl+s":
+		model.form.fields[control.field].value = control.date.Format("2006-01-02")
+		model.form.control = nil
+	}
+	return model, nil
+}
+
+func (model *Model) handleLinksKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	control := model.form.control
+	matches := model.linkMatches(control.query)
+	switch key.String() {
+	case "esc":
+		model.form.control = nil
+	case "ctrl+s":
+		ids := []string{}
+		for _, candidate := range model.form.linkCandidates {
+			if control.selected[candidate.id] {
+				ids = append(ids, candidate.id)
+			}
+		}
+		model.form.fields[control.field].value = strings.Join(ids, ",")
+		model.form.control = nil
+	case "up":
+		control.selection = max(control.selection-1, 0)
+	case "down", "tab":
+		control.selection = min(control.selection+1, max(len(matches)-1, 0))
+	case " ":
+		if len(matches) > 0 {
+			id := matches[clampIndex(control.selection, len(matches))].id
+			control.selected[id] = !control.selected[id]
+		}
+	case "enter":
+		if len(matches) > 0 {
+			id := matches[clampIndex(control.selection, len(matches))].id
+			control.selected[id] = !control.selected[id]
+		}
+	case "backspace":
+		runes := []rune(control.query)
+		if len(runes) > 0 {
+			control.query = string(runes[:len(runes)-1])
+			control.selection = 0
+		}
+	default:
+		if key.Type == tea.KeyRunes {
+			control.query += string(key.Runes)
+			control.selection = 0
+		}
+	}
+	return model, nil
+}
+
+func (model *Model) linkMatches(query string) []linkCandidate {
+	query = strings.ToLower(strings.TrimSpace(query))
+	values := []linkCandidate{}
+	for _, candidate := range model.form.linkCandidates {
+		if fuzzyScore(query, strings.ToLower(candidate.label)) >= 0 {
+			values = append(values, candidate)
+		}
+	}
+	return values
+}
+
+func (model *Model) renderFormControl(width, height int) string {
+	control := model.form.control
+	switch control.kind {
+	case commentControl:
+		return model.renderCommentEditor(width, height)
+	case dropdownControl:
+		return model.renderDropdown(width, height)
+	case calendarControl:
+		return model.renderCalendar(width, height)
+	case linksControl:
+		return model.renderLinks(width, height)
+	case checklistControl:
+		return model.renderChecklist(width, height)
+	}
+	return ""
+}
+
+func (model *Model) renderChecklist(width, height int) string {
+	control := model.form.control
+	lines := []string{model.styles.header.Render("Checklist"), model.styles.subtle.Render("a add · e edit · Space toggle · D delete · J/K reorder · Ctrl-S apply"), ""}
+	maxRows := max(height-11, 2)
+	start := max(0, control.selection-maxRows+1)
+	for index := start; index < min(start+maxRows, len(control.checklist)); index++ {
+		item := control.checklist[index]
+		mark := "[ ]"
+		if item.Done {
+			mark = "[x]"
+		}
+		prefix := "  "
+		if index == control.selection {
+			prefix = "> "
+		}
+		lines = append(lines, prefix+mark+" "+item.Text)
+	}
+	if len(control.checklist) == 0 && !control.inputMode {
+		lines = append(lines, model.styles.subtle.Render("No checklist items. Press a to add one."))
+	}
+	if control.inputMode {
+		verb := "Add"
+		if control.editIndex >= 0 {
+			verb = "Edit"
+		}
+		lines = append(lines, "", model.styles.command.Render(verb+": "+control.input+"█"), model.styles.subtle.Render("Enter accept · Esc cancel"))
+	}
+	return centeredControl(model, width, height, 78, strings.Join(lines, "\n"))
+}
+
+func nextChecklistPosition(items []domain.ChecklistItem) float64 {
+	maximum := 0.0
+	for _, item := range items {
+		maximum = max(maximum, item.Position)
+	}
+	return maximum + 1024
+}
+
+func renumberChecklist(items []domain.ChecklistItem) {
+	for index := range items {
+		items[index].Position = float64(index+1) * 1024
+	}
+}
+
+func (model *Model) renderCommentEditor(width, height int) string {
+	control := model.form.control
+	boxWidth := min(86, max(width-4, 28))
+	contentWidth := max(boxWidth-8, 20)
+	visibleHeight := max(height-10, 5)
+	body := lipgloss.NewStyle().Width(contentWidth).Height(visibleHeight).MaxHeight(visibleHeight).Render(editorViewport(control.value, control.cursor, contentWidth, visibleHeight))
+	content := model.styles.header.Render(model.form.fields[control.field].label+" editor") + "\n" + model.styles.subtle.Render("Enter newline · Ctrl-S apply · Esc discard") + "\n\n" + body
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, model.styles.help.Width(boxWidth-6).Render(content))
+}
+
+func (model *Model) renderDropdown(width, height int) string {
+	control := model.form.control
+	field := model.form.fields[control.field]
+	lines := []string{model.styles.header.Render(field.label), model.styles.subtle.Render("Arrows select · Enter apply · Esc cancel"), ""}
+	for index, option := range field.options {
+		prefix := "  "
+		if index == control.selection {
+			prefix = "> "
+		}
+		lines = append(lines, prefix+option)
+	}
+	return centeredControl(model, width, height, 46, strings.Join(lines, "\n"))
+}
+
+func (model *Model) renderCalendar(width, height int) string {
+	selected := model.form.control.date
+	first := time.Date(selected.Year(), selected.Month(), 1, 0, 0, 0, 0, time.Local)
+	start := first.AddDate(0, 0, -int(first.Weekday()))
+	lines := []string{model.styles.header.Render(selected.Format("January 2006")), model.styles.subtle.Render("Arrows day/week · PgUp/PgDn month · Enter apply · x clear"), "Su Mo Tu We Th Fr Sa"}
+	for week := 0; week < 6; week++ {
+		cells := []string{}
+		for day := 0; day < 7; day++ {
+			date := start.AddDate(0, 0, week*7+day)
+			cell := fmt.Sprintf("%2d", date.Day())
+			if date.Month() != selected.Month() {
+				cell = model.styles.subtle.Render(cell)
+			} else if sameDay(date, selected) {
+				cell = model.styles.selected.Copy().Padding(0).Render(cell)
+			}
+			cells = append(cells, cell)
+		}
+		lines = append(lines, strings.Join(cells, " "))
+	}
+	return centeredControl(model, width, height, 54, strings.Join(lines, "\n"))
+}
+
+func (model *Model) renderLinks(width, height int) string {
+	control := model.form.control
+	lines := []string{model.styles.header.Render("Related cards"), model.styles.command.Render("/" + control.query + "█"), model.styles.subtle.Render("Type to filter · Space toggle · Ctrl-S apply · Esc cancel"), ""}
+	if model.form.linksLoading {
+		lines = append(lines, "Loading cards...")
+	} else {
+		matches := model.linkMatches(control.query)
+		for index, candidate := range matches[:min(len(matches), max(height-10, 1))] {
+			mark := "[ ]"
+			if control.selected[candidate.id] {
+				mark = "[x]"
+			}
+			prefix := "  "
+			if index == control.selection {
+				prefix = "> "
+			}
+			lines = append(lines, prefix+mark+" "+candidate.label)
+		}
+	}
+	return centeredControl(model, width, height, 76, strings.Join(lines, "\n"))
+}
+
+func centeredControl(model *Model, width, height, maximum int, content string) string {
+	boxWidth := min(maximum, max(width-4, 24))
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, model.styles.help.Width(max(boxWidth-6, 18)).Render(content))
+}
+
+func verticalCursor(value []rune, cursor, direction int) int {
+	start := lineStart(value, cursor)
+	column := cursor - start
+	if direction < 0 {
+		if start == 0 {
+			return cursor
+		}
+		previousEnd := start - 1
+		previousStart := lineStart(value, previousEnd)
+		return min(previousStart+column, previousEnd)
+	}
+	end := lineEnd(value, cursor)
+	if end >= len(value) {
+		return cursor
+	}
+	nextStart := end + 1
+	return min(nextStart+column, lineEnd(value, nextStart))
+}
+
+func lineStart(value []rune, cursor int) int {
+	for cursor > 0 && value[cursor-1] != '\n' {
+		cursor--
+	}
+	return cursor
+}
+
+func lineEnd(value []rune, cursor int) int {
+	for cursor < len(value) && value[cursor] != '\n' {
+		cursor++
+	}
+	return cursor
+}
+
+func sameDay(left, right time.Time) bool {
+	return left.Year() == right.Year() && left.YearDay() == right.YearDay()
+}
+
+func columnNames(columns []domain.Column) []string {
+	values := make([]string, len(columns))
+	for index, column := range columns {
+		values[index] = column.Name
+	}
+	return values
+}
+
+func selectedCardID(form *formModal, model *Model) string {
+	if form.kind == editCardForm {
+		return model.selectedCard().ID
+	}
+	return ""
+}
+
+func splitIDs(value string) []string {
+	values := []string{}
+	seen := map[string]bool{}
+	for _, part := range strings.Split(value, ",") {
+		id := strings.TrimSpace(part)
+		if id != "" && !seen[id] {
+			seen[id] = true
+			values = append(values, id)
+		}
+	}
+	return values
+}
+
+func (model *Model) startStandaloneCommentEdit() tea.Cmd {
+	switch model.screen {
+	case projectsScreen:
+		if len(model.projects) == 0 {
+			return nil
+		}
+		model.startProjectForm(true)
+	case boardsScreen:
+		if len(model.boards) == 0 {
+			return nil
+		}
+		model.startBoardForm(true)
+	case boardScreen:
+		if len(model.columns) == 0 || model.selectedCard().ID == "" {
+			return nil
+		}
+		command := model.startCardForm(true)
+		model.form.focus = 1
+		model.form.openControl()
+		model.form.control.standalone = true
+		return command
+	}
+	model.form.focus = 1
+	model.form.openControl()
+	model.form.control.standalone = true
+	return nil
+}
+
+func editorViewport(value string, cursor, width, height int) string {
+	width = max(width, 1)
+	runes := []rune(value)
+	lines := []string{}
+	line := []rune{}
+	cursorLine := 0
+	appendRune := func(value rune, atCursor bool) {
+		if len(line) >= width {
+			lines = append(lines, string(line))
+			line = []rune{}
+		}
+		if atCursor {
+			cursorLine = len(lines)
+		}
+		line = append(line, value)
+	}
+	for index, valueRune := range runes {
+		if index == cursor {
+			appendRune('█', true)
+		}
+		if valueRune == '\n' {
+			lines = append(lines, string(line))
+			line = []rune{}
+			continue
+		}
+		if valueRune == '\t' {
+			for range 4 {
+				appendRune(' ', false)
+			}
+			continue
+		}
+		appendRune(valueRune, false)
+	}
+	if cursor == len(runes) {
+		appendRune('█', true)
+	}
+	lines = append(lines, string(line))
+	start := max(cursorLine-height+1, 0)
+	end := min(start+height, len(lines))
+	return strings.Join(lines[start:end], "\n")
+}

@@ -1,0 +1,13 @@
+/bin/
+/dist/
+/backup/
+/.cache/
+coverage.out
+*.db
+*.db-shm
+*.db-wal
+*.lock
+*.log
+.DS_Store
+.idea/
+.vscode/

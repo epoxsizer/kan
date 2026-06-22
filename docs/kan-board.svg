@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+  <rect width="1200" height="700" rx="18" fill="#171724"/>
+  <rect x="20" y="20" width="1160" height="660" rx="12" fill="#202033" stroke="#55557a" stroke-width="2"/>
+  <g font-family="Menlo,Consolas,monospace" fill="#e8e8f2">
+    <text x="48" y="62" font-size="26" font-weight="bold" fill="#7d7aff">kan</text>
+    <text x="110" y="62" font-size="18" fill="#909090">local kanban</text>
+
+    <rect x="45" y="90" width="350" height="500" rx="8" fill="#24243a" stroke="#4c8dff" stroke-width="5"/>
+    <rect x="55" y="102" width="330" height="38" rx="4" fill="#4c8dff"/>
+    <text x="70" y="128" font-size="18" font-weight="bold" fill="#000000">ACTIVE • Backlog  3/10</text>
+    <rect x="65" y="165" width="310" height="48" rx="4" fill="#4c8dff"/>
+    <text x="78" y="195" font-size="16" font-weight="bold" fill="#000000">&gt; M [ux] Review shortcuts [1/2]</text>
+    <text x="78" y="245" font-size="16"><tspan fill="#f59e42">H</tspan> @2026-07-01 Ship release</text>
+    <text x="78" y="285" font-size="16"><tspan fill="#42c77a">L</tspan> Write documentation</text>
+
+    <rect x="425" y="90" width="350" height="500" rx="8" fill="#24243a" stroke="#f59e42" stroke-width="2"/>
+    <text x="450" y="128" font-size="18" font-weight="bold" fill="#f59e42">In Progress  2/10</text>
+    <text x="450" y="185" font-size="16"><tspan fill="#f05b62">U</tspan> Fix import validation</text>
+    <text x="450" y="225" font-size="16"><tspan fill="#4c8dff">M</tspan> Add theme support [2/3]</text>
+
+    <rect x="805" y="90" width="350" height="500" rx="8" fill="#24243a" stroke="#42c77a" stroke-width="2"/>
+    <text x="830" y="128" font-size="18" font-weight="bold" fill="#42c77a">Done  2/10</text>
+    <text x="830" y="185" font-size="16"><tspan fill="#42c77a">L</tspan> SQLite migrations</text>
+    <text x="830" y="225" font-size="16"><tspan fill="#4c8dff">M</tspan> Automated backups</text>
+
+    <rect x="45" y="615" width="390" height="40" rx="4" fill="#5a56e0"/>
+    <text x="62" y="641" font-size="16" font-weight="bold">Projects › Platform › Delivery</text>
+    <text x="460" y="641" font-size="15" fill="#909090">3 columns · 7 cards · sort:position · group:none</text>
+  </g>
+</svg>
