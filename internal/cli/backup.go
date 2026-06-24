@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	storage "github.com/epoxsizer/kan/internal/storage/sqlite"
 	"github.com/spf13/cobra"
-	storage "gitlab.digital-spirit.ru/solutions/common/kan/internal/storage/sqlite"
 )
 
 var backupNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)

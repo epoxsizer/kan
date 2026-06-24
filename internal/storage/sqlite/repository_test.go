@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/epoxsizer/kan/internal/domain"
+	"github.com/epoxsizer/kan/internal/seed"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/seed"
 )
 
 func openTestRepository(t *testing.T) *Repository {

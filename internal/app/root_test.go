@@ -12,9 +12,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/epoxsizer/kan/internal/domain"
+	storagesqlite "github.com/epoxsizer/kan/internal/storage/sqlite"
 	"github.com/stretchr/testify/require"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
-	storagesqlite "gitlab.digital-spirit.ru/solutions/common/kan/internal/storage/sqlite"
 )
 
 type readRepository struct {
@@ -92,6 +92,22 @@ func runCommands(model *Model, command tea.Cmd) {
 	for command != nil {
 		_, command = model.Update(command())
 	}
+}
+
+func lineContainsAll(value string, parts ...string) bool {
+	for _, line := range strings.Split(value, "\n") {
+		matches := true
+		for _, part := range parts {
+			if !strings.Contains(line, part) {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			return true
+		}
+	}
+	return false
 }
 
 func TestPhaseTwoTUIFormsMovementAndPersistence(t *testing.T) {
@@ -197,6 +213,34 @@ func TestPhaseTwoTUIFormsMovementAndPersistence(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
+func TestFormTitlesAcceptSpaceKey(t *testing.T) {
+	tests := []struct {
+		name  string
+		start func(*Model)
+	}{
+		{name: "project", start: func(model *Model) { model.startProjectForm(false) }},
+		{name: "board", start: func(model *Model) { model.startBoardForm(false) }},
+		{name: "column", start: func(model *Model) { model.startColumnForm(false) }},
+		{name: "card", start: func(model *Model) { _ = model.startCardForm(false) }},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			model := testModel(readRepository{})
+			model.project = &domain.Project{ID: "project"}
+			model.board = &domain.Board{ID: "board", ProjectID: "project"}
+			model.columns = []domain.Column{{ID: "column", BoardID: "board", Name: "Backlog"}}
+			test.start(model)
+
+			model.Update(key("Release"))
+			model.Update(tea.KeyMsg{Type: tea.KeySpace})
+			model.Update(key("Planning"))
+
+			require.Equal(t, "Release Planning", model.form.fields[0].value)
+		})
+	}
+}
+
 func TestTypedFormDefaultsSelectorsCalendarAndCommentEditor(t *testing.T) {
 	model := testModel(readRepository{})
 	model.loading = false
@@ -219,7 +263,9 @@ func TestTypedFormDefaultsSelectorsCalendarAndCommentEditor(t *testing.T) {
 
 	model.form.focus = 1
 	model.Update(key("enter"))
-	model.Update(key("alpha beta"))
+	model.Update(key("alpha"))
+	model.Update(tea.KeyMsg{Type: tea.KeySpace})
+	model.Update(key("beta"))
 	model.Update(key("enter"))
 	model.Update(key("gamma"))
 	model.Update(key("tab"))
@@ -240,12 +286,21 @@ func TestTypedFormDefaultsSelectorsCalendarAndCommentEditor(t *testing.T) {
 	model.Update(key("enter"))
 	require.Equal(t, before.AddDate(0, 0, 1).Format("2006-01-02"), model.form.fields[4].value)
 
+	model.form.focus = 5
+	model.Update(key("release,"))
+	model.Update(tea.KeyMsg{Type: tea.KeySpace})
+	model.Update(key("urgent fix"))
+	require.Equal(t, "release, urgent fix", model.form.fields[5].value)
+
 	model.form.linkCandidates = []linkCandidate{{id: "related", label: "Other board / Related card"}}
 	model.form.linksLoading = false
 	model.form.focus = 6
 	model.Update(key("enter"))
-	model.Update(key("Related"))
-	model.Update(key(" "))
+	model.Update(key("Other"))
+	model.Update(tea.KeyMsg{Type: tea.KeySpace})
+	model.Update(key("board"))
+	require.Equal(t, "Other board", model.form.control.query)
+	model.Update(key("enter"))
 	model.Update(key("ctrl+s"))
 	require.Equal(t, "related", model.form.fields[6].value)
 
@@ -484,6 +539,115 @@ func TestCommandPaletteArrowSelection(t *testing.T) {
 	require.Equal(t, boardsScreen, model.screen)
 }
 
+func TestLayoutCommandSwitchesProjectsAndBoardsBetweenTableAndCards(t *testing.T) {
+	model := testModel(readRepository{})
+	model.loading = false
+	model.projects = []domain.Project{
+		{ID: "project", Name: "Platform", Description: "Internal tooling"},
+		{ID: "console", Name: "Console", Description: "Operator UI"},
+	}
+	model.projectCounts["project"] = 2
+	model.projectCounts["console"] = 1
+
+	tableView := model.View()
+	require.Contains(t, tableView, "NAME")
+	require.Contains(t, tableView, "BOARDS")
+	require.Contains(t, tableView, "layout:table")
+
+	model.executeCommand("layout cards")
+	cardsView := model.View()
+	require.NotContains(t, cardsView, "COMMENTS")
+	require.Contains(t, cardsView, "Platform")
+	require.Contains(t, cardsView, "Console")
+	require.Contains(t, cardsView, "Boards: 2")
+	require.True(t, lineContainsAll(cardsView, "Platform", "Console"))
+	require.Contains(t, cardsView, "Layout: cards")
+
+	model.screen = boardsScreen
+	model.project = &domain.Project{ID: "project", Name: "Platform"}
+	model.boards = []domain.Board{{ID: "board", ProjectID: "project", Name: "Delivery", Description: "Release work"}}
+	model.boardCounts["board"] = 7
+	boardCardsView := model.View()
+	require.Contains(t, boardCardsView, "Delivery")
+	require.Contains(t, boardCardsView, "Cards: 7")
+
+	model.executeCommand("layout table")
+	boardTableView := model.View()
+	require.Contains(t, boardTableView, "NAME")
+	require.Contains(t, boardTableView, "CARDS")
+	require.Contains(t, boardTableView, "Layout: table")
+}
+
+func TestCommandPaletteAcceptsLayoutCommandWithSpace(t *testing.T) {
+	model := testModel(readRepository{})
+	model.loading = false
+	_, indexCommand := model.Update(key(":"))
+	model.Update(indexCommand())
+	for _, character := range "layout" {
+		model.Update(key(string(character)))
+	}
+	model.Update(tea.KeyMsg{Type: tea.KeySpace})
+	for _, character := range "cards" {
+		model.Update(key(string(character)))
+	}
+	require.Contains(t, model.View(), ":layout cards")
+
+	model.Update(key("enter"))
+	require.Equal(t, cardsLayout, model.listLayout)
+	require.Equal(t, "Layout: cards", model.notice)
+}
+
+func TestCardLayoutNavigationUsesGridDirections(t *testing.T) {
+	model := testModel(readRepository{})
+	model.loading = false
+	model.listLayout = cardsLayout
+	model.width = 80
+	model.projects = []domain.Project{
+		{ID: "one", Name: "One"},
+		{ID: "two", Name: "Two"},
+		{ID: "three", Name: "Three"},
+		{ID: "four", Name: "Four"},
+	}
+
+	model.Update(key("right"))
+	require.Equal(t, 1, model.projectIndex)
+	model.Update(key("left"))
+	require.Equal(t, 0, model.projectIndex)
+	model.Update(key("down"))
+	require.Equal(t, 3, model.projectIndex)
+	model.Update(key("up"))
+	require.Equal(t, 0, model.projectIndex)
+
+	_, command := model.Update(key("right"))
+	require.Nil(t, command)
+	require.Equal(t, projectsScreen, model.screen)
+	_, command = model.Update(key("enter"))
+	require.NotNil(t, command)
+	require.Equal(t, boardsScreen, model.screen)
+	require.Equal(t, "Two", model.project.Name)
+
+	model.loading = false
+	model.listLayout = cardsLayout
+	model.boards = []domain.Board{
+		{ID: "alpha", ProjectID: "one", Name: "Alpha"},
+		{ID: "beta", ProjectID: "one", Name: "Beta"},
+		{ID: "gamma", ProjectID: "one", Name: "Gamma"},
+		{ID: "delta", ProjectID: "one", Name: "Delta"},
+	}
+	model.boardIndex = 0
+	_, command = model.Update(key("right"))
+	require.Nil(t, command)
+	require.Equal(t, 1, model.boardIndex)
+	model.Update(key("down"))
+	require.Equal(t, 3, model.boardIndex)
+	model.Update(key("left"))
+	require.Equal(t, 2, model.boardIndex)
+	_, command = model.Update(key("enter"))
+	require.NotNil(t, command)
+	require.Equal(t, boardScreen, model.screen)
+	require.Equal(t, "Gamma", model.board.Name)
+}
+
 func TestCommandPaletteSearchesAndOpensCards(t *testing.T) {
 	repo := readRepository{
 		projects: []domain.Project{{ID: "project", Name: "Platform"}},
@@ -576,16 +740,17 @@ func TestEmptyHierarchyStates(t *testing.T) {
 	require.Contains(t, model.View(), "no columns")
 }
 
-func TestContextualShortcutHelpStaysOnBottomRow(t *testing.T) {
+func TestContextualShortcutHelpStaysAboveBottomPadding(t *testing.T) {
 	model := testModel(readRepository{})
 	model.loading = false
 	model.projects = []domain.Project{{ID: "project", Name: "Project"}}
 	view := model.View()
 	lines := strings.Split(view, "\n")
 	require.Equal(t, 24, lipgloss.Height(view))
-	bottom := lines[len(lines)-1]
-	for _, value := range []string{"<?>Help", "<:>Cmd", "<q>Quit", "<j/k>Navigate", "<Enter>Open"} {
-		require.Contains(t, bottom, value)
+	require.Empty(t, lines[len(lines)-1])
+	shortcutLine := lines[len(lines)-2]
+	for _, value := range []string{"<?> Help", "<:> Cmd", "<q> Quit", "<j/k> Navigate", "<Enter> Open"} {
+		require.Contains(t, shortcutLine, value)
 	}
 
 	model.screen = boardScreen
@@ -593,16 +758,17 @@ func TestContextualShortcutHelpStaysOnBottomRow(t *testing.T) {
 	model.columns = []domain.Column{{ID: "todo", Name: "Todo"}}
 	view = model.View()
 	lines = strings.Split(view, "\n")
-	bottom = lines[len(lines)-1]
-	require.Contains(t, bottom, "<j/k>Card")
-	require.Contains(t, bottom, "<h/l>Column")
+	require.Empty(t, lines[len(lines)-1])
+	shortcutLine = lines[len(lines)-2]
+	require.Contains(t, shortcutLine, "<j/k> Card")
+	require.Contains(t, shortcutLine, "<h/l> Column")
 	require.Equal(t, 24, lipgloss.Height(view))
 
 	model.filterMode = true
 	view = model.View()
 	lines = strings.Split(view, "\n")
-	bottom = lines[len(lines)-1]
-	require.Contains(t, bottom, "<Ctrl-U>Clear")
+	shortcutLine = lines[len(lines)-1]
+	require.Contains(t, shortcutLine, "<Ctrl-U> Clear")
 }
 
 func TestWideBoardHorizontallyFollowsFocus(t *testing.T) {
@@ -709,6 +875,7 @@ func TestDetailPopupForCardAndEmptyColumn(t *testing.T) {
 	for _, value := range []string{"Ship release", "CARD", "Status: In Progress", "Agent-owned task", "Priority: high", "2026-07-01", "release, urgent", "owner [text]: \"Ada\""} {
 		require.Contains(t, view, value)
 	}
+	require.Contains(t, view, "e edit")
 	model.Update(key("enter"))
 	require.Nil(t, model.detail)
 
@@ -718,4 +885,26 @@ func TestDetailPopupForCardAndEmptyColumn(t *testing.T) {
 	for _, value := range []string{"Done", "COLUMN", "Cards: 0", "WIP limit: none"} {
 		require.Contains(t, view, value)
 	}
+}
+
+func TestCardDetailCanOpenEditForm(t *testing.T) {
+	model := testModel(readRepository{})
+	model.loading = false
+	model.project = &domain.Project{ID: "project"}
+	model.board = &domain.Board{ID: "board", ProjectID: "project"}
+	model.screen = boardScreen
+	model.columns = []domain.Column{{ID: "doing", BoardID: "board", Name: "In Progress"}}
+	model.cards["doing"] = []domain.Card{{ID: "card-id", BoardID: "board", ColumnID: "doing", Title: "Ship release", Description: "Edit from detail"}}
+
+	model.Update(key("enter"))
+	require.NotNil(t, model.detail)
+	require.Equal(t, "card", model.detail.kind)
+
+	_, command := model.Update(key("e"))
+	require.Nil(t, model.detail)
+	require.NotNil(t, model.form)
+	require.Equal(t, editCardForm, model.form.kind)
+	require.Equal(t, "Ship release", model.form.fields[0].value)
+	require.Equal(t, "Edit from detail", model.form.fields[1].value)
+	require.NotNil(t, command)
 }

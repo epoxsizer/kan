@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/cli"
+	"github.com/epoxsizer/kan/internal/cli"
 )
 
 var (

@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache: true
+
+      - name: Verify modules
+        run: go mod verify
+
+      - name: Format check
+        run: test -z "$(gofmt -l cmd internal)"
+
+      - name: Vet
+        run: CGO_ENABLED=0 go vet ./...
+
+      - name: Test
+        run: CGO_ENABLED=0 go test -coverprofile=coverage.out ./...
+
+      - name: Build
+        run: CGO_ENABLED=0 go build -trimpath -o bin/kan ./cmd/kan

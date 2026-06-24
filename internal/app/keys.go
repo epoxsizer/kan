@@ -23,7 +23,7 @@ FORMS
   Enter/Ctrl-S   open field / save; Esc cancels
 GENERAL
   ?              toggle help
-  :              fuzzy search commands and all objects
+  :              fuzzy search; layout table/cards
   q/Ctrl-C       quit`
 
 func (model *Model) renderHelpText() string {

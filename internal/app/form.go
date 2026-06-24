@@ -9,7 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
+	"github.com/epoxsizer/kan/internal/domain"
 )
 
 type formKind uint8
@@ -181,6 +181,10 @@ func (model *Model) handleFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "ctrl+u":
 		form.fields[form.focus].value = ""
+	case " ":
+		if form.fields[form.focus].kind == textField {
+			form.fields[form.focus].value += " "
+		}
 	default:
 		if key.Type == tea.KeyRunes && form.fields[form.focus].kind == textField {
 			form.fields[form.focus].value += string(key.Runes)

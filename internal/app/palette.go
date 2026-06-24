@@ -33,6 +33,9 @@ var commandCatalog = []commandSpec{
 	{name: "new-column", description: "Create a column on the current board"},
 	{name: "sort", description: "Cycle card sorting on the current board"},
 	{name: "group", description: "Cycle card grouping on the current board"},
+	{name: "layout", description: "Toggle project and board list layout"},
+	{name: "layout table", description: "Show projects and boards as tables"},
+	{name: "layout cards", description: "Show projects and boards as card lists"},
 }
 
 func (model *Model) paletteMatches() []paletteMatch {

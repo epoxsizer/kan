@@ -18,5 +18,5 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Theme configuration, inline shortcut help, and accessible empty states.
 - Scriptable CLI commands for projects, boards, columns, cards, and data exchange.
 
-[Unreleased]: https://gitlab.digital-spirit.ru/solutions/common/kan/-/compare/v0.1.0...main
-[0.1.0]: https://gitlab.digital-spirit.ru/solutions/common/kan/-/releases/v0.1.0
+[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.0...main
+[0.1.0]: https://github.com/epoxsizer/kan/releases/tag/v0.1.0

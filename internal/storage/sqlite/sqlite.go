@@ -9,8 +9,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/config"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
+	"github.com/epoxsizer/kan/internal/config"
+	"github.com/epoxsizer/kan/internal/domain"
 )
 
 type Repository struct {

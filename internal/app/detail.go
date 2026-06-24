@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
+	"github.com/epoxsizer/kan/internal/domain"
 )
 
 type detailPopup struct {
@@ -154,7 +154,11 @@ func (model *Model) renderDetailPopup(width, height int) string {
 		}
 		lines = append(lines, truncate(line, contentWidth))
 	}
-	lines = append(lines, "", model.styles.subtle.Render("Esc / d / Enter close"))
+	hint := "Esc / d / Enter close"
+	if model.detail.kind == "card" {
+		hint += " · e edit"
+	}
+	lines = append(lines, "", model.styles.subtle.Render(hint))
 	popup := model.styles.help.Width(innerWidth).Render(strings.Join(lines, "\n"))
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, popup)
 }

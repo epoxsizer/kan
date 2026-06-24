@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
+	"github.com/epoxsizer/kan/internal/domain"
 )
 
 const (

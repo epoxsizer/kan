@@ -1,6 +1,6 @@
 package app
 
-import "gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
+import "github.com/epoxsizer/kan/internal/domain"
 
 type projectsLoadedMsg struct {
 	projects []domain.Project

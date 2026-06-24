@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/epoxsizer/kan/internal/domain"
 	"github.com/spf13/cobra"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
 )
 
 const positionSpacing = 1024.0

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sort"
 
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
+	"github.com/epoxsizer/kan/internal/domain"
 )
 
 const cardColumns = `c.id,c.board_id,c.column_id,c.title,c.description,c.position,c.priority,c.due_date,c.tags,c.fields,c.checklist,c.created_at,c.updated_at,c.deleted_at`

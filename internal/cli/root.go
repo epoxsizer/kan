@@ -9,12 +9,12 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/epoxsizer/kan/internal/app"
+	"github.com/epoxsizer/kan/internal/config"
+	"github.com/epoxsizer/kan/internal/logging"
+	"github.com/epoxsizer/kan/internal/seed"
+	storage "github.com/epoxsizer/kan/internal/storage/sqlite"
 	"github.com/spf13/cobra"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/app"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/config"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/logging"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/seed"
-	storage "gitlab.digital-spirit.ru/solutions/common/kan/internal/storage/sqlite"
 )
 
 type options struct {

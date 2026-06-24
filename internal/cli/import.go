@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/epoxsizer/kan/internal/domain"
+	storage "github.com/epoxsizer/kan/internal/storage/sqlite"
 	"github.com/spf13/cobra"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
-	storage "gitlab.digital-spirit.ru/solutions/common/kan/internal/storage/sqlite"
 )
 
 func newImportCommand(opts *options) *cobra.Command {

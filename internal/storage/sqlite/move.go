@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
+	"github.com/epoxsizer/kan/internal/domain"
 )
 
 const positionSpacing = 1024.0

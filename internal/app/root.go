@@ -8,7 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
+	"github.com/epoxsizer/kan/internal/domain"
 )
 
 type screen uint8
@@ -18,6 +18,22 @@ const (
 	boardsScreen
 	boardScreen
 )
+
+type listLayout uint8
+
+const (
+	tableLayout listLayout = iota
+	cardsLayout
+)
+
+func (layout listLayout) String() string {
+	switch layout {
+	case cardsLayout:
+		return "cards"
+	default:
+		return "table"
+	}
+}
 
 type Model struct {
 	ctx    context.Context
@@ -43,6 +59,7 @@ type Model struct {
 	filteredCards map[string][]domain.Card
 	sortMode      cardSort
 	groupMode     cardGroup
+	listLayout    listLayout
 
 	commandMode    bool
 	command        string
@@ -231,6 +248,10 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch key.String() {
 		case "q":
 			return model, tea.Quit
+		case "e":
+			if model.detail.kind == "card" {
+				return model.openSelectedCardEdit()
+			}
 		case "esc", "d", "enter":
 			model.detail = nil
 		}
@@ -301,23 +322,25 @@ func (model *Model) handleProjectsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			model.confirm = &confirmModal{kind: deleteProject, title: "Delete project?", message: "Delete " + project.Name + " and all nested data?", id: project.ID}
 		}
 	case "j", "down":
-		model.projectIndex = min(model.projectIndex+1, len(model.projects)-1)
+		model.projectIndex = model.moveListSelection(model.projectIndex, len(model.projects), 1, 0)
 	case "k", "up":
-		model.projectIndex = max(model.projectIndex-1, 0)
+		model.projectIndex = model.moveListSelection(model.projectIndex, len(model.projects), -1, 0)
+	case "l", "right":
+		if model.listLayout == cardsLayout {
+			model.projectIndex = model.moveListSelection(model.projectIndex, len(model.projects), 0, 1)
+			return model, nil
+		}
+		return model.openSelectedProject()
+	case "h", "left":
+		if model.listLayout == cardsLayout {
+			model.projectIndex = model.moveListSelection(model.projectIndex, len(model.projects), 0, -1)
+		}
 	case "g", "home":
 		model.projectIndex = 0
 	case "G", "end":
 		model.projectIndex = max(len(model.projects)-1, 0)
-	case "enter", "l", "right":
-		if len(model.projects) == 0 {
-			return model, nil
-		}
-		selected := model.projects[model.projectIndex]
-		model.project = &selected
-		model.screen = boardsScreen
-		model.loading = true
-		model.err = nil
-		return model, loadBoards(model.ctx, model.repo, selected.ID)
+	case "enter":
+		return model.openSelectedProject()
 	}
 	return model, nil
 }
@@ -336,28 +359,68 @@ func (model *Model) handleBoardsKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			model.confirm = &confirmModal{kind: deleteBoard, title: "Delete board?", message: "Delete " + board.Name + " and all columns/cards?", id: board.ID}
 		}
 	case "j", "down":
-		model.boardIndex = min(model.boardIndex+1, len(model.boards)-1)
+		model.boardIndex = model.moveListSelection(model.boardIndex, len(model.boards), 1, 0)
 	case "k", "up":
-		model.boardIndex = max(model.boardIndex-1, 0)
+		model.boardIndex = model.moveListSelection(model.boardIndex, len(model.boards), -1, 0)
+	case "l", "right":
+		if model.listLayout == cardsLayout {
+			model.boardIndex = model.moveListSelection(model.boardIndex, len(model.boards), 0, 1)
+			return model, nil
+		}
+		return model.openSelectedBoard()
 	case "g", "home":
 		model.boardIndex = 0
 	case "G", "end":
 		model.boardIndex = max(len(model.boards)-1, 0)
-	case "enter", "l", "right":
-		if len(model.boards) == 0 {
+	case "enter":
+		return model.openSelectedBoard()
+	case "h", "left":
+		if model.listLayout == cardsLayout {
+			model.boardIndex = model.moveListSelection(model.boardIndex, len(model.boards), 0, -1)
 			return model, nil
 		}
-		selected := model.boards[model.boardIndex]
-		model.board = &selected
-		model.clearBoardFilter()
-		model.screen = boardScreen
-		model.loading = true
-		model.err = nil
-		return model, loadBoard(model.ctx, model.repo, selected.ID)
-	case "h", "left":
 		return model.goBack()
 	}
 	return model, nil
+}
+
+func (model *Model) openSelectedProject() (tea.Model, tea.Cmd) {
+	if len(model.projects) == 0 {
+		return model, nil
+	}
+	selected := model.projects[model.projectIndex]
+	model.project = &selected
+	model.screen = boardsScreen
+	model.loading = true
+	model.err = nil
+	return model, loadBoards(model.ctx, model.repo, selected.ID)
+}
+
+func (model *Model) openSelectedBoard() (tea.Model, tea.Cmd) {
+	if len(model.boards) == 0 {
+		return model, nil
+	}
+	selected := model.boards[model.boardIndex]
+	model.board = &selected
+	model.clearBoardFilter()
+	model.screen = boardScreen
+	model.loading = true
+	model.err = nil
+	return model, loadBoard(model.ctx, model.repo, selected.ID)
+}
+
+func (model *Model) moveListSelection(index, total, rowDelta, columnDelta int) int {
+	if total == 0 {
+		return 0
+	}
+	if model.listLayout != cardsLayout {
+		return clampIndex(index+rowDelta, total)
+	}
+	columns := cardLayoutColumns(model.width)
+	if rowDelta != 0 {
+		return clampIndex(index+(rowDelta*columns), total)
+	}
+	return clampIndex(index+columnDelta, total)
 }
 
 func (model *Model) handleBoardKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -427,6 +490,14 @@ func (model *Model) handleBoardKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return model, nil
 }
 
+func (model *Model) openSelectedCardEdit() (tea.Model, tea.Cmd) {
+	if model.screen != boardScreen || len(model.columns) == 0 || model.selectedCard().ID == "" {
+		return model, nil
+	}
+	model.detail = nil
+	return model, model.startCardForm(true)
+}
+
 func (model *Model) handleCommandKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.Type {
 	case tea.KeyEsc:
@@ -453,6 +524,9 @@ func (model *Model) handleCommandKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(runes) > 0 {
 			model.command = string(runes[:len(runes)-1])
 		}
+		model.commandIndex = 0
+	case tea.KeySpace:
+		model.command += " "
 		model.commandIndex = 0
 	case tea.KeyRunes:
 		model.command += string(key.Runes)
@@ -580,6 +654,19 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		model.cycleGroup()
+	case "layout":
+		if model.listLayout == tableLayout {
+			model.listLayout = cardsLayout
+		} else {
+			model.listLayout = tableLayout
+		}
+		model.notice = "Layout: " + model.listLayout.String()
+	case "layout table":
+		model.listLayout = tableLayout
+		model.notice = "Layout: table"
+	case "layout cards":
+		model.listLayout = cardsLayout
+		model.notice = "Layout: cards"
 	case "help", "?":
 		model.help = true
 	case "project", "projects":
@@ -643,7 +730,7 @@ func (model *Model) View() string {
 	}
 
 	header := model.renderHeader(width)
-	contentHeight := max(height-3, 1)
+	contentHeight := max(height-4, 1)
 	var content string
 	if model.loading {
 		content = model.styles.subtle.Render("Loading...")
@@ -688,6 +775,9 @@ func (model *Model) renderProjects(width int) string {
 	for index, project := range model.projects {
 		rows = append(rows, tableRow{name: project.Name, comments: project.Description, items: model.projectCounts[project.ID], selected: index == model.projectIndex})
 	}
+	if model.listLayout == cardsLayout {
+		return model.renderListCards("Projects", "Boards", rows, width)
+	}
 	return model.renderTable("Projects", "BOARDS", rows, width)
 }
 
@@ -698,6 +788,9 @@ func (model *Model) renderBoards(width int) string {
 	rows := make([]tableRow, 0, len(model.boards))
 	for index, board := range model.boards {
 		rows = append(rows, tableRow{name: board.Name, comments: board.Description, items: model.boardCounts[board.ID], selected: index == model.boardIndex})
+	}
+	if model.listLayout == cardsLayout {
+		return model.renderListCards("Boards", "Cards", rows, width)
 	}
 	return model.renderTable("Boards", "CARDS", rows, width)
 }
@@ -862,7 +955,9 @@ func (model *Model) renderStatus(width int) string {
 	count := fmt.Sprintf("%d projects", len(model.projects))
 	if model.screen >= boardsScreen && model.project != nil {
 		breadcrumb += " › " + model.project.Name
-		count = fmt.Sprintf("%d boards", len(model.boards))
+		count = fmt.Sprintf("%d boards · layout:%s", len(model.boards), model.listLayout.String())
+	} else {
+		count += " · layout:" + model.listLayout.String()
 	}
 	if model.screen == boardScreen && model.board != nil {
 		breadcrumb += " › " + model.board.Name
@@ -886,7 +981,7 @@ func (model *Model) renderStatus(width int) string {
 	right := model.styles.status.Render(truncate(count, max(width-lipgloss.Width(left)-2, 1)))
 	gap := max(width-lipgloss.Width(left)-lipgloss.Width(right), 0)
 	info := left + strings.Repeat(" ", gap) + right
-	return info + "\n" + model.renderShortcutBar(width)
+	return info + "\n" + model.renderShortcutBar(width) + "\n"
 }
 
 type shortcut struct {
@@ -909,7 +1004,7 @@ func (model *Model) renderShortcutBar(width int) string {
 	}
 	line := ""
 	for _, item := range shortcuts {
-		token := model.styles.shortcutKey.Render("<"+item.key+">") + model.styles.shortcutText.Render(item.label) + " "
+		token := model.styles.shortcutKey.Render("<"+item.key+">") + model.styles.shortcutText.Render(" "+item.label) + "   "
 		if lipgloss.Width(line)+lipgloss.Width(token) > width {
 			break
 		}

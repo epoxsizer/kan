@@ -1,8 +1,8 @@
 # kan
 
-[![pipeline status](https://gitlab.digital-spirit.ru/solutions/common/kan/badges/main/pipeline.svg)](https://gitlab.digital-spirit.ru/solutions/common/kan/-/pipelines)
-[![latest release](https://gitlab.digital-spirit.ru/solutions/common/kan/-/badges/release.svg)](https://gitlab.digital-spirit.ru/solutions/common/kan/-/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Проверка](https://github.com/epoxsizer/kan/actions/workflows/ci.yml/badge.svg)](https://github.com/epoxsizer/kan/actions/workflows/ci.yml)
+[![Релиз](https://github.com/epoxsizer/kan/actions/workflows/release.yml/badge.svg)](https://github.com/epoxsizer/kan/actions/workflows/release.yml)
+[![Лицензия: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 `kan` - локальный трекер задач с интерфейсом в терминале. Он хранит данные в
 SQLite и не требует сервера, регистрации или подключения к интернету.
@@ -30,7 +30,7 @@ SQLite и не требует сервера, регистрации или по
 Требуется Go 1.22 или новее.
 
 ```sh
-git clone https://gitlab.digital-spirit.ru/solutions/common/kan.git
+git clone https://github.com/epoxsizer/kan.git
 cd kan
 make build
 ./bin/kan seed
@@ -51,16 +51,14 @@ make build
 ## Установка готового релиза
 
 Скачайте архив для Linux, macOS или Windows из раздела
-[GitLab Releases](https://gitlab.digital-spirit.ru/solutions/common/kan/-/releases),
+[релизов GitHub](https://github.com/epoxsizer/kan/releases),
 проверьте файл по `checksums.txt` и поместите бинарник `kan` в каталог из
 переменной `PATH`.
 
-Также приложение можно установить через Go. Для приватного GitLab сначала
-настройте Git-аутентификацию:
+Также приложение можно установить через Go:
 
 ```sh
-GOPRIVATE=gitlab.digital-spirit.ru \
-  go install gitlab.digital-spirit.ru/solutions/common/kan/cmd/kan@latest
+go install github.com/epoxsizer/kan/cmd/kan@latest
 ```
 
 ## Основные клавиши
@@ -77,6 +75,8 @@ GOPRIVATE=gitlab.digital-spirit.ru \
 | `J`, `K` | Изменить порядок карточек |
 | `/` | Поиск по текущей доске |
 | `:` | Командная строка и общий нечёткий поиск |
+| `:layout table` | Показать проекты и доски таблицей |
+| `:layout cards` | Показать проекты и доски списком карточек |
 | `?` | Полная справка |
 | `Esc` | Назад или отмена |
 | `q`, `Ctrl-C` | Выход |
@@ -85,8 +85,10 @@ GOPRIVATE=gitlab.digital-spirit.ru \
 
 ## Команды CLI
 
-Приложение можно использовать без TUI из shell-скриптов, CI и агентов.
-Успешные команды управления данными возвращают JSON в stdout.
+Приложение можно использовать без терминального интерфейса из командных
+сценариев, автоматических проверок и агентов. Успешные команды управления
+данными возвращают JSON в стандартный вывод. Названия и заголовки с пробелами
+необходимо заключать в кавычки.
 
 ```sh
 kan project list
@@ -108,8 +110,8 @@ kan card --help
 kan card create --help
 ```
 
-Не запускайте команды записи одновременно с TUI: блокировка базы защищает её
-от параллельных изменений.
+Не запускайте команды записи одновременно с терминальным интерфейсом: блокировка
+базы защищает её от параллельных изменений.
 
 ## Импорт, экспорт и резервные копии
 
@@ -121,8 +123,8 @@ kan import kan-export.json
 ```
 
 Ручные и автоматические копии сохраняются в каталоге `backup/` относительно
-текущего рабочего каталога. Во время работы TUI автоматическая копия создаётся
-примерно раз в шесть часов.
+текущего рабочего каталога. Во время работы терминального интерфейса
+автоматическая копия создаётся примерно раз в шесть часов.
 
 ## Пути данных
 
@@ -148,7 +150,7 @@ make build     # bin/kan
 make cross-build # Linux, macOS и Windows для amd64/arm64
 ```
 
-Сборка выполняется с `CGO_ENABLED=0` и использует чистый Go-драйвер SQLite.
+Сборка выполняется с `CGO_ENABLED=0` и использует SQLite-драйвер на чистом Go.
 
 Проект распространяется по лицензии [MIT](LICENSE). Правила участия описаны в
 [CONTRIBUTING.md](CONTRIBUTING.md), сообщения об уязвимостях - в

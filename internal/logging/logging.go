@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/config"
+	"github.com/epoxsizer/kan/internal/config"
 )
 
 func Open(path, level string) (*slog.Logger, io.Closer, error) {

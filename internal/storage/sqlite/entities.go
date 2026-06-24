@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
+	"github.com/epoxsizer/kan/internal/domain"
 )
 
 func (repo *Repository) CreateProject(ctx context.Context, value *domain.Project) error {

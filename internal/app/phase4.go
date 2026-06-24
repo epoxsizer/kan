@@ -8,7 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
+	"github.com/epoxsizer/kan/internal/domain"
 )
 
 type cardSort uint8

@@ -1,4 +1,4 @@
-module gitlab.digital-spirit.ru/solutions/common/kan
+module github.com/epoxsizer/kan
 
 go 1.22
 

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/epoxsizer/kan/internal/domain"
 	"github.com/google/uuid"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
 )
 
 const timestampFormat = time.RFC3339Nano

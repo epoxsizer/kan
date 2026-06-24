@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/epoxsizer/kan/internal/domain"
 	"github.com/stretchr/testify/require"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
 )
 
 func TestMigrateSeedAndVersionCommands(t *testing.T) {

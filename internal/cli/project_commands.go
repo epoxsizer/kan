@@ -3,8 +3,8 @@ package cli
 import (
 	"context"
 
+	"github.com/epoxsizer/kan/internal/domain"
 	"github.com/spf13/cobra"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
 )
 
 func newProjectCommand(opts *options) *cobra.Command {

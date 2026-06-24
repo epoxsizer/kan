@@ -11,8 +11,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/epoxsizer/kan/internal/domain"
 	"github.com/google/uuid"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
 )
 
 type controlKind uint8
@@ -249,6 +249,10 @@ func (model *Model) handleCommentKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		runes = append(runes[:control.cursor], append([]rune{'\t'}, runes[control.cursor:]...)...)
 		control.cursor++
 		control.value = string(runes)
+	case " ":
+		runes = append(runes[:control.cursor], append([]rune{' '}, runes[control.cursor:]...)...)
+		control.cursor++
+		control.value = string(runes)
 	default:
 		if key.Type == tea.KeyRunes {
 			insert := key.Runes
@@ -325,11 +329,6 @@ func (model *Model) handleLinksKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		control.selection = max(control.selection-1, 0)
 	case "down", "tab":
 		control.selection = min(control.selection+1, max(len(matches)-1, 0))
-	case " ":
-		if len(matches) > 0 {
-			id := matches[clampIndex(control.selection, len(matches))].id
-			control.selected[id] = !control.selected[id]
-		}
 	case "enter":
 		if len(matches) > 0 {
 			id := matches[clampIndex(control.selection, len(matches))].id
@@ -341,6 +340,9 @@ func (model *Model) handleLinksKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			control.query = string(runes[:len(runes)-1])
 			control.selection = 0
 		}
+	case " ":
+		control.query += " "
+		control.selection = 0
 	default:
 		if key.Type == tea.KeyRunes {
 			control.query += string(key.Runes)
@@ -470,7 +472,7 @@ func (model *Model) renderCalendar(width, height int) string {
 
 func (model *Model) renderLinks(width, height int) string {
 	control := model.form.control
-	lines := []string{model.styles.header.Render("Related cards"), model.styles.command.Render("/" + control.query + "█"), model.styles.subtle.Render("Type to filter · Space toggle · Ctrl-S apply · Esc cancel"), ""}
+	lines := []string{model.styles.header.Render("Related cards"), model.styles.command.Render("/" + control.query + "█"), model.styles.subtle.Render("Type to filter · Enter toggle · Ctrl-S apply · Esc cancel"), ""}
 	if model.form.linksLoading {
 		lines = append(lines, "Loading cards...")
 	} else {

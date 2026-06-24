@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/epoxsizer/kan/internal/config"
+	"github.com/epoxsizer/kan/internal/domain"
 	"github.com/google/uuid"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/config"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
 )
 
 func (repo *Repository) Backup(ctx context.Context, destination string) error {

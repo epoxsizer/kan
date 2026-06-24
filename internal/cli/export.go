@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/epoxsizer/kan/internal/config"
+	"github.com/epoxsizer/kan/internal/domain"
 	"github.com/spf13/cobra"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/config"
-	"gitlab.digital-spirit.ru/solutions/common/kan/internal/domain"
 )
 
 func newExportCommand(opts *options) *cobra.Command {
