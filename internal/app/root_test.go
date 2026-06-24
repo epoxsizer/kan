@@ -951,6 +951,23 @@ func TestDetailPopupForCardAndEmptyColumn(t *testing.T) {
 	}
 }
 
+func TestDetailPopupShowsFullMultilineComments(t *testing.T) {
+	model := testModel(readRepository{})
+	model.loading = false
+	model.projects = []domain.Project{{
+		ID:          "project-id",
+		Name:        "Platform",
+		Description: "This is a long comment that should wrap across multiple lines without being replaced by an ellipsis.\nSecond line keeps exact text visible.",
+	}}
+	model.Update(key("d"))
+	view := model.View()
+
+	for _, value := range []string{"This is a long comment", "multiple lines without being replaced", "by an ellipsis.", "Second line keeps exact text visible"} {
+		require.Contains(t, view, value)
+	}
+	require.NotContains(t, view, "This is a long comment that should wrap across multiple lines without being replaced by an ellipsis.…")
+}
+
 func TestCardDetailCanOpenEditForm(t *testing.T) {
 	model := testModel(readRepository{})
 	model.loading = false

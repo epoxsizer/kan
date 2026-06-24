@@ -150,12 +150,13 @@ func (model *Model) renderDetailPopup(width, height int) string {
 		"",
 	}
 	maxDetails := max(height-10, 1)
-	for index, line := range model.detail.lines {
+	detailLines := wrappedDetailLines(model.detail.lines, contentWidth)
+	for index, line := range detailLines {
 		if index >= maxDetails {
 			lines = append(lines, model.styles.subtle.Render("…"))
 			break
 		}
-		lines = append(lines, truncate(line, contentWidth))
+		lines = append(lines, line)
 	}
 	hint := "Esc / d / Enter close"
 	if model.detail.kind == "card" {
@@ -171,6 +172,43 @@ func fallbackValue(value string) string {
 		return "none"
 	}
 	return value
+}
+
+func wrappedDetailLines(values []string, width int) []string {
+	lines := []string{}
+	for _, value := range values {
+		parts := strings.Split(value, "\n")
+		for index, part := range parts {
+			prefix := ""
+			if index > 0 {
+				prefix = "  "
+			}
+			lines = append(lines, wrapDetailLine(prefix+part, width)...)
+		}
+	}
+	return lines
+}
+
+func wrapDetailLine(value string, width int) []string {
+	width = max(width, 1)
+	runes := []rune(value)
+	if len(runes) == 0 {
+		return []string{""}
+	}
+	lines := []string{}
+	for len(runes) > width {
+		breakAt := width
+		for index := width; index > 0; index-- {
+			if runes[index-1] == ' ' || runes[index-1] == '\t' {
+				breakAt = index - 1
+				break
+			}
+		}
+		lines = append(lines, strings.TrimRight(string(runes[:breakAt]), " \t"))
+		runes = runes[min(breakAt+1, len(runes)):]
+	}
+	lines = append(lines, string(runes))
+	return lines
 }
 
 func formatDetailTime(value time.Time) string {

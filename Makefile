@@ -1,6 +1,6 @@
 .PHONY: build install test fmt fmt-check vet check cross-build snapshot clean
 
-VERSION ?= 0.1.1
+VERSION ?= 0.1.2
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || printf none)
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS = -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
