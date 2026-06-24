@@ -15,9 +15,10 @@ Project -> Board -> Column -> Card
 
 The app includes full-text search, tags, priorities, due dates, comments,
 checklists, custom fields, linked cards, JSON import/export, and automatic
-backups.
+backups. The database is local by default; backups can optionally be uploaded to
+S3-compatible storage.
 
-Current version: `0.1.0`.
+Current version: `0.1.1`.
 
 ## Interface
 
@@ -38,7 +39,7 @@ make build
 ./bin/kan
 ```
 
-The `seed` command creates a deterministic demo project, board, columns, and
+The `seed` command creates deterministic demo projects, boards, columns, and
 cards. It is idempotent, so it can be run repeatedly without duplicating data.
 
 To start with an empty database:
@@ -125,6 +126,35 @@ Manual and automatic backups are stored in `backup/` relative to the current
 working directory. While the TUI is running, an automatic backup is created about
 every six hours.
 
+Backup storage is local by default. To upload backups to S3 as well, configure
+`backup.storage = "s3"` in `config.toml` or pass S3 flags to `kan backup`:
+
+```toml
+[backup]
+storage = "s3"
+
+[backup.s3]
+bucket = "kan-backups"
+prefix = "kan/backups"
+region = "us-east-1"
+endpoint = "https://s3.example.com"
+access_key_id = "replace-me"
+secret_access_key = "replace-me"
+force_path_style = false
+```
+
+```sh
+kan backup release \
+  --storage s3 \
+  --s3-bucket kan-backups \
+  --s3-region us-east-1 \
+  --s3-access-key-id "$S3_ACCESS_KEY_ID" \
+  --s3-secret-access-key "$S3_SECRET_ACCESS_KEY"
+```
+
+`kan` always creates the local SQLite backup first and then uploads that file to
+S3. The local database remains the source of truth.
+
 ## Data Paths
 
 By default, `kan` uses XDG directories:
@@ -138,6 +168,10 @@ Paths can be overridden with `--config`, `--db`, `--log`, or with `KAN_CONFIG`,
 
 An example configuration file is available at
 [`docs/config.example.toml`](docs/config.example.toml).
+
+The theme section supports detailed color overrides for text, panels, selected
+cards, status bars, help popups, command text, and columns. The selected column
+uses green by default through `selected_column_background = "#42C77A"`.
 
 ## Development
 

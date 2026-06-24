@@ -342,6 +342,7 @@ func TestColoredActiveColumnIsExplicit(t *testing.T) {
 	model.screen = boardScreen
 	model.columns = []domain.Column{{ID: "active", Name: "Doing", Color: &color}}
 	model.cards["active"] = []domain.Card{{ID: "card", Title: "Selected"}}
+	require.Equal(t, lipgloss.Color("#42C77A"), model.styles.selectedColumnBackground)
 	view := model.View()
 	require.Contains(t, view, "ACTIVE • Doing")
 	require.Contains(t, view, "╔")
@@ -399,6 +400,23 @@ func TestBoardSortGroupAndMetadataLabels(t *testing.T) {
 	label := model.cardLabel(model.cards["todo"][2], 80, false)
 	require.Contains(t, label, "U @2026-07-01 [release] Urgent")
 	require.Contains(t, label, "@2026-07-01")
+}
+
+func TestOverdueCardsShowDeadlineMarker(t *testing.T) {
+	pastDue := time.Now().AddDate(0, 0, -1)
+	futureDue := time.Now().AddDate(0, 0, 1)
+	model := testModel(readRepository{})
+	model.loading = false
+
+	overdue := domain.Card{ID: "late", Title: "Late card", DueDate: &pastDue}
+	current := domain.Card{ID: "next", Title: "Next card", DueDate: &futureDue}
+
+	lateLabel := model.cardLabel(overdue, 80, false)
+	require.Contains(t, lateLabel, "!@"+pastDue.Format("2006-01-02"))
+	require.NotContains(t, model.cardLabel(current, 80, false), "!@")
+
+	detail := cardDetail(overdue, "Backlog")
+	require.Contains(t, strings.Join(detail.lines, "\n"), "Due: "+pastDue.Format("2006-01-02")+" (! overdue)")
 }
 
 func TestBuildFTSQueryUsesSafePrefixTerms(t *testing.T) {
@@ -489,9 +507,10 @@ func TestHelpCommandBarAndResize(t *testing.T) {
 
 	model.Update(key(":"))
 	palette := model.View()
-	for _, command := range []string{"projects", "boards", "reload", "help", "quit"} {
+	for _, command := range []string{"projects", "boards", "reload", "help", "quit", "add", "settings"} {
 		require.Contains(t, palette, command)
 	}
+	require.NotContains(t, palette, "new")
 	for _, character := range "help" {
 		model.Update(key(string(character)))
 	}
@@ -501,6 +520,38 @@ func TestHelpCommandBarAndResize(t *testing.T) {
 
 	model.Update(tea.WindowSizeMsg{Width: 24, Height: 8})
 	require.NotPanics(t, func() { _ = model.View() })
+}
+
+func TestSettingsCommandAppliesBaseParameters(t *testing.T) {
+	model := testModel(readRepository{})
+	model.loading = false
+	model.showCardTags = true
+	model.sortMode = sortPosition
+	model.groupMode = groupNone
+
+	_, indexCommand := model.Update(key(":"))
+	model.Update(indexCommand())
+	for _, character := range "settings" {
+		model.Update(key(string(character)))
+	}
+	model.Update(key("enter"))
+
+	require.NotNil(t, model.form)
+	require.Equal(t, settingsForm, model.form.kind)
+	require.Equal(t, "Settings", model.form.title)
+
+	model.form.fields[0].value = "Cards"
+	model.form.fields[1].value = "Disabled"
+	model.form.fields[2].value = "Due date"
+	model.form.fields[3].value = "Priority"
+	model.Update(key("ctrl+s"))
+
+	require.Nil(t, model.form)
+	require.Equal(t, cardsLayout, model.listLayout)
+	require.False(t, model.showCardTags)
+	require.Equal(t, sortDue, model.sortMode)
+	require.Equal(t, groupPriority, model.groupMode)
+	require.Equal(t, "Settings applied", model.notice)
 }
 
 func TestCommandPaletteUsesFuzzyMatching(t *testing.T) {
@@ -552,6 +603,8 @@ func TestLayoutCommandSwitchesProjectsAndBoardsBetweenTableAndCards(t *testing.T
 	tableView := model.View()
 	require.Contains(t, tableView, "NAME")
 	require.Contains(t, tableView, "BOARDS")
+	require.Contains(t, tableView, "│")
+	require.Contains(t, tableView, "╭")
 	require.Contains(t, tableView, "layout:table")
 
 	model.executeCommand("layout cards")
@@ -575,6 +628,7 @@ func TestLayoutCommandSwitchesProjectsAndBoardsBetweenTableAndCards(t *testing.T
 	boardTableView := model.View()
 	require.Contains(t, boardTableView, "NAME")
 	require.Contains(t, boardTableView, "CARDS")
+	require.Contains(t, boardTableView, "│")
 	require.Contains(t, boardTableView, "Layout: table")
 }
 
@@ -714,6 +768,11 @@ func TestProjectAndBoardTablesShowCommentsAndCounts(t *testing.T) {
 	for _, value := range []string{"NAME", "COMMENTS", "BOARDS", "Platform", "Internal tooling", "4"} {
 		require.Contains(t, view, value)
 	}
+	require.True(t, lineContainsAll(view, "NAME", "COMMENTS", "BOARDS"))
+	require.True(t, lineContainsAll(view, "Platform", "Internal tooling", "4"))
+	for _, line := range strings.Split(view, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(line), 80)
+	}
 
 	model.screen = boardsScreen
 	model.project = &model.projects[0]
@@ -722,6 +781,11 @@ func TestProjectAndBoardTablesShowCommentsAndCounts(t *testing.T) {
 	view = model.View()
 	for _, value := range []string{"NAME", "COMMENTS", "CARDS", "Delivery", "Release work", "12"} {
 		require.Contains(t, view, value)
+	}
+	require.True(t, lineContainsAll(view, "NAME", "COMMENTS", "CARDS"))
+	require.True(t, lineContainsAll(view, "Delivery", "Release work", "12"))
+	for _, line := range strings.Split(view, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(line), 80)
 	}
 }
 
@@ -819,7 +883,7 @@ func TestMutationKeysOpenFormsAndConfirmations(t *testing.T) {
 	model := testModel(readRepository{})
 	model.loading = false
 	model.Update(key("a"))
-	require.Contains(t, model.View(), "Create project")
+	require.Contains(t, model.View(), "Add project")
 	model.Update(key("esc"))
 
 	model.projects = []domain.Project{{ID: "p", Name: "Project"}}

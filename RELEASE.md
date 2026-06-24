@@ -19,8 +19,8 @@ policy.
 ## Build a release
 
 ```sh
-git tag -s v0.1.0 -m "kan v0.1.0"
-git push origin v0.1.0
+git tag -s v0.1.1 -m "kan v0.1.1"
+git push origin v0.1.1
 ```
 
 The tag workflow creates a GitHub release and uploads its archives and checksum

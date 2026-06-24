@@ -6,6 +6,22 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-06-24
+
+### Added
+
+- S3-compatible backup upload while keeping the local SQLite database as the default.
+- Expanded theme configuration for text, panels, status bars, help, commands, cards, and columns.
+- Larger deterministic demo seed data with multiple projects, boards, columns, and cards.
+- Runtime TUI settings from the `:` command palette for layout, card tags, sort, and grouping.
+- Overdue due-date markers for cards.
+
+### Changed
+
+- Project and board table views now use the same panel style as board columns.
+- TUI action wording now consistently uses Add/Edit/Delete.
+- Selected columns default to green and selected cards use clearer inverted styling.
+
 ## [0.1.0] - 2026-06-24
 
 ### Added
@@ -18,5 +34,6 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Theme configuration, inline shortcut help, and accessible empty states.
 - Scriptable CLI commands for projects, boards, columns, cards, and data exchange.
 
-[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.0...main
+[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.1...main
+[0.1.1]: https://github.com/epoxsizer/kan/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/epoxsizer/kan/releases/tag/v0.1.0

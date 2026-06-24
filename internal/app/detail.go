@@ -97,6 +97,9 @@ func cardDetail(card domain.Card, columnName string) *detailPopup {
 	due := "none"
 	if card.DueDate != nil {
 		due = card.DueDate.Format("2006-01-02")
+		if isOverdueDate(card.DueDate) {
+			due += " (! overdue)"
+		}
 	}
 	lines := []string{
 		"ID: " + card.ID,

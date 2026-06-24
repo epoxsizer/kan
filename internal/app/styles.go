@@ -34,37 +34,64 @@ func priorityColor(priority string) lipgloss.Color {
 }
 
 type styles struct {
-	body         lipgloss.Style
-	header       lipgloss.Style
-	subtle       lipgloss.Style
-	selected     lipgloss.Style
-	tableHeader  lipgloss.Style
-	panel        lipgloss.Style
-	focusedPanel lipgloss.Style
-	card         lipgloss.Style
-	selectedCard lipgloss.Style
-	status       lipgloss.Style
-	statusAccent lipgloss.Style
-	shortcutKey  lipgloss.Style
-	shortcutText lipgloss.Style
-	help         lipgloss.Style
-	error        lipgloss.Style
-	command      lipgloss.Style
+	body                     lipgloss.Style
+	header                   lipgloss.Style
+	subtle                   lipgloss.Style
+	selected                 lipgloss.Style
+	tableHeader              lipgloss.Style
+	panel                    lipgloss.Style
+	focusedPanel             lipgloss.Style
+	card                     lipgloss.Style
+	selectedCard             lipgloss.Style
+	status                   lipgloss.Style
+	statusAccent             lipgloss.Style
+	shortcutKey              lipgloss.Style
+	shortcutText             lipgloss.Style
+	help                     lipgloss.Style
+	error                    lipgloss.Style
+	command                  lipgloss.Style
+	selectedColumnForeground lipgloss.Color
+	selectedColumnBackground lipgloss.Color
+	selectedColumnBorder     lipgloss.Color
+	columnDefault            lipgloss.Color
 }
 
 type Theme struct {
-	Primary            string
-	Muted              string
-	Text               string
-	Background         string
-	SelectedForeground string
-	SelectedBackground string
-	Danger             string
-	Border             string
+	Primary                  string
+	Muted                    string
+	Text                     string
+	Background               string
+	SelectedForeground       string
+	SelectedBackground       string
+	Danger                   string
+	Border                   string
+	SelectedColumnForeground string
+	SelectedColumnBackground string
+	SelectedColumnBorder     string
+	SelectedCardForeground   string
+	SelectedCardBackground   string
+	PanelBorder              string
+	FocusedPanelBorder       string
+	StatusForeground         string
+	StatusBackground         string
+	StatusAccentForeground   string
+	StatusAccentBackground   string
+	ShortcutKeyForeground    string
+	ShortcutKeyBackground    string
+	ShortcutText             string
+	HelpText                 string
+	HelpBorder               string
+	Command                  string
+	ColumnDefault            string
 }
 
 func DefaultTheme() Theme {
-	return Theme{Primary: "#7D7AFF", Muted: "#909090", Text: "#C4C4D0", Background: "#24243A", SelectedForeground: "#FFFFFF", SelectedBackground: "#5A56E0", Danger: "#FF6B6B", Border: "rounded"}
+	return Theme{
+		Primary: "#7D7AFF", Muted: "#909090", Text: "#C4C4D0", Background: "#24243A", SelectedForeground: "#FFFFFF", SelectedBackground: "#5A56E0", Danger: "#FF6B6B", Border: "rounded",
+		SelectedColumnForeground: "#000000", SelectedColumnBackground: "#42C77A", SelectedColumnBorder: "#42C77A", SelectedCardForeground: "#000000", SelectedCardBackground: "#42C77A",
+		PanelBorder: "#909090", FocusedPanelBorder: "#42C77A", StatusForeground: "#909090", StatusBackground: "#24243A", StatusAccentForeground: "#FFFFFF", StatusAccentBackground: "#7D7AFF",
+		ShortcutKeyForeground: "#FFFFFF", ShortcutKeyBackground: "#5A56E0", ShortcutText: "#909090", HelpText: "#C4C4D0", HelpBorder: "#7D7AFF", Command: "#7D7AFF", ColumnDefault: "#4C8DFF",
+	}
 }
 
 func defaultStyles() styles { return stylesForTheme(DefaultTheme()) }
@@ -77,25 +104,47 @@ func stylesForTheme(theme Theme) styles {
 	selected := lipgloss.Color(theme.SelectedForeground)
 	selectedBackground := lipgloss.Color(theme.SelectedBackground)
 	danger := lipgloss.Color(theme.Danger)
+	selectedColumnForeground := lipgloss.Color(theme.SelectedColumnForeground)
+	selectedColumnBackground := lipgloss.Color(theme.SelectedColumnBackground)
+	selectedColumnBorder := lipgloss.Color(theme.SelectedColumnBorder)
+	selectedCardForeground := lipgloss.Color(theme.SelectedCardForeground)
+	selectedCardBackground := lipgloss.Color(theme.SelectedCardBackground)
+	panelBorder := lipgloss.Color(theme.PanelBorder)
+	focusedPanelBorder := lipgloss.Color(theme.FocusedPanelBorder)
+	statusForeground := lipgloss.Color(theme.StatusForeground)
+	statusBackground := lipgloss.Color(theme.StatusBackground)
+	statusAccentForeground := lipgloss.Color(theme.StatusAccentForeground)
+	statusAccentBackground := lipgloss.Color(theme.StatusAccentBackground)
+	shortcutKeyForeground := lipgloss.Color(theme.ShortcutKeyForeground)
+	shortcutKeyBackground := lipgloss.Color(theme.ShortcutKeyBackground)
+	shortcutText := lipgloss.Color(theme.ShortcutText)
+	helpText := lipgloss.Color(theme.HelpText)
+	helpBorder := lipgloss.Color(theme.HelpBorder)
+	command := lipgloss.Color(theme.Command)
+	columnDefault := lipgloss.Color(theme.ColumnDefault)
 	border := borderForName(theme.Border)
 
 	return styles{
-		body:         lipgloss.NewStyle().Foreground(text),
-		header:       lipgloss.NewStyle().Bold(true).Foreground(primary),
-		subtle:       lipgloss.NewStyle().Foreground(muted),
-		selected:     lipgloss.NewStyle().Bold(true).Foreground(selected).Background(selectedBackground).Padding(0, 1),
-		tableHeader:  lipgloss.NewStyle().Bold(true).Foreground(muted),
-		panel:        lipgloss.NewStyle().Border(border).BorderForeground(muted).Padding(0, 1),
-		focusedPanel: lipgloss.NewStyle().Border(border).BorderForeground(primary).Padding(0, 1),
-		card:         lipgloss.NewStyle().Foreground(text).Padding(0, 1),
-		selectedCard: lipgloss.NewStyle().Bold(true).Foreground(selected).Background(selectedBackground).Padding(0, 1),
-		status:       lipgloss.NewStyle().Foreground(muted).Background(background).Padding(0, 1),
-		statusAccent: lipgloss.NewStyle().Bold(true).Foreground(selected).Background(primary).Padding(0, 1),
-		shortcutKey:  lipgloss.NewStyle().Bold(true).Foreground(selected).Background(selectedBackground),
-		shortcutText: lipgloss.NewStyle().Foreground(muted).Background(background),
-		help:         lipgloss.NewStyle().Foreground(text).Border(lipgloss.DoubleBorder()).BorderForeground(primary).Padding(1, 2),
-		error:        lipgloss.NewStyle().Foreground(danger).Bold(true),
-		command:      lipgloss.NewStyle().Foreground(primary).Bold(true),
+		body:                     lipgloss.NewStyle().Foreground(text),
+		header:                   lipgloss.NewStyle().Bold(true).Foreground(primary),
+		subtle:                   lipgloss.NewStyle().Foreground(muted),
+		selected:                 lipgloss.NewStyle().Bold(true).Foreground(selected).Background(selectedBackground).Padding(0, 1),
+		tableHeader:              lipgloss.NewStyle().Bold(true).Foreground(muted),
+		panel:                    lipgloss.NewStyle().Border(border).BorderForeground(panelBorder).Padding(0, 1),
+		focusedPanel:             lipgloss.NewStyle().Border(border).BorderForeground(focusedPanelBorder).Padding(0, 1),
+		card:                     lipgloss.NewStyle().Foreground(text).Padding(0, 1),
+		selectedCard:             lipgloss.NewStyle().Bold(true).Foreground(selectedCardForeground).Background(selectedCardBackground).Padding(0, 1),
+		status:                   lipgloss.NewStyle().Foreground(statusForeground).Background(statusBackground).Padding(0, 1),
+		statusAccent:             lipgloss.NewStyle().Bold(true).Foreground(statusAccentForeground).Background(statusAccentBackground).Padding(0, 1),
+		shortcutKey:              lipgloss.NewStyle().Bold(true).Foreground(shortcutKeyForeground).Background(shortcutKeyBackground),
+		shortcutText:             lipgloss.NewStyle().Foreground(shortcutText).Background(background),
+		help:                     lipgloss.NewStyle().Foreground(helpText).Border(lipgloss.DoubleBorder()).BorderForeground(helpBorder).Padding(1, 2),
+		error:                    lipgloss.NewStyle().Foreground(danger).Bold(true),
+		command:                  lipgloss.NewStyle().Foreground(command).Bold(true),
+		selectedColumnForeground: selectedColumnForeground,
+		selectedColumnBackground: selectedColumnBackground,
+		selectedColumnBorder:     selectedColumnBorder,
+		columnDefault:            columnDefault,
 	}
 }
 

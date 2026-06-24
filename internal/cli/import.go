@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/epoxsizer/kan/internal/domain"
-	storage "github.com/epoxsizer/kan/internal/storage/sqlite"
 	"github.com/spf13/cobra"
 )
 
@@ -56,11 +54,11 @@ func newImportCommand(opts *options) *cobra.Command {
 				if cwdErr != nil {
 					return fmt.Errorf("get working directory: %w", cwdErr)
 				}
-				backupPath := filepath.Join(storage.BackupDirectory(workingDirectory), fmt.Sprintf("kan-pre-import-%s.db", time.Now().Format("20060102-150405")))
-				if err = res.repo.Backup(cmd.Context(), backupPath); err != nil {
-					return fmt.Errorf("backup before import: %w", err)
+				result, backupErr := createConfiguredBackup(cmd.Context(), res.repo, res.config.Backup, workingDirectory, "kan-pre-import", time.Now(), nil)
+				if backupErr != nil {
+					return fmt.Errorf("backup before import: %w", backupErr)
 				}
-				res.logger.Info("pre-import backup created", "path", backupPath)
+				res.logger.Info("pre-import backup created", "path", result.localPath, "s3", result.s3URI)
 			}
 			if err = res.repo.ImportDocument(cmd.Context(), document, replace); err != nil {
 				return fmt.Errorf("import data: %w", err)

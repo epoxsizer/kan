@@ -5,6 +5,18 @@ log_file = "/absolute/path/to/kan.log"
 log_level = "info"
 # show_card_tags = true
 
+[backup]
+# storage = "local" # local or s3
+
+[backup.s3]
+# bucket = "kan-backups"
+# prefix = "kan/backups"
+# region = "us-east-1"
+# endpoint = "https://s3.example.com"
+# access_key_id = "replace-me"
+# secret_access_key = "replace-me"
+# force_path_style = false
+
 [theme]
 # primary = "#7D7AFF"
 # muted = "#909090"
@@ -14,3 +26,21 @@ log_level = "info"
 # selected_background = "#5A56E0"
 # danger = "#FF6B6B"
 # border = "rounded"
+# selected_column_foreground = "#000000"
+# selected_column_background = "#42C77A"
+# selected_column_border = "#42C77A"
+# selected_card_foreground = "#000000"
+# selected_card_background = "#42C77A"
+# panel_border = "#909090"
+# focused_panel_border = "#42C77A"
+# status_foreground = "#909090"
+# status_background = "#24243A"
+# status_accent_foreground = "#FFFFFF"
+# status_accent_background = "#7D7AFF"
+# shortcut_key_foreground = "#FFFFFF"
+# shortcut_key_background = "#5A56E0"
+# shortcut_text = "#909090"
+# help_text = "#C4C4D0"
+# help_border = "#7D7AFF"
+# command = "#7D7AFF"
+# column_default = "#4C8DFF"

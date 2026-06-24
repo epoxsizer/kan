@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/epoxsizer/kan/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,20 +27,21 @@ func TestAutomaticBackupRunsAtSixHourCadence(t *testing.T) {
 	repo := &recordingBackupRepository{}
 	directory := filepath.Join(t.TempDir(), "backup")
 	start := time.Date(2026, 6, 22, 6, 0, 0, 0, time.Local)
+	backupConfig := config.Backup{Storage: "local"}
 
-	first, created, err := backupIfDue(context.Background(), repo, directory, 6*time.Hour, start)
+	first, created, err := backupIfDue(context.Background(), repo, directory, backupConfig, 6*time.Hour, start)
 	require.NoError(t, err)
 	require.True(t, created)
 	require.Equal(t, "kan-auto-20260622-060000.db", filepath.Base(first))
 	require.NoError(t, os.Chtimes(first, start, start))
 
-	path, created, err := backupIfDue(context.Background(), repo, directory, 6*time.Hour, start.Add(5*time.Hour+59*time.Minute))
+	path, created, err := backupIfDue(context.Background(), repo, directory, backupConfig, 6*time.Hour, start.Add(5*time.Hour+59*time.Minute))
 	require.NoError(t, err)
 	require.False(t, created)
 	require.Equal(t, first, path)
 	require.Len(t, repo.paths, 1)
 
-	second, created, err := backupIfDue(context.Background(), repo, directory, 6*time.Hour, start.Add(6*time.Hour))
+	second, created, err := backupIfDue(context.Background(), repo, directory, backupConfig, 6*time.Hour, start.Add(6*time.Hour))
 	require.NoError(t, err)
 	require.True(t, created)
 	require.Equal(t, "kan-auto-20260622-120000.db", filepath.Base(second))

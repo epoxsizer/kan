@@ -2,15 +2,30 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/epoxsizer/kan/internal/config"
 	"github.com/epoxsizer/kan/internal/domain"
 	"github.com/stretchr/testify/require"
 )
+
+type recordingUploader struct {
+	cfg        string
+	sourcePath string
+	key        string
+}
+
+func (uploader *recordingUploader) Upload(_ context.Context, cfg config.S3Backup, sourcePath, key string) error {
+	uploader.cfg = cfg.Bucket
+	uploader.sourcePath = sourcePath
+	uploader.key = key
+	return nil
+}
 
 func TestMigrateSeedAndVersionCommands(t *testing.T) {
 	dir := t.TempDir()
@@ -146,6 +161,40 @@ func TestBackupCommandWritesToWorkingDirectory(t *testing.T) {
 	require.ErrorContains(t, invalidCommand.Execute(), "backup name must")
 }
 
+func TestConfiguredBackupUploadsToS3AfterLocalBackup(t *testing.T) {
+	directory := t.TempDir()
+	dbPath := filepath.Join(directory, "data", "kan.db")
+	logPath := filepath.Join(directory, "state", "kan.log")
+
+	seedCommand := New("test", "abc123", "today")
+	seedCommand.SetArgs([]string{"--db", dbPath, "--log", logPath, "seed"})
+	require.NoError(t, seedCommand.Execute())
+
+	res, err := open(context.Background(), options{db: dbPath, log: logPath})
+	require.NoError(t, err)
+	defer res.Close()
+
+	uploader := &recordingUploader{}
+	backupConfig := config.Backup{
+		Storage: "s3",
+		S3: config.S3Backup{
+			Bucket:          "kan-bucket",
+			Prefix:          "daily",
+			Region:          "us-east-1",
+			AccessKeyID:     "key",
+			SecretAccessKey: "secret",
+		},
+	}
+	now := time.Date(2026, 6, 24, 9, 0, 0, 0, time.UTC)
+	result, err := createConfiguredBackup(context.Background(), res.repo, backupConfig, directory, "release", now, uploader)
+	require.NoError(t, err)
+	require.Equal(t, "backup/release-20260624-090000.db", result.localRelative)
+	require.Equal(t, "s3://kan-bucket/daily/release-20260624-090000.db", result.s3URI)
+	require.Equal(t, "kan-bucket", uploader.cfg)
+	require.Equal(t, "daily/release-20260624-090000.db", uploader.key)
+	require.FileExists(t, uploader.sourcePath)
+}
+
 func TestExportCommandIncludesCompleteHierarchy(t *testing.T) {
 	directory := t.TempDir()
 	dbPath := filepath.Join(directory, "kan.db")
@@ -168,8 +217,8 @@ func TestExportCommandIncludesCompleteHierarchy(t *testing.T) {
 	require.Equal(t, "kan", document.Format)
 	require.Equal(t, domain.ExportVersion, document.Version)
 	require.False(t, document.ExportedAt.IsZero())
-	require.Len(t, document.Projects, 1)
-	require.Len(t, document.Projects[0].Boards, 1)
+	require.Len(t, document.Projects, 3)
+	require.Len(t, document.Projects[0].Boards, 2)
 	board := document.Projects[0].Boards[0]
 	require.Len(t, board.FieldDefs, 2)
 	require.Len(t, board.Columns, 3)
@@ -198,7 +247,7 @@ func TestExportCommandIncludesCompleteHierarchy(t *testing.T) {
 	require.NoError(t, err)
 	var fileDocument domain.ExportDocument
 	require.NoError(t, json.Unmarshal(contents, &fileDocument))
-	require.Len(t, fileDocument.Projects, 1)
+	require.Len(t, fileDocument.Projects, 3)
 
 	conflictCommand := New("test", "abc123", "today")
 	conflictCommand.SetArgs(args("export", "--out", outputPath))
@@ -253,7 +302,7 @@ func TestJSONExportImportRoundTripAndReplaceGuard(t *testing.T) {
 	importCommand.SetOut(&importOutput)
 	importCommand.SetArgs(append(append([]string{}, targetArgs...), "import", exportPath))
 	require.NoError(t, importCommand.Execute())
-	require.Contains(t, importOutput.String(), "import complete: 1 projects, 1 boards, 3 cards")
+	require.Contains(t, importOutput.String(), "import complete: 3 projects, 6 boards, 18 cards")
 
 	var sourceDocument, targetDocument domain.ExportDocument
 	require.NoError(t, executeJSONCommand(t, append(append([]string{}, sourceArgs...), "export"), &sourceDocument))

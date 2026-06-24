@@ -51,7 +51,7 @@ func New(version, commit, date string) *cobra.Command {
 				res.logger.Error("automatic backups disabled", "error", workingDirectoryErr)
 			} else {
 				backupContext, cancelBackups := context.WithCancel(cmd.Context())
-				backupsDone := startAutomaticBackups(backupContext, res.repo, res.logger, storage.BackupDirectory(workingDirectory))
+				backupsDone := startAutomaticBackups(backupContext, res.repo, res.logger, storage.BackupDirectory(workingDirectory), res.config.Backup)
 				defer func() {
 					cancelBackups()
 					<-backupsDone
@@ -59,7 +59,14 @@ func New(version, commit, date string) *cobra.Command {
 			}
 			res.logger.Info("TUI starting")
 			program := tea.NewProgram(
-				app.NewWithOptions(cmd.Context(), res.repo, res.logger, app.Options{ShowCardTags: res.config.ShowCardTags, Theme: app.Theme{Primary: res.config.Theme.Primary, Muted: res.config.Theme.Muted, Text: res.config.Theme.Text, Background: res.config.Theme.Background, SelectedForeground: res.config.Theme.SelectedForeground, SelectedBackground: res.config.Theme.SelectedBackground, Danger: res.config.Theme.Danger, Border: res.config.Theme.Border}}),
+				app.NewWithOptions(cmd.Context(), res.repo, res.logger, app.Options{ShowCardTags: res.config.ShowCardTags, Theme: app.Theme{
+					Primary: res.config.Theme.Primary, Muted: res.config.Theme.Muted, Text: res.config.Theme.Text, Background: res.config.Theme.Background, SelectedForeground: res.config.Theme.SelectedForeground, SelectedBackground: res.config.Theme.SelectedBackground, Danger: res.config.Theme.Danger, Border: res.config.Theme.Border,
+					SelectedColumnForeground: res.config.Theme.SelectedColumnForeground, SelectedColumnBackground: res.config.Theme.SelectedColumnBackground, SelectedColumnBorder: res.config.Theme.SelectedColumnBorder,
+					SelectedCardForeground: res.config.Theme.SelectedCardForeground, SelectedCardBackground: res.config.Theme.SelectedCardBackground, PanelBorder: res.config.Theme.PanelBorder, FocusedPanelBorder: res.config.Theme.FocusedPanelBorder,
+					StatusForeground: res.config.Theme.StatusForeground, StatusBackground: res.config.Theme.StatusBackground, StatusAccentForeground: res.config.Theme.StatusAccentForeground, StatusAccentBackground: res.config.Theme.StatusAccentBackground,
+					ShortcutKeyForeground: res.config.Theme.ShortcutKeyForeground, ShortcutKeyBackground: res.config.Theme.ShortcutKeyBackground, ShortcutText: res.config.Theme.ShortcutText, HelpText: res.config.Theme.HelpText, HelpBorder: res.config.Theme.HelpBorder,
+					Command: res.config.Theme.Command, ColumnDefault: res.config.Theme.ColumnDefault,
+				}}),
 				tea.WithAltScreen(),
 				tea.WithContext(cmd.Context()),
 			)

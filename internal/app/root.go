@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -599,7 +600,7 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 	switch command {
 	case "q", "quit":
 		return model, tea.Quit
-	case "new":
+	case "add", "new":
 		switch model.screen {
 		case projectsScreen:
 			model.startProjectForm(false)
@@ -607,7 +608,7 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 			model.startBoardForm(false)
 		case boardScreen:
 			if len(model.columns) == 0 {
-				model.err = fmt.Errorf("create a column first")
+				model.err = fmt.Errorf("add a column first")
 			} else {
 				return model, model.startCardForm(false)
 			}
@@ -636,7 +637,7 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 		case boardScreen:
 			return model.handleBoardKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
 		}
-	case "new-column":
+	case "add-column", "new-column":
 		if model.screen != boardScreen || model.board == nil {
 			model.err = fmt.Errorf("open a board first")
 			return model, nil
@@ -667,6 +668,8 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 	case "layout cards":
 		model.listLayout = cardsLayout
 		model.notice = "Layout: cards"
+	case "settings":
+		model.startSettingsForm()
 	case "help", "?":
 		model.help = true
 	case "project", "projects":
@@ -769,7 +772,7 @@ func (model *Model) renderHeader(width int) string {
 
 func (model *Model) renderProjects(width int) string {
 	if len(model.projects) == 0 {
-		return model.styles.subtle.Render("No projects. Press a to create one.")
+		return model.styles.subtle.Render("No projects. Press a to add one.")
 	}
 	rows := make([]tableRow, 0, len(model.projects))
 	for index, project := range model.projects {
@@ -783,7 +786,7 @@ func (model *Model) renderProjects(width int) string {
 
 func (model *Model) renderBoards(width int) string {
 	if len(model.boards) == 0 {
-		return model.styles.subtle.Render("No boards in this project. Press a to create one.")
+		return model.styles.subtle.Render("No boards in this project. Press a to add one.")
 	}
 	rows := make([]tableRow, 0, len(model.boards))
 	for index, board := range model.boards {
@@ -797,7 +800,7 @@ func (model *Model) renderBoards(width int) string {
 
 func (model *Model) renderBoard(width, contentHeight int) string {
 	if len(model.columns) == 0 {
-		return model.styles.subtle.Render("This board has no columns. Press c to create one.")
+		return model.styles.subtle.Render("This board has no columns. Press c to add one.")
 	}
 	const minimumColumnWidth = 22
 	visible := min(len(model.columns), max(1, width/minimumColumnWidth))
@@ -828,14 +831,16 @@ func (model *Model) renderColumn(index, width, height int) string {
 		title += fmt.Sprintf("/%d", *column.WIPLimit)
 	}
 	innerWidth := max(width-4, 10)
-	columnColor := namedColors["blue"]
+	columnColor := model.styles.columnDefault
 	if column.Color != nil {
 		columnColor = colorForName(*column.Color)
 	}
 	headerStyle := model.styles.header.Copy().Foreground(columnColor)
+	borderColor := columnColor
 	if index == model.columnIndex {
 		title = "ACTIVE • " + title
-		headerStyle = headerStyle.Foreground(lipgloss.Color("#000000")).Background(columnColor).Padding(0, 1)
+		headerStyle = headerStyle.Foreground(model.styles.selectedColumnForeground).Background(model.styles.selectedColumnBackground).Padding(0, 1)
+		borderColor = model.styles.selectedColumnBorder
 	}
 	lines := []string{headerStyle.Render(truncate(title, innerWidth))}
 	if len(cards) == 0 {
@@ -858,8 +863,7 @@ func (model *Model) renderColumn(index, width, height int) string {
 			label := model.cardLabel(row.card, max(cardContentWidth-4, 1), true)
 			if index == model.columnIndex && row.cardIndex == selected {
 				label = model.cardLabel(row.card, max(cardContentWidth-4, 1), false)
-				selectedStyle := model.styles.selectedCard.Copy().Foreground(lipgloss.Color("#000000")).Background(columnColor)
-				lines = append(lines, selectedStyle.Width(cardContentWidth).Render("> "+label))
+				lines = append(lines, model.styles.selectedCard.Width(cardContentWidth).Render("> "+label))
 			} else {
 				lines = append(lines, model.styles.card.Width(cardContentWidth).Render("  "+label))
 			}
@@ -869,7 +873,7 @@ func (model *Model) renderColumn(index, width, height int) string {
 	if index == model.columnIndex {
 		style = model.styles.focusedPanel.Copy().Border(lipgloss.DoubleBorder())
 	}
-	style = style.BorderForeground(columnColor)
+	style = style.BorderForeground(borderColor)
 	return style.Width(innerWidth).Height(max(height-2, 1)).Render(strings.Join(lines, "\n"))
 }
 
@@ -921,7 +925,11 @@ func (model *Model) cardLabel(card domain.Card, width int, colorPriority bool) s
 	}
 	duePrefix := ""
 	if card.DueDate != nil {
-		duePrefix = "@" + card.DueDate.Format("2006-01-02") + " "
+		marker := "@"
+		if isOverdueDate(card.DueDate) {
+			marker = "!@"
+		}
+		duePrefix = marker + card.DueDate.Format("2006-01-02") + " "
 	}
 	content := duePrefix + prefix + card.Title + suffix
 	label := truncate(content, width)
@@ -934,6 +942,17 @@ func (model *Model) cardLabel(card domain.Card, width int, colorPriority bool) s
 	}
 	marker := lipgloss.NewStyle().Bold(true).Foreground(priorityColor(*card.Priority)).Render(priority)
 	return marker + " " + truncate(content, max(width-2, 1))
+}
+
+func isOverdueDate(value *time.Time) bool {
+	if value == nil {
+		return false
+	}
+	now := time.Now().In(time.Local)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	due := value.In(time.Local)
+	dueDay := time.Date(due.Year(), due.Month(), due.Day(), 0, 0, 0, 0, due.Location())
+	return dueDay.Before(today)
 }
 
 func (model *Model) renderStatus(width int) string {

@@ -23,6 +23,7 @@ const (
 	editColumnForm
 	createCardForm
 	editCardForm
+	settingsForm
 )
 
 type formField struct {
@@ -45,6 +46,10 @@ const (
 
 var columnColors = []string{"Blue", "Green", "Yellow", "Orange", "Red", "Purple", "Gray"}
 var priorities = []string{"Low", "Medium", "High", "Urgent"}
+var layoutOptions = []string{"Table", "Cards"}
+var booleanOptions = []string{"Enabled", "Disabled"}
+var sortOptions = []string{"Position", "Priority", "Due date", "Title"}
+var groupOptions = []string{"None", "Priority", "Due date", "First tag"}
 
 type formModal struct {
 	kind           formKind
@@ -74,7 +79,7 @@ type confirmModal struct {
 }
 
 func (model *Model) startProjectForm(edit bool) {
-	form := &formModal{kind: createProjectForm, title: "Create project", fields: []formField{{label: "Name"}, {label: "Comments", kind: commentField}}}
+	form := &formModal{kind: createProjectForm, title: "Add project", fields: []formField{{label: "Name"}, {label: "Comments", kind: commentField}}}
 	if edit {
 		project := model.projects[model.projectIndex]
 		form.kind, form.title = editProjectForm, "Edit project"
@@ -84,7 +89,7 @@ func (model *Model) startProjectForm(edit bool) {
 }
 
 func (model *Model) startBoardForm(edit bool) {
-	form := &formModal{kind: createBoardForm, title: "Create board", fields: []formField{{label: "Name"}, {label: "Comments", kind: commentField}}}
+	form := &formModal{kind: createBoardForm, title: "Add board", fields: []formField{{label: "Name"}, {label: "Comments", kind: commentField}}}
 	if edit {
 		board := model.boards[model.boardIndex]
 		form.kind, form.title = editBoardForm, "Edit board"
@@ -94,7 +99,7 @@ func (model *Model) startBoardForm(edit bool) {
 }
 
 func (model *Model) startColumnForm(edit bool) {
-	form := &formModal{kind: createColumnForm, title: "Create column", fields: []formField{{label: "Name"}, {label: "WIP limit", value: "10"}, {label: "Color", value: "Blue", kind: dropdownField, options: columnColors}}}
+	form := &formModal{kind: createColumnForm, title: "Add column", fields: []formField{{label: "Name"}, {label: "WIP limit", value: "10"}, {label: "Color", value: "Blue", kind: dropdownField, options: columnColors}}}
 	if edit {
 		column := model.columns[model.columnIndex]
 		form.kind, form.title = editColumnForm, "Edit column"
@@ -116,7 +121,7 @@ func (model *Model) startColumnForm(edit bool) {
 
 func (model *Model) startCardForm(edit bool) tea.Cmd {
 	column := model.columns[model.columnIndex]
-	form := &formModal{kind: createCardForm, title: "Create card", fields: []formField{
+	form := &formModal{kind: createCardForm, title: "Add card", fields: []formField{
 		{label: "Title"}, {label: "Comments", kind: commentField}, {label: "Status", value: column.Name, kind: dropdownField, options: columnNames(model.columns)}, {label: "Priority", value: "Medium", kind: dropdownField, options: priorities}, {label: "Due date", value: time.Now().Format("2006-01-02"), kind: calendarField}, {label: "Tags comma-separated"}, {label: "Related cards", kind: linksField}, {label: "Checklist", value: "[]", kind: checklistField},
 	}}
 	if edit {
@@ -143,6 +148,19 @@ func (model *Model) startCardForm(edit bool) tea.Cmd {
 	form.linksLoading = true
 	model.form = form
 	return loadLinkCandidates(model.ctx, model.repo, model.project.ID, selectedCardID(form, model))
+}
+
+func (model *Model) startSettingsForm() {
+	showTags := "Disabled"
+	if model.showCardTags {
+		showTags = "Enabled"
+	}
+	model.form = &formModal{kind: settingsForm, title: "Settings", fields: []formField{
+		{label: "Projects/boards layout", value: titleCase(model.listLayout.String()), kind: dropdownField, options: layoutOptions},
+		{label: "Card title tags", value: showTags, kind: dropdownField, options: booleanOptions},
+		{label: "Card sort", value: titleCase(model.sortMode.String()), kind: dropdownField, options: sortOptions},
+		{label: "Card group", value: titleCase(model.groupMode.String()), kind: dropdownField, options: groupOptions},
+	}}
 }
 
 func (model *Model) handleFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -203,6 +221,31 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		return model, nil
 	}
 	switch form.kind {
+	case settingsForm:
+		layout, err := parseListLayout(value(0))
+		if err != nil {
+			return invalid(err)
+		}
+		showTags, err := parseEnabled(value(1))
+		if err != nil {
+			return invalid(err)
+		}
+		sortMode, err := parseCardSort(value(2))
+		if err != nil {
+			return invalid(err)
+		}
+		groupMode, err := parseCardGroup(value(3))
+		if err != nil {
+			return invalid(err)
+		}
+		model.listLayout = layout
+		model.showCardTags = showTags
+		model.sortMode = sortMode
+		model.groupMode = groupMode
+		model.cardIndexes = make(map[string]int, len(model.columns))
+		model.form = nil
+		model.notice = "Settings applied"
+		return model, nil
 	case createProjectForm:
 		project := domain.Project{Name: value(0), Description: raw(1), Position: nextProjectPosition(model.projects)}
 		if err := domain.ValidateProject(project); err != nil {
@@ -210,7 +253,7 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		}
 		model.form = nil
 		model.loading = true
-		return model, mutationCommand(projectsScreen, "Project created", func() error { return model.repo.CreateProject(model.ctx, &project) })
+		return model, mutationCommand(projectsScreen, "Project added", func() error { return model.repo.CreateProject(model.ctx, &project) })
 	case editProjectForm:
 		project := model.projects[model.projectIndex]
 		project.Name, project.Description = value(0), raw(1)
@@ -227,7 +270,7 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		}
 		model.form = nil
 		model.loading = true
-		return model, mutationCommand(boardsScreen, "Board created", func() error { return model.repo.CreateBoard(model.ctx, &board) })
+		return model, mutationCommand(boardsScreen, "Board added", func() error { return model.repo.CreateBoard(model.ctx, &board) })
 	case editBoardForm:
 		board := model.boards[model.boardIndex]
 		board.Name, board.Description = value(0), raw(1)
@@ -264,7 +307,7 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		model.form = nil
 		model.loading = true
 		if form.kind == createColumnForm {
-			return model, mutationCommand(boardScreen, "Column created", func() error { return model.repo.CreateColumn(model.ctx, &column) })
+			return model, mutationCommand(boardScreen, "Column added", func() error { return model.repo.CreateColumn(model.ctx, &column) })
 		}
 		return model, mutationCommand(boardScreen, "Column updated", func() error { return model.repo.UpdateColumn(model.ctx, &column) })
 	case createCardForm, editCardForm:
@@ -312,7 +355,7 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		model.form = nil
 		model.loading = true
 		if form.kind == createCardForm {
-			return model, mutationCommand(boardScreen, "Card created", func() error { return model.repo.CreateCard(model.ctx, &card) })
+			return model, mutationCommand(boardScreen, "Card added", func() error { return model.repo.CreateCard(model.ctx, &card) })
 		}
 		return model, mutationCommand(boardScreen, "Card updated", func() error { return model.repo.UpdateCard(model.ctx, &card) })
 	}
@@ -481,6 +524,65 @@ func withLegacyOption(options []string, value string) []string {
 		}
 	}
 	return append(append([]string{}, options...), value)
+}
+
+func titleCase(value string) string {
+	if value == "" {
+		return ""
+	}
+	return strings.ToUpper(value[:1]) + value[1:]
+}
+
+func parseListLayout(value string) (listLayout, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "table":
+		return tableLayout, nil
+	case "cards":
+		return cardsLayout, nil
+	default:
+		return tableLayout, fmt.Errorf("layout must be Table or Cards")
+	}
+}
+
+func parseEnabled(value string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "enabled", "yes", "true", "on":
+		return true, nil
+	case "disabled", "no", "false", "off":
+		return false, nil
+	default:
+		return false, fmt.Errorf("value must be Enabled or Disabled")
+	}
+}
+
+func parseCardSort(value string) (cardSort, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "position":
+		return sortPosition, nil
+	case "priority":
+		return sortPriority, nil
+	case "due date":
+		return sortDue, nil
+	case "title":
+		return sortTitle, nil
+	default:
+		return sortPosition, fmt.Errorf("card sort must be Position, Priority, Due date, or Title")
+	}
+}
+
+func parseCardGroup(value string) (cardGroup, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "none":
+		return groupNone, nil
+	case "priority":
+		return groupPriority, nil
+	case "due date":
+		return groupDue, nil
+	case "first tag":
+		return groupTag, nil
+	default:
+		return groupNone, fmt.Errorf("card group must be None, Priority, Due date, or First tag")
+	}
 }
 
 func (model *Model) selectedCard() domain.Card {
