@@ -1,33 +1,34 @@
 # kan
 
-[![Проверка](https://github.com/epoxsizer/kan/actions/workflows/ci.yml/badge.svg)](https://github.com/epoxsizer/kan/actions/workflows/ci.yml)
-[![Релиз](https://github.com/epoxsizer/kan/actions/workflows/release.yml/badge.svg)](https://github.com/epoxsizer/kan/actions/workflows/release.yml)
-[![Лицензия: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/epoxsizer/kan/actions/workflows/ci.yml/badge.svg)](https://github.com/epoxsizer/kan/actions/workflows/ci.yml)
+[![Release](https://github.com/epoxsizer/kan/actions/workflows/release.yml/badge.svg)](https://github.com/epoxsizer/kan/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-`kan` - локальный трекер задач с интерфейсом в терминале. Он хранит данные в
-SQLite и не требует сервера, регистрации или подключения к интернету.
+`kan` is a local-first task tracker with a terminal interface. It stores data in
+SQLite and does not require a server, account, or network connection.
 
-Структура данных:
+Data hierarchy:
 
 ```text
-Проект -> Доска -> Колонка -> Карточка
+Project -> Board -> Column -> Card
 ```
 
-В приложении есть полнотекстовый поиск, теги, приоритеты, сроки, комментарии,
-чек-листы, дополнительные поля, связи между карточками, JSON-импорт и экспорт,
-а также автоматические резервные копии.
+The app includes full-text search, tags, priorities, due dates, comments,
+checklists, custom fields, linked cards, JSON import/export, and automatic
+backups.
 
-## Интерфейс
+Current version: `0.1.0`.
 
-![Экран доски kan с цветными колонками и карточками](docs/kan-board.svg)
+## Interface
 
-Интерфейс адаптируется к размеру терминала. Активная колонка и выбранная
-карточка выделяются цветом, а доступные сочетания клавиш показаны в нижней
-строке.
+![kan board screen with colored columns and cards](docs/kan-board.svg)
 
-## Быстрый запуск из исходников
+The interface adapts to terminal size. The active column and selected card are
+highlighted, and contextual key hints are shown at the bottom of the screen.
 
-Требуется Go 1.22 или новее.
+## Quick Start From Source
+
+Go 1.22 or newer is required.
 
 ```sh
 git clone https://github.com/epoxsizer/kan.git
@@ -37,10 +38,10 @@ make build
 ./bin/kan
 ```
 
-Команда `seed` создаёт демонстрационный проект, доску, колонки и карточки. Она
-идемпотентна, поэтому её можно выполнить повторно без дублирования данных.
+The `seed` command creates a deterministic demo project, board, columns, and
+cards. It is idempotent, so it can be run repeatedly without duplicating data.
 
-Для запуска без демонстрационных данных:
+To start with an empty database:
 
 ```sh
 make build
@@ -48,61 +49,59 @@ make build
 ./bin/kan
 ```
 
-## Установка готового релиза
+## Install A Release
 
-Скачайте архив для Linux, macOS или Windows из раздела
-[релизов GitHub](https://github.com/epoxsizer/kan/releases),
-проверьте файл по `checksums.txt` и поместите бинарник `kan` в каталог из
-переменной `PATH`.
+Download the archive for Linux, macOS, or Windows from
+[GitHub Releases](https://github.com/epoxsizer/kan/releases), verify it with
+`checksums.txt`, and place the `kan` binary in a directory from your `PATH`.
 
-Также приложение можно установить через Go:
+You can also install with Go:
 
 ```sh
 go install github.com/epoxsizer/kan/cmd/kan@latest
 ```
 
-## Основные клавиши
+## Key Bindings
 
-| Клавиша | Действие |
+| Key | Action |
 |---|---|
-| `h j k l`, стрелки | Навигация |
-| `Enter`, `e` | Открыть или изменить объект |
-| `a` | Добавить карточку или объект текущего экрана |
-| `D` | Удалить с подтверждением |
-| `d` | Показать краткую информацию |
-| `H`, `L` | Переместить карточку в соседнюю колонку |
-| `Shift-Tab`, `Tab` | Переместить карточку между колонками |
-| `J`, `K` | Изменить порядок карточек |
-| `/` | Поиск по текущей доске |
-| `:` | Командная строка и общий нечёткий поиск |
-| `:layout table` | Показать проекты и доски таблицей |
-| `:layout cards` | Показать проекты и доски списком карточек |
-| `?` | Полная справка |
-| `Esc` | Назад или отмена |
-| `q`, `Ctrl-C` | Выход |
+| `h j k l`, arrows | Navigate |
+| `Enter`, `e` | Open or edit the selected object |
+| `a` | Add a card or object on the current screen |
+| `D` | Delete with confirmation |
+| `d` | Show a short description popup |
+| `H`, `L` | Move the selected card to the previous/next column |
+| `Shift-Tab`, `Tab` | Move the selected card between columns |
+| `J`, `K` | Reorder cards |
+| `/` | Search within the current board |
+| `:` | Command bar and global fuzzy search |
+| `:layout table` | Show projects and boards as tables |
+| `:layout cards` | Show projects and boards as card grids |
+| `?` | Full help |
+| `Esc` | Back or cancel |
+| `q`, `Ctrl-C` | Quit |
 
-В формах используйте `Tab` для перехода между полями и `Ctrl-S` для сохранения.
+In forms, use `Tab` to move between fields and `Ctrl-S` to save.
 
-## Команды CLI
+## CLI Commands
 
-Приложение можно использовать без терминального интерфейса из командных
-сценариев, автоматических проверок и агентов. Успешные команды управления
-данными возвращают JSON в стандартный вывод. Названия и заголовки с пробелами
-необходимо заключать в кавычки.
+The app can be used without the TUI from shell scripts, CI jobs, and automation
+agents. Successful data-management commands write JSON to standard output.
+Names and titles containing spaces must be quoted in the shell.
 
 ```sh
 kan project list
-kan project create --name "Новый проект" --comment "Описание проекта"
+kan project create --name "New project" --comment "Project notes"
 kan board list --project PROJECT_ID
-kan board create --project PROJECT_ID --name "Разработка"
-kan column create --board BOARD_ID --name "В работе"
-kan card create --board BOARD_ID --column COLUMN_ID --title "Подготовить релиз"
-kan card search --board BOARD_ID --query "релиз"
+kan board create --project PROJECT_ID --name "Development"
+kan column create --board BOARD_ID --name "In Progress"
+kan card create --board BOARD_ID --column COLUMN_ID --title "Prepare release"
+kan card search --board BOARD_ID --query "release"
 kan card update CARD_ID --priority high
 kan card delete CARD_ID --yes
 ```
 
-Полный список параметров:
+For the full command reference:
 
 ```sh
 kan --help
@@ -110,10 +109,10 @@ kan card --help
 kan card create --help
 ```
 
-Не запускайте команды записи одновременно с терминальным интерфейсом: блокировка
-базы защищает её от параллельных изменений.
+Do not run write commands at the same time as the TUI. The database lock protects
+the SQLite database from concurrent writers.
 
-## Импорт, экспорт и резервные копии
+## Import, Export, And Backups
 
 ```sh
 kan backup
@@ -122,36 +121,36 @@ kan export --out kan-export.json
 kan import kan-export.json
 ```
 
-Ручные и автоматические копии сохраняются в каталоге `backup/` относительно
-текущего рабочего каталога. Во время работы терминального интерфейса
-автоматическая копия создаётся примерно раз в шесть часов.
+Manual and automatic backups are stored in `backup/` relative to the current
+working directory. While the TUI is running, an automatic backup is created about
+every six hours.
 
-## Пути данных
+## Data Paths
 
-По умолчанию используются XDG-каталоги:
+By default, `kan` uses XDG directories:
 
-- конфигурация: `${XDG_CONFIG_HOME:-~/.config}/kan/config.toml`;
-- база: `${XDG_DATA_HOME:-~/.local/share}/kan/kan.db`;
-- журнал: `${XDG_STATE_HOME:-~/.local/state}/kan/kan.log`.
+- config: `${XDG_CONFIG_HOME:-~/.config}/kan/config.toml`
+- database: `${XDG_DATA_HOME:-~/.local/share}/kan/kan.db`
+- log file: `${XDG_STATE_HOME:-~/.local/state}/kan/kan.log`
 
-Пути можно изменить флагами `--config`, `--db`, `--log` или переменными
-`KAN_CONFIG`, `KAN_DB`, `KAN_LOG`.
+Paths can be overridden with `--config`, `--db`, `--log`, or with `KAN_CONFIG`,
+`KAN_DB`, and `KAN_LOG`.
 
-Пример конфигурации находится в
+An example configuration file is available at
 [`docs/config.example.toml`](docs/config.example.toml).
 
-## Разработка
+## Development
 
 ```sh
-make fmt       # форматирование
-make test      # тесты
-make check     # форматирование, go vet, тесты и сборка
-make build     # bin/kan
-make cross-build # Linux, macOS и Windows для amd64/arm64
+make fmt         # format code
+make test        # run tests
+make check       # format check, go vet, tests, and build
+make build       # build bin/kan
+make cross-build # build Linux, macOS, and Windows binaries for amd64/arm64
 ```
 
-Сборка выполняется с `CGO_ENABLED=0` и использует SQLite-драйвер на чистом Go.
+Builds use `CGO_ENABLED=0` and a pure-Go SQLite driver.
 
-Проект распространяется по лицензии [MIT](LICENSE). Правила участия описаны в
-[CONTRIBUTING.md](CONTRIBUTING.md), сообщения об уязвимостях - в
-[SECURITY.md](SECURITY.md).
+The project is distributed under the [MIT License](LICENSE). Contribution rules
+are in [CONTRIBUTING.md](CONTRIBUTING.md), and vulnerability reporting guidance
+is in [SECURITY.md](SECURITY.md).
