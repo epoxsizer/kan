@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -79,6 +80,8 @@ func key(value string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyShiftTab}
 	case "pgdown":
 		return tea.KeyMsg{Type: tea.KeyPgDown}
+	case "pgup":
+		return tea.KeyMsg{Type: tea.KeyPgUp}
 	case "ctrl+s":
 		return tea.KeyMsg{Type: tea.KeyCtrlS}
 	case "ctrl+u":
@@ -437,6 +440,32 @@ func TestDirectCommentShortcutAndLongEditorViewport(t *testing.T) {
 	viewport := editorViewport(strings.Repeat("line content\n", 30), len([]rune(strings.Repeat("line content\n", 30))), 20, 5)
 	require.Contains(t, viewport, "█")
 	require.LessOrEqual(t, len(strings.Split(viewport, "\n")), 5)
+}
+
+func TestCommentEditorUsesFullScreenViewportForHugeText(t *testing.T) {
+	commentLines := make([]string, 0, 80)
+	for index := 0; index < 80; index++ {
+		commentLines = append(commentLines, fmt.Sprintf("editor-comment-line-%02d with enough text to wrap safely", index))
+	}
+	model := testModel(readRepository{})
+	model.loading = false
+	model.project = &domain.Project{ID: "project"}
+	model.board = &domain.Board{ID: "board", ProjectID: "project"}
+	model.screen = boardScreen
+	model.columns = []domain.Column{{ID: "doing", BoardID: "board", Name: "In Progress"}}
+	model.cards["doing"] = []domain.Card{{ID: "card-id", BoardID: "board", ColumnID: "doing", Title: "Huge comment", Description: strings.Join(commentLines, "\n")}}
+
+	model.Update(key("e"))
+	model.form.focus = 1
+	model.Update(key("enter"))
+	view := model.View()
+
+	require.Contains(t, view, "Comments editor")
+	require.Contains(t, view, "editor-comment-line-")
+	require.LessOrEqual(t, lipgloss.Height(view), 24)
+	for _, line := range strings.Split(view, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(line), 80)
+	}
 }
 
 func TestNavigateProjectsBoardsAndCards(t *testing.T) {
@@ -962,10 +991,62 @@ func TestDetailPopupShowsFullMultilineComments(t *testing.T) {
 	model.Update(key("d"))
 	view := model.View()
 
-	for _, value := range []string{"This is a long comment", "multiple lines without being replaced", "by an ellipsis.", "Second line keeps exact text visible"} {
+	for _, value := range []string{"This is a long comment", "lines", "without being replaced", "by an ellipsis.", "Second line keeps exact text visible"} {
 		require.Contains(t, view, value)
 	}
 	require.NotContains(t, view, "This is a long comment that should wrap across multiple lines without being replaced by an ellipsis.…")
+}
+
+func TestDetailPopupUsesFullScreenViewportForHugeComments(t *testing.T) {
+	commentLines := make([]string, 0, 80)
+	for index := 0; index < 80; index++ {
+		commentLines = append(commentLines, fmt.Sprintf("comment-line-%02d with enough text to exercise wrapping safely", index))
+	}
+	model := testModel(readRepository{})
+	model.loading = false
+	model.screen = boardScreen
+	model.columns = []domain.Column{{ID: "doing", BoardID: "board", Name: "In Progress"}}
+	model.cards["doing"] = []domain.Card{{ID: "card-id", BoardID: "board", ColumnID: "doing", Title: "Huge comment", Description: strings.Join(commentLines, "\n")}}
+
+	model.Update(key("d"))
+	view := model.View()
+	require.Contains(t, view, "comment-line-00")
+	require.NotContains(t, view, "comment-line-79")
+	require.LessOrEqual(t, lipgloss.Height(view), 24)
+	for _, line := range strings.Split(view, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(line), 80)
+	}
+
+	model.Update(key("pgdown"))
+	scrolled := model.View()
+	require.NotEqual(t, view, scrolled)
+	require.Contains(t, scrolled, "comment-line-")
+	require.LessOrEqual(t, lipgloss.Height(scrolled), 24)
+	for _, line := range strings.Split(scrolled, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(line), 80)
+	}
+
+	model.Update(key("G"))
+	require.Contains(t, model.View(), "comment-line-79")
+	model.Update(key("g"))
+	require.Contains(t, model.View(), "comment-line-00")
+}
+
+func TestDetailPopupWrapsLongUnbrokenTextWithinScreen(t *testing.T) {
+	model := testModel(readRepository{})
+	model.loading = false
+	model.projects = []domain.Project{{
+		ID:          "project-id",
+		Name:        "Platform",
+		Description: strings.Repeat("x", 400),
+	}}
+	model.Update(key("d"))
+	view := model.View()
+
+	require.LessOrEqual(t, lipgloss.Height(view), 24)
+	for _, line := range strings.Split(view, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(line), 80)
+	}
 }
 
 func TestCardDetailCanOpenEditForm(t *testing.T) {

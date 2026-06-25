@@ -253,6 +253,20 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if model.detail.kind == "card" {
 				return model.openSelectedCardEdit()
 			}
+		case "j", "down":
+			model.scrollDetail(1)
+		case "k", "up":
+			model.scrollDetail(-1)
+		case "pgdown":
+			_, height := model.dimensions()
+			model.scrollDetail(max(height-6, 1))
+		case "pgup":
+			_, height := model.dimensions()
+			model.scrollDetail(-max(height-6, 1))
+		case "g", "home":
+			model.detail.offset = 0
+		case "G", "end":
+			model.scrollDetailToEnd()
 		case "esc", "d", "enter":
 			model.detail = nil
 		}

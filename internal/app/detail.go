@@ -12,9 +12,10 @@ import (
 )
 
 type detailPopup struct {
-	kind  string
-	title string
-	lines []string
+	kind   string
+	title  string
+	lines  []string
+	offset int
 }
 
 func (model *Model) openSelectedDetail() {
@@ -141,30 +142,65 @@ func cardDetail(card domain.Card, columnName string) *detailPopup {
 }
 
 func (model *Model) renderDetailPopup(width, height int) string {
-	boxWidth := min(70, max(width-4, 24))
-	innerWidth := max(boxWidth-6, 18)
-	contentWidth := max(innerWidth-4, 14)
-	lines := []string{
+	layout := detailLayoutForSize(width, height)
+	header := []string{
 		model.styles.header.Render(model.detail.title),
 		model.styles.subtle.Render(strings.ToUpper(model.detail.kind)),
-		"",
 	}
-	maxDetails := max(height-10, 1)
-	detailLines := wrappedDetailLines(model.detail.lines, contentWidth)
-	for index, line := range detailLines {
-		if index >= maxDetails {
-			lines = append(lines, model.styles.subtle.Render("…"))
-			break
-		}
-		lines = append(lines, line)
+	if layout.headerLines == 3 {
+		header = append(header, "")
+	}
+	detailLines := wrappedDetailLines(model.detail.lines, layout.contentWidth)
+	model.detail.offset = clampDetailOffset(model.detail.offset, len(detailLines), layout.viewportHeight)
+	start := model.detail.offset
+	end := min(start+layout.viewportHeight, len(detailLines))
+	lines := append([]string{}, header...)
+	lines = append(lines, detailLines[start:end]...)
+	for len(lines) < layout.insideHeight-1 {
+		lines = append(lines, "")
 	}
 	hint := "Esc / d / Enter close"
 	if model.detail.kind == "card" {
 		hint += " · e edit"
 	}
-	lines = append(lines, "", model.styles.subtle.Render(hint))
-	popup := model.styles.help.Width(innerWidth).Render(strings.Join(lines, "\n"))
+	hint += fmt.Sprintf(" · j/k scroll · PgUp/PgDn page · %d-%d/%d", min(start+1, len(detailLines)), end, len(detailLines))
+	lines = append(lines, model.styles.subtle.Render(truncate(hint, layout.contentWidth)))
+	if len(lines) > layout.insideHeight {
+		lines = lines[:layout.insideHeight]
+	}
+	popup := model.styles.help.Width(layout.boxWidth).Render(strings.Join(lines, "\n"))
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, popup)
+}
+
+type detailLayout struct {
+	boxWidth       int
+	contentWidth   int
+	insideHeight   int
+	headerLines    int
+	viewportHeight int
+}
+
+func detailLayoutForSize(width, height int) detailLayout {
+	width = max(width, 20)
+	height = max(height, 6)
+	insideHeight := max(height-4, 1)
+	headerLines := 2
+	if insideHeight >= 6 {
+		headerLines = 3
+	}
+	viewportHeight := max(insideHeight-headerLines-1, 0)
+	boxWidth := max(width-2, 14)
+	return detailLayout{
+		boxWidth:       boxWidth,
+		contentWidth:   max(boxWidth-4, 10),
+		insideHeight:   insideHeight,
+		headerLines:    headerLines,
+		viewportHeight: viewportHeight,
+	}
+}
+
+func clampDetailOffset(offset, totalLines, viewportHeight int) int {
+	return min(max(offset, 0), max(totalLines-viewportHeight, 0))
 }
 
 func fallbackValue(value string) string {
@@ -198,17 +234,43 @@ func wrapDetailLine(value string, width int) []string {
 	lines := []string{}
 	for len(runes) > width {
 		breakAt := width
+		consume := width
 		for index := width; index > 0; index-- {
 			if runes[index-1] == ' ' || runes[index-1] == '\t' {
 				breakAt = index - 1
+				consume = index
 				break
 			}
 		}
+		if breakAt <= 0 {
+			breakAt = width
+			consume = width
+		}
 		lines = append(lines, strings.TrimRight(string(runes[:breakAt]), " \t"))
-		runes = runes[min(breakAt+1, len(runes)):]
+		runes = runes[min(consume, len(runes)):]
 	}
 	lines = append(lines, string(runes))
 	return lines
+}
+
+func (model *Model) scrollDetail(delta int) {
+	if model.detail == nil {
+		return
+	}
+	width, height := model.dimensions()
+	layout := detailLayoutForSize(width, height)
+	total := len(wrappedDetailLines(model.detail.lines, layout.contentWidth))
+	model.detail.offset = clampDetailOffset(model.detail.offset+delta, total, layout.viewportHeight)
+}
+
+func (model *Model) scrollDetailToEnd() {
+	if model.detail == nil {
+		return
+	}
+	width, height := model.dimensions()
+	layout := detailLayoutForSize(width, height)
+	total := len(wrappedDetailLines(model.detail.lines, layout.contentWidth))
+	model.detail.offset = clampDetailOffset(total, total, layout.viewportHeight)
 }
 
 func formatDetailTime(value time.Time) string {

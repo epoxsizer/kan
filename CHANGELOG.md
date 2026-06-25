@@ -6,6 +6,13 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-06-26
+
+### Fixed
+
+- Describe view now uses a full-screen scrollable pane for huge comments.
+- Comment editing now uses the same bounded full-screen editor for huge text.
+
 ## [0.1.2] - 2026-06-24
 
 ### Fixed
@@ -40,7 +47,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Theme configuration, inline shortcut help, and accessible empty states.
 - Scriptable CLI commands for projects, boards, columns, cards, and data exchange.
 
-[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.2...main
+[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.3...main
+[0.1.3]: https://github.com/epoxsizer/kan/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/epoxsizer/kan/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/epoxsizer/kan/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/epoxsizer/kan/releases/tag/v0.1.0

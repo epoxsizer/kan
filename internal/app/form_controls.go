@@ -426,12 +426,46 @@ func renumberChecklist(items []domain.ChecklistItem) {
 
 func (model *Model) renderCommentEditor(width, height int) string {
 	control := model.form.control
-	boxWidth := min(86, max(width-4, 28))
-	contentWidth := max(boxWidth-8, 20)
-	visibleHeight := max(height-10, 5)
-	body := lipgloss.NewStyle().Width(contentWidth).Height(visibleHeight).MaxHeight(visibleHeight).Render(editorViewport(control.value, control.cursor, contentWidth, visibleHeight))
-	content := model.styles.header.Render(model.form.fields[control.field].label+" editor") + "\n" + model.styles.subtle.Render("Enter newline · Ctrl-S apply · Esc discard") + "\n\n" + body
-	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, model.styles.help.Width(boxWidth-6).Render(content))
+	layout := commentEditorLayoutForSize(width, height)
+	title := model.form.fields[control.field].label + " editor"
+	hint := "Enter newline · Ctrl-S apply · Esc discard"
+	body := editorViewport(control.value, control.cursor, layout.contentWidth, layout.viewportHeight)
+	lines := []string{
+		model.styles.header.Render(truncate(title, layout.contentWidth)),
+		model.styles.subtle.Render(truncate(hint, layout.contentWidth)),
+		"",
+	}
+	if body != "" {
+		lines = append(lines, strings.Split(body, "\n")...)
+	}
+	for len(lines) < layout.insideHeight {
+		lines = append(lines, "")
+	}
+	if len(lines) > layout.insideHeight {
+		lines = lines[:layout.insideHeight]
+	}
+	content := model.styles.help.Width(layout.boxWidth).Render(strings.Join(lines, "\n"))
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, content)
+}
+
+type commentEditorLayout struct {
+	boxWidth       int
+	contentWidth   int
+	insideHeight   int
+	viewportHeight int
+}
+
+func commentEditorLayoutForSize(width, height int) commentEditorLayout {
+	width = max(width, 20)
+	height = max(height, 6)
+	boxWidth := max(width-2, 14)
+	insideHeight := max(height-4, 1)
+	return commentEditorLayout{
+		boxWidth:       boxWidth,
+		contentWidth:   max(boxWidth-4, 10),
+		insideHeight:   insideHeight,
+		viewportHeight: max(insideHeight-3, 1),
+	}
 }
 
 func (model *Model) renderDropdown(width, height int) string {
