@@ -53,6 +53,24 @@ func TestMigrateSeedAndVersionCommands(t *testing.T) {
 	require.Contains(t, output.String(), "commit abc123")
 }
 
+func TestFirstRunWithoutPathsUsesWorkingDirectory(t *testing.T) {
+	directory := t.TempDir()
+	previous, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(directory))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(previous)) })
+
+	root := New("test", "abc123", "today")
+	var output bytes.Buffer
+	root.SetOut(&output)
+	root.SetArgs([]string{"migrate"})
+	require.NoError(t, root.Execute())
+	require.Contains(t, output.String(), "migrations applied")
+	require.FileExists(t, filepath.Join(directory, "config.toml"))
+	require.FileExists(t, filepath.Join(directory, "kan.db"))
+	require.FileExists(t, filepath.Join(directory, "kan.log"))
+}
+
 func executeJSONCommand(t *testing.T, arguments []string, target any) error {
 	t.Helper()
 	root := New("test", "abc123", "today")

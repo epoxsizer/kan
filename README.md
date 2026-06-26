@@ -18,7 +18,7 @@ checklists, custom fields, linked cards, JSON import/export, and automatic
 backups. The database is local by default; backups can optionally be uploaded to
 S3-compatible storage.
 
-Current version: `0.1.3`.
+Current version: `0.1.4`.
 
 ## Interface
 
@@ -157,11 +157,13 @@ S3. The local database remains the source of truth.
 
 ## Data Paths
 
-By default, `kan` uses XDG directories:
+By default, `kan` uses files in the current working directory. On first run,
+when no database path is provided, it creates `config.toml` next to the local
+database settings.
 
-- config: `${XDG_CONFIG_HOME:-~/.config}/kan/config.toml`
-- database: `${XDG_DATA_HOME:-~/.local/share}/kan/kan.db`
-- log file: `${XDG_STATE_HOME:-~/.local/state}/kan/kan.log`
+- config: `./config.toml`
+- database: `./kan.db`
+- log file: `./kan.log`
 
 Paths can be overridden with `--config`, `--db`, `--log`, or with `KAN_CONFIG`,
 `KAN_DB`, and `KAN_LOG`.

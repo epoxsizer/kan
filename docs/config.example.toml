@@ -1,7 +1,7 @@
-# Copy to ~/.config/kan/config.toml and uncomment values to override defaults.
+# Copy to ./config.toml and uncomment values to override defaults.
 
-database = "/absolute/path/to/kan.db"
-log_file = "/absolute/path/to/kan.log"
+database = "kan.db"
+log_file = "kan.log"
 log_level = "info"
 # show_card_tags = true
 

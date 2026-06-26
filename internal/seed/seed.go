@@ -67,7 +67,7 @@ func createRoadmapBoard(ctx context.Context, repo domain.Repository, projectID, 
 	cards := []domain.Card{
 		{ID: demoID(boardID, 20), BoardID: boardID, ColumnID: columns[0].ID, Title: "S3 backup target", Description: "Upload local SQLite backups to an S3-compatible bucket.", Position: 1024, Tags: []string{"backup", "s3"}, Fields: map[string]domain.FieldValue{}},
 		{ID: demoID(boardID, 21), BoardID: boardID, ColumnID: columns[1].ID, Title: "Theme presets", Description: "Expose more colors through config.toml.", Position: 1024, Tags: []string{"theme"}, Fields: map[string]domain.FieldValue{}},
-		{ID: demoID(boardID, 22), BoardID: boardID, ColumnID: columns[2].ID, Title: "Release v0.1.3", Description: "Publish binaries and checksums.", Position: 1024, Tags: []string{"release"}, Fields: map[string]domain.FieldValue{}},
+		{ID: demoID(boardID, 22), BoardID: boardID, ColumnID: columns[2].ID, Title: "Release v0.1.4", Description: "Publish binaries and checksums.", Position: 1024, Tags: []string{"release"}, Fields: map[string]domain.FieldValue{}},
 	}
 	return createBoard(ctx, repo, board, columns, nil, cards)
 }

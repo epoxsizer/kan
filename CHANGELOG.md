@@ -6,6 +6,13 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-06-26
+
+### Changed
+
+- First run now creates `config.toml`, `kan.db`, and `kan.log` in the current working directory when no database path is configured.
+- Documentation now describes local working-directory defaults instead of XDG defaults.
+
 ## [0.1.3] - 2026-06-26
 
 ### Fixed
@@ -47,7 +54,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Theme configuration, inline shortcut help, and accessible empty states.
 - Scriptable CLI commands for projects, boards, columns, cards, and data exchange.
 
-[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.3...main
+[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.4...main
+[0.1.4]: https://github.com/epoxsizer/kan/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/epoxsizer/kan/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/epoxsizer/kan/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/epoxsizer/kan/compare/v0.1.0...v0.1.1

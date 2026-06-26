@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
-	"github.com/adrg/xdg"
 )
 
 const (
@@ -88,9 +87,9 @@ type Overrides struct {
 
 func Defaults() Config {
 	return Config{
-		ConfigFile:   filepath.Join(xdg.ConfigHome, "kan", "config.toml"),
-		Database:     filepath.Join(xdg.DataHome, "kan", "kan.db"),
-		LogFile:      filepath.Join(xdg.StateHome, "kan", "kan.log"),
+		ConfigFile:   "config.toml",
+		Database:     "kan.db",
+		LogFile:      "kan.log",
 		LogLevel:     "info",
 		ShowCardTags: true,
 		Theme: Theme{
@@ -107,6 +106,8 @@ func Load(overrides Overrides) (Config, error) {
 	cfg := Defaults()
 	configPath := firstNonEmpty(overrides.ConfigFile, os.Getenv(EnvConfig), cfg.ConfigFile)
 	cfg.ConfigFile = configPath
+	explicitConfig := overrides.ConfigFile != "" || os.Getenv(EnvConfig) != ""
+	defaultDatabase := overrides.Database == "" && os.Getenv(EnvDB) == ""
 
 	if _, err := os.Stat(configPath); err == nil {
 		var fileCfg fileConfig
@@ -124,8 +125,15 @@ func Load(overrides Overrides) (Config, error) {
 		merge(&cfg, fileCfg)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Config{}, fmt.Errorf("stat config %q: %w", configPath, err)
-	} else if overrides.ConfigFile != "" || os.Getenv(EnvConfig) != "" {
+	} else if explicitConfig {
 		return Config{}, fmt.Errorf("config file %q does not exist", configPath)
+	} else if defaultDatabase {
+		if err = WriteDefaultFile(configPath, cfg); err != nil {
+			return Config{}, err
+		}
+	} else {
+		// When automation passes --db or KAN_DB, keep startup side-effect free.
+		// Local first-run config is only created for the no-database-configured path.
 	}
 
 	cfg.Database = firstNonEmpty(overrides.Database, os.Getenv(EnvDB), cfg.Database)
@@ -143,6 +151,88 @@ func Load(overrides Overrides) (Config, error) {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+func WriteDefaultFile(path string, cfg Config) error {
+	if err := EnsureParent(path); err != nil {
+		return err
+	}
+	contents := fmt.Sprintf(`database = %q
+log_file = %q
+log_level = %q
+show_card_tags = %t
+
+[backup]
+storage = %q
+
+[backup.s3]
+prefix = %q
+
+[theme]
+primary = %q
+muted = %q
+text = %q
+background = %q
+selected_foreground = %q
+selected_background = %q
+danger = %q
+border = %q
+selected_column_foreground = %q
+selected_column_background = %q
+selected_column_border = %q
+selected_card_foreground = %q
+selected_card_background = %q
+panel_border = %q
+focused_panel_border = %q
+status_foreground = %q
+status_background = %q
+status_accent_foreground = %q
+status_accent_background = %q
+shortcut_key_foreground = %q
+shortcut_key_background = %q
+shortcut_text = %q
+help_text = %q
+help_border = %q
+command = %q
+column_default = %q
+`,
+		cfg.Database,
+		cfg.LogFile,
+		cfg.LogLevel,
+		cfg.ShowCardTags,
+		cfg.Backup.Storage,
+		cfg.Backup.S3.Prefix,
+		cfg.Theme.Primary,
+		cfg.Theme.Muted,
+		cfg.Theme.Text,
+		cfg.Theme.Background,
+		cfg.Theme.SelectedForeground,
+		cfg.Theme.SelectedBackground,
+		cfg.Theme.Danger,
+		cfg.Theme.Border,
+		cfg.Theme.SelectedColumnForeground,
+		cfg.Theme.SelectedColumnBackground,
+		cfg.Theme.SelectedColumnBorder,
+		cfg.Theme.SelectedCardForeground,
+		cfg.Theme.SelectedCardBackground,
+		cfg.Theme.PanelBorder,
+		cfg.Theme.FocusedPanelBorder,
+		cfg.Theme.StatusForeground,
+		cfg.Theme.StatusBackground,
+		cfg.Theme.StatusAccentForeground,
+		cfg.Theme.StatusAccentBackground,
+		cfg.Theme.ShortcutKeyForeground,
+		cfg.Theme.ShortcutKeyBackground,
+		cfg.Theme.ShortcutText,
+		cfg.Theme.HelpText,
+		cfg.Theme.HelpBorder,
+		cfg.Theme.Command,
+		cfg.Theme.ColumnDefault,
+	)
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		return fmt.Errorf("write default config %q: %w", path, err)
+	}
+	return nil
 }
 
 func EnsureParent(path string) error {

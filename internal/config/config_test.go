@@ -8,6 +8,46 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestDefaultLoadCreatesLocalConfigAndUsesLocalPaths(t *testing.T) {
+	t.Setenv(EnvConfig, "")
+	t.Setenv(EnvDB, "")
+	t.Setenv(EnvLog, "")
+	workingDirectory := t.TempDir()
+	previous, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(workingDirectory))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(previous)) })
+
+	cfg, err := Load(Overrides{})
+	require.NoError(t, err)
+	require.Equal(t, "config.toml", cfg.ConfigFile)
+	require.Equal(t, "kan.db", cfg.Database)
+	require.Equal(t, "kan.log", cfg.LogFile)
+	require.FileExists(t, filepath.Join(workingDirectory, "config.toml"))
+
+	contents, err := os.ReadFile(filepath.Join(workingDirectory, "config.toml"))
+	require.NoError(t, err)
+	require.Contains(t, string(contents), `database = "kan.db"`)
+	require.Contains(t, string(contents), `log_file = "kan.log"`)
+	require.Contains(t, string(contents), `[theme]`)
+}
+
+func TestDatabaseOverrideDoesNotCreateDefaultConfig(t *testing.T) {
+	t.Setenv(EnvConfig, "")
+	t.Setenv(EnvDB, "")
+	t.Setenv(EnvLog, "")
+	workingDirectory := t.TempDir()
+	previous, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(workingDirectory))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(previous)) })
+
+	cfg, err := Load(Overrides{Database: filepath.Join(workingDirectory, "custom.db")})
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(workingDirectory, "custom.db"), cfg.Database)
+	require.NoFileExists(t, filepath.Join(workingDirectory, "config.toml"))
+}
+
 func TestLoadPrecedenceAndStrictKeys(t *testing.T) {
 	t.Setenv(EnvDB, "/env/database.db")
 	t.Setenv(EnvLog, "/env/kan.log")
