@@ -29,6 +29,7 @@ const (
 type formField struct {
 	label   string
 	value   string
+	cursor  int
 	kind    fieldKind
 	options []string
 }
@@ -60,6 +61,7 @@ type formModal struct {
 	control        *formControl
 	linkCandidates []linkCandidate
 	linksLoading   bool
+	initialValues  []string
 }
 
 type deleteKind uint8
@@ -78,6 +80,20 @@ type confirmModal struct {
 	id      string
 }
 
+type discardKind uint8
+
+const (
+	discardForm discardKind = iota
+	discardControl
+	discardChecklistInput
+)
+
+type discardModal struct {
+	kind    discardKind
+	title   string
+	message string
+}
+
 func (model *Model) startProjectForm(edit bool) {
 	form := &formModal{kind: createProjectForm, title: "Add project", fields: []formField{{label: "Name"}, {label: "Comments", kind: commentField}}}
 	if edit {
@@ -85,7 +101,7 @@ func (model *Model) startProjectForm(edit bool) {
 		form.kind, form.title = editProjectForm, "Edit project"
 		form.fields[0].value, form.fields[1].value = project.Name, project.Description
 	}
-	model.form = form
+	model.activateForm(form)
 }
 
 func (model *Model) startBoardForm(edit bool) {
@@ -95,7 +111,7 @@ func (model *Model) startBoardForm(edit bool) {
 		form.kind, form.title = editBoardForm, "Edit board"
 		form.fields[0].value, form.fields[1].value = board.Name, board.Description
 	}
-	model.form = form
+	model.activateForm(form)
 }
 
 func (model *Model) startColumnForm(edit bool) {
@@ -116,7 +132,7 @@ func (model *Model) startColumnForm(edit bool) {
 			form.fields[2].value = ""
 		}
 	}
-	model.form = form
+	model.activateForm(form)
 }
 
 func (model *Model) startCardForm(edit bool) tea.Cmd {
@@ -146,7 +162,7 @@ func (model *Model) startCardForm(edit bool) tea.Cmd {
 		form.fields[7].value = string(checklist)
 	}
 	form.linksLoading = true
-	model.form = form
+	model.activateForm(form)
 	return loadLinkCandidates(model.ctx, model.repo, model.project.ID, selectedCardID(form, model))
 }
 
@@ -155,12 +171,20 @@ func (model *Model) startSettingsForm() {
 	if model.showCardTags {
 		showTags = "Enabled"
 	}
-	model.form = &formModal{kind: settingsForm, title: "Settings", fields: []formField{
+	model.activateForm(&formModal{kind: settingsForm, title: "Settings", fields: []formField{
 		{label: "Projects/boards layout", value: titleCase(model.listLayout.String()), kind: dropdownField, options: layoutOptions},
 		{label: "Card title tags", value: showTags, kind: dropdownField, options: booleanOptions},
 		{label: "Card sort", value: titleCase(model.sortMode.String()), kind: dropdownField, options: sortOptions},
 		{label: "Card group", value: titleCase(model.groupMode.String()), kind: dropdownField, options: groupOptions},
-	}}
+	}})
+}
+
+func (model *Model) activateForm(form *formModal) {
+	for index := range form.fields {
+		form.fields[index].cursor = len([]rune(form.fields[index].value))
+	}
+	form.initialValues = textValues(form.fields)
+	model.form = form
 }
 
 func (model *Model) handleFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -172,7 +196,11 @@ func (model *Model) handleFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c":
 		return model, tea.Quit
 	case "esc":
-		model.form = nil
+		if model.formDirty() {
+			model.discard = &discardModal{kind: discardForm, title: "Discard form changes?", message: "Your edits have not been saved."}
+		} else {
+			model.form = nil
+		}
 		return model, nil
 	case "ctrl+s":
 		return model.submitForm()
@@ -192,24 +220,20 @@ func (model *Model) handleFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		form.focus++
 		return model, nil
-	case "backspace":
-		runes := []rune(form.fields[form.focus].value)
-		if len(runes) > 0 {
-			form.fields[form.focus].value = string(runes[:len(runes)-1])
-		}
-	case "ctrl+u":
-		form.fields[form.focus].value = ""
-	case " ":
-		if form.fields[form.focus].kind == textField {
-			form.fields[form.focus].value += " "
-		}
-	default:
-		if key.Type == tea.KeyRunes && form.fields[form.focus].kind == textField {
-			form.fields[form.focus].value += string(key.Runes)
+	}
+	field := &form.fields[form.focus]
+	if field.kind == textField {
+		result := editText(field.value, field.cursor, key, false)
+		if result.handled {
+			field.value, field.cursor = result.value, result.cursor
 		}
 	}
 	form.err = ""
 	return model, nil
+}
+
+func (model *Model) formDirty() bool {
+	return model.form != nil && !equalTextValues(model.form.initialValues, textValues(model.form.fields))
 }
 
 func (model *Model) submitForm() (tea.Model, tea.Cmd) {
@@ -391,6 +415,38 @@ func (model *Model) handleConfirmKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return model, nil
 }
 
+func (model *Model) handleDiscardKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if key.String() == "ctrl+c" {
+		return model, tea.Quit
+	}
+	if key.String() == "esc" || key.String() == "n" {
+		model.discard = nil
+		return model, nil
+	}
+	if key.String() != "y" {
+		return model, nil
+	}
+	discard := model.discard
+	model.discard = nil
+	switch discard.kind {
+	case discardForm:
+		model.form = nil
+	case discardControl:
+		if model.form != nil {
+			model.form.control = nil
+		}
+	case discardChecklistInput:
+		if model.form != nil && model.form.control != nil {
+			control := model.form.control
+			control.inputMode = false
+			control.input = ""
+			control.inputCursor = 0
+			control.editIndex = -1
+		}
+	}
+	return model, nil
+}
+
 func (model *Model) renderForm(width, height int) string {
 	if model.form.control != nil {
 		return model.renderFormControl(width, height)
@@ -398,14 +454,25 @@ func (model *Model) renderForm(width, height int) string {
 	boxWidth := min(70, max(width-4, 26))
 	innerWidth := max(boxWidth-6, 20)
 	contentWidth := max(innerWidth-4, 16)
-	lines := []string{model.styles.header.Render(model.form.title), model.styles.subtle.Render("Tab fields · Enter edit/open · Ctrl-S save · Esc cancel"), ""}
+	hint := "Tab fields · ←/→ edit · Ctrl-S save · Esc cancel"
+	if model.form.fields[model.form.focus].kind != textField {
+		hint = "Tab fields · Enter open · Ctrl-S save · Esc cancel"
+	}
+	lines := []string{model.styles.header.Render(model.form.title), model.styles.subtle.Render(truncate(hint, contentWidth)), ""}
 	for index, field := range model.form.fields {
 		label := field.label + ": "
-		input := fieldDisplayValue(field, model.form.linkCandidates)
-		input = truncate(input, max(contentWidth-len(label)-2, 1))
 		if index == model.form.focus {
-			lines = append(lines, model.styles.selected.Copy().Padding(0).Width(contentWidth).Render("> "+label+input+"█"))
+			inputWidth := max(contentWidth-lipgloss.Width(label)-2, 1)
+			input := fieldDisplayValue(field, model.form.linkCandidates)
+			if field.kind == textField {
+				input = textViewport(field.value, field.cursor, inputWidth)
+			} else {
+				input = truncate(input, inputWidth)
+			}
+			lines = append(lines, model.styles.selected.Copy().Padding(0).Width(contentWidth).Render("> "+label+input))
 		} else {
+			input := fieldDisplayValue(field, model.form.linkCandidates)
+			input = truncate(input, max(contentWidth-lipgloss.Width(label)-2, 1))
 			lines = append(lines, "  "+label+input)
 		}
 	}
@@ -421,6 +488,15 @@ func (model *Model) renderConfirm(width, height int) string {
 	innerWidth := max(boxWidth-6, 18)
 	contentWidth := max(innerWidth-4, 14)
 	lines := []string{model.styles.error.Render(model.confirm.title), "", truncate(model.confirm.message, contentWidth), "", model.styles.subtle.Render("y confirm · n / Esc cancel")}
+	popup := model.styles.help.Width(innerWidth).Render(strings.Join(lines, "\n"))
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, popup)
+}
+
+func (model *Model) renderDiscard(width, height int) string {
+	boxWidth := min(64, max(width-4, 24))
+	innerWidth := max(boxWidth-6, 18)
+	contentWidth := max(innerWidth-4, 14)
+	lines := []string{model.styles.error.Render(model.discard.title), "", truncate(model.discard.message, contentWidth), "", model.styles.subtle.Render("y discard · n / Esc keep editing")}
 	popup := model.styles.help.Width(innerWidth).Render(strings.Join(lines, "\n"))
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, popup)
 }

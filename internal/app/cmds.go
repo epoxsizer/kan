@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/epoxsizer/kan/internal/domain"
@@ -32,14 +33,17 @@ func loadBoards(ctx context.Context, repo domain.Repository, projectID string) t
 			return boardsLoadedMsg{err: err}
 		}
 		counts := make(map[string]int, len(boards))
+		health := make(map[string]boardHealth, len(boards))
+		now := time.Now()
 		for _, board := range boards {
 			cards, listErr := repo.ListCards(ctx, board.ID)
 			if listErr != nil {
 				return boardsLoadedMsg{err: listErr}
 			}
 			counts[board.ID] = len(cards)
+			health[board.ID] = summarizeBoardHealth(cards, now)
 		}
-		return boardsLoadedMsg{boards: boards, counts: counts}
+		return boardsLoadedMsg{boards: boards, counts: counts, health: health}
 	}
 }
 

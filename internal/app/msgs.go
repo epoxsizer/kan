@@ -2,6 +2,11 @@ package app
 
 import "github.com/epoxsizer/kan/internal/domain"
 
+// NoticeMsg lets background services display a non-blocking status message.
+type NoticeMsg struct {
+	Text string
+}
+
 type projectsLoadedMsg struct {
 	projects []domain.Project
 	counts   map[string]int
@@ -11,6 +16,7 @@ type projectsLoadedMsg struct {
 type boardsLoadedMsg struct {
 	boards []domain.Board
 	counts map[string]int
+	health map[string]boardHealth
 	err    error
 }
 

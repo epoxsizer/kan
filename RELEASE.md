@@ -19,10 +19,11 @@ policy.
 ## Build a release
 
 ```sh
-git tag -s v0.1.4 -m "kan v0.1.4"
-git push origin v0.1.4
+git tag -a v0.1.5 -m "kan v0.1.5"
+git push origin main
+git push origin v0.1.5
 ```
 
 The tag workflow creates a GitHub release and uploads its archives and checksum
-file. Download and verify at least one archive and check `kan --version`. If
-signed tags are unavailable, use an annotated tag with `git tag -a`.
+file. Download and verify at least one archive and check `kan --version`. Use
+`git tag -s` instead when a signing key and signed-tag policy are configured.

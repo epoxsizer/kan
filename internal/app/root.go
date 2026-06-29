@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -52,9 +53,13 @@ type Model struct {
 	detail        *detailPopup
 	form          *formModal
 	confirm       *confirmModal
+	discard       *discardModal
+	movePicker    *movePicker
+	lastMove      *cardMoveRecord
 	showCardTags  bool
 	filterMode    bool
 	filterText    string
+	filterCursor  int
 	filterLoading bool
 	filterErr     error
 	filteredCards map[string][]domain.Card
@@ -64,6 +69,7 @@ type Model struct {
 
 	commandMode    bool
 	command        string
+	commandCursor  int
 	commandIndex   int
 	paletteItems   []paletteItem
 	paletteLoading bool
@@ -77,6 +83,7 @@ type Model struct {
 	project       *domain.Project
 	boards        []domain.Board
 	boardCounts   map[string]int
+	boardHealth   map[string]boardHealth
 	boardIndex    int
 	board         *domain.Board
 	columns       []domain.Column
@@ -90,8 +97,9 @@ func New(ctx context.Context, repo domain.Repository, logger *slog.Logger) *Mode
 }
 
 type Options struct {
-	ShowCardTags bool
-	Theme        Theme
+	ShowCardTags  bool
+	Theme         Theme
+	StartupNotice string
 }
 
 func NewWithOptions(ctx context.Context, repo domain.Repository, logger *slog.Logger, options Options) *Model {
@@ -112,7 +120,9 @@ func NewWithOptions(ctx context.Context, repo domain.Repository, logger *slog.Lo
 		cardIndexes:   make(map[string]int),
 		projectCounts: make(map[string]int),
 		boardCounts:   make(map[string]int),
+		boardHealth:   make(map[string]boardHealth),
 		showCardTags:  options.ShowCardTags,
+		notice:        options.StartupNotice,
 	}
 }
 
@@ -129,6 +139,9 @@ func (model *Model) Init() tea.Cmd {
 
 func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	switch message := message.(type) {
+	case NoticeMsg:
+		model.notice = message.Text
+		return model, nil
 	case tea.WindowSizeMsg:
 		model.width = message.Width
 		model.height = message.Height
@@ -148,6 +161,7 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		if message.err == nil {
 			model.boards = message.boards
 			model.boardCounts = message.counts
+			model.boardHealth = message.health
 			model.boardIndex = 0
 		}
 		return model, nil
@@ -189,6 +203,34 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return model, nil
+	case externalEditorPreparedMsg:
+		if model.form == nil || model.form.control == nil || model.form.control.kind != commentControl {
+			if message.path != "" {
+				_ = os.Remove(message.path)
+			}
+			return model, nil
+		}
+		if message.err != nil {
+			model.form.err = message.err.Error()
+			return model, nil
+		}
+		return model, tea.ExecProcess(message.command, func(err error) tea.Msg {
+			return finishExternalEditor(message.path, err)
+		})
+	case externalEditorFinishedMsg:
+		if model.form == nil || model.form.control == nil || model.form.control.kind != commentControl {
+			return model, nil
+		}
+		if message.apply {
+			model.form.control.value = message.content
+			model.form.control.cursor = len([]rune(message.content))
+		}
+		if message.err != nil {
+			model.form.err = message.err.Error()
+		} else {
+			model.form.err = ""
+		}
+		return model, nil
 	case boardFilterMsg:
 		if message.query != model.filterText {
 			return model, nil
@@ -211,6 +253,9 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.notice = message.notice
 		model.err = nil
 		model.loading = true
+		if message.scope == boardScreen {
+			model.lastMove = nil
+		}
 		switch message.scope {
 		case projectsScreen:
 			model.screen = projectsScreen
@@ -223,6 +268,25 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return model, loadBoard(model.ctx, model.repo, model.board.ID)
 		}
 		return model, nil
+	case cardMoveDoneMsg:
+		model.loading = false
+		if message.err != nil {
+			model.pendingColumn = ""
+			model.pendingCard = ""
+			model.err = message.err
+			return model, nil
+		}
+		if message.undo {
+			model.lastMove = nil
+			model.notice = "Card move undone"
+		} else {
+			record := message.record
+			model.lastMove = &record
+			model.notice = record.notice
+		}
+		model.err = nil
+		model.loading = true
+		return model, loadBoard(model.ctx, model.repo, model.board.ID)
 	case tea.KeyMsg:
 		return model.handleKey(message)
 	}
@@ -232,6 +296,12 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if key.String() == "ctrl+c" {
 		return model, tea.Quit
+	}
+	if model.discard != nil {
+		return model.handleDiscardKey(key)
+	}
+	if model.movePicker != nil {
+		return model.handleMovePickerKey(key)
 	}
 	if model.form != nil {
 		return model.handleFormKey(key)
@@ -282,6 +352,7 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		model.help = false
 		model.commandMode = true
 		model.command = ""
+		model.commandCursor = 0
 		model.commandIndex = 0
 		model.paletteLoading = true
 		model.paletteErr = nil
@@ -299,6 +370,7 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if key.String() == "/" && model.screen == boardScreen {
 		model.filterMode = true
+		model.filterCursor = len([]rune(model.filterText))
 		model.notice = ""
 		return model, nil
 	}
@@ -417,6 +489,7 @@ func (model *Model) openSelectedBoard() (tea.Model, tea.Cmd) {
 	}
 	selected := model.boards[model.boardIndex]
 	model.board = &selected
+	model.lastMove = nil
 	model.clearBoardFilter()
 	model.screen = boardScreen
 	model.loading = true
@@ -460,6 +533,11 @@ func (model *Model) handleBoardKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			model.confirm = &confirmModal{kind: deleteColumn, title: "Delete column?", message: fmt.Sprintf("Delete %s and its %d cards?", column.Name, len(model.cards[column.ID])), id: column.ID}
 		}
 		return model, nil
+	case "M":
+		model.openMovePicker()
+		return model, nil
+	case "u":
+		return model.undoLastCardMove()
 	}
 	if len(model.columns) == 0 {
 		return model, nil
@@ -514,15 +592,17 @@ func (model *Model) openSelectedCardEdit() (tea.Model, tea.Cmd) {
 }
 
 func (model *Model) handleCommandKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch key.Type {
-	case tea.KeyEsc:
+	switch key.String() {
+	case "esc":
 		model.commandMode = false
 		model.command = ""
+		model.commandCursor = 0
 		model.commandIndex = 0
-	case tea.KeyEnter:
+	case "enter":
 		matches := model.paletteMatches()
 		model.commandMode = false
 		model.command = ""
+		model.commandCursor = 0
 		if len(matches) == 0 {
 			model.err = fmt.Errorf("no matching command or data")
 			return model, nil
@@ -530,22 +610,18 @@ func (model *Model) handleCommandKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		selected := matches[clampIndex(model.commandIndex, len(matches))]
 		model.commandIndex = 0
 		return model.executePaletteMatch(selected)
-	case tea.KeyUp:
+	case "up":
 		model.commandIndex = max(model.commandIndex-1, 0)
-	case tea.KeyDown, tea.KeyTab:
+	case "down", "tab":
 		model.commandIndex = min(model.commandIndex+1, max(len(model.paletteMatches())-1, 0))
-	case tea.KeyBackspace, tea.KeyDelete:
-		runes := []rune(model.command)
-		if len(runes) > 0 {
-			model.command = string(runes[:len(runes)-1])
+	default:
+		result := editText(model.command, model.commandCursor, key, false)
+		if result.handled {
+			model.command, model.commandCursor = result.value, result.cursor
 		}
-		model.commandIndex = 0
-	case tea.KeySpace:
-		model.command += " "
-		model.commandIndex = 0
-	case tea.KeyRunes:
-		model.command += string(key.Runes)
-		model.commandIndex = 0
+		if result.changed {
+			model.commandIndex = 0
+		}
 	}
 	return model, nil
 }
@@ -562,6 +638,7 @@ func (model *Model) executePaletteMatch(match paletteMatch) (tea.Model, tea.Cmd)
 	model.err = nil
 	model.notice = ""
 	model.clearBoardFilter()
+	model.lastMove = nil
 	model.project = &item.project
 	switch item.kind {
 	case projectItem:
@@ -651,6 +728,18 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 		case boardScreen:
 			return model.handleBoardKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
 		}
+	case "move":
+		if model.screen != boardScreen {
+			model.err = fmt.Errorf("open a board first")
+			return model, nil
+		}
+		model.openMovePicker()
+	case "undo":
+		if model.screen != boardScreen {
+			model.err = fmt.Errorf("open a board first")
+			return model, nil
+		}
+		return model.undoLastCardMove()
 	case "add-column", "new-column":
 		if model.screen != boardScreen || model.board == nil {
 			model.err = fmt.Errorf("open a board first")
@@ -689,6 +778,7 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 	case "project", "projects":
 		model.screen = projectsScreen
 		model.help = false
+		model.lastMove = nil
 	case "board", "boards":
 		if model.project == nil {
 			model.err = fmt.Errorf("open a project first")
@@ -696,6 +786,7 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 		}
 		model.screen = boardsScreen
 		model.help = false
+		model.lastMove = nil
 	case "reload":
 		model.loading = true
 		model.err = nil
@@ -718,6 +809,7 @@ func (model *Model) goBack() (tea.Model, tea.Cmd) {
 	switch model.screen {
 	case boardScreen:
 		model.clearBoardFilter()
+		model.lastMove = nil
 		model.screen = boardsScreen
 	case boardsScreen:
 		model.screen = projectsScreen
@@ -728,6 +820,12 @@ func (model *Model) goBack() (tea.Model, tea.Cmd) {
 
 func (model *Model) View() string {
 	width, height := model.dimensions()
+	if model.discard != nil {
+		return model.renderDiscard(width, height)
+	}
+	if model.movePicker != nil {
+		return model.renderMovePicker(width, height)
+	}
 	if model.form != nil {
 		return model.renderForm(width, height)
 	}
@@ -804,7 +902,13 @@ func (model *Model) renderBoards(width int) string {
 	}
 	rows := make([]tableRow, 0, len(model.boards))
 	for index, board := range model.boards {
-		rows = append(rows, tableRow{name: board.Name, comments: board.Description, items: model.boardCounts[board.ID], selected: index == model.boardIndex})
+		rows = append(rows, tableRow{
+			name:     board.Name,
+			comments: board.Description,
+			status:   boardHealthLabel(model.boardHealth[board.ID], time.Now()),
+			items:    model.boardCounts[board.ID],
+			selected: index == model.boardIndex,
+		})
 	}
 	if model.listLayout == cardsLayout {
 		return model.renderListCards("Boards", "Cards", rows, width)
@@ -868,20 +972,14 @@ func (model *Model) renderColumn(index, width, height int) string {
 		maxRows := max(height-5, 1)
 		cardContentWidth := max(innerWidth-2, 1)
 		rows, selectedRow := model.cardDisplayRows(cards, selected)
-		start := max(0, selectedRow-maxRows+1)
-		for _, row := range rows[start:min(start+maxRows, len(rows))] {
-			if row.group != "" {
-				lines = append(lines, model.styles.subtle.Copy().Bold(true).Render("─ "+truncate(row.group, max(cardContentWidth-2, 1))))
-				continue
-			}
-			label := model.cardLabel(row.card, max(cardContentWidth-4, 1), true)
-			if index == model.columnIndex && row.cardIndex == selected {
-				label = model.cardLabel(row.card, max(cardContentWidth-4, 1), false)
-				lines = append(lines, model.styles.selectedCard.Width(cardContentWidth).Render("> "+label))
-			} else {
-				lines = append(lines, model.styles.card.Width(cardContentWidth).Render("  "+label))
-			}
+		renderedRows := make([]string, len(rows))
+		rowHeights := make([]int, len(rows))
+		for rowIndex, row := range rows {
+			renderedRows[rowIndex] = model.renderCardDisplayRow(row, index == model.columnIndex && rowIndex == selectedRow, cardContentWidth, maxRows)
+			rowHeights[rowIndex] = lipgloss.Height(renderedRows[rowIndex])
 		}
+		start, end := visibleCardRowRange(rowHeights, selectedRow, maxRows)
+		lines = append(lines, renderedRows[start:end]...)
 	}
 	style := model.styles.panel
 	if index == model.columnIndex {
@@ -889,6 +987,45 @@ func (model *Model) renderColumn(index, width, height int) string {
 	}
 	style = style.BorderForeground(borderColor)
 	return style.Width(innerWidth).Height(max(height-2, 1)).Render(strings.Join(lines, "\n"))
+}
+
+func (model *Model) renderCardDisplayRow(row cardDisplayRow, selected bool, width, maxLines int) string {
+	if row.group != "" {
+		return model.styles.subtle.Copy().Bold(true).Render("─ " + truncate(row.group, max(width-2, 1)))
+	}
+	if selected {
+		block := model.selectedCardBlock(row.card, width, min(maxLines, 4))
+		return model.styles.selectedCard.Copy().Width(width).Render(block)
+	}
+	label := model.cardLabel(row.card, max(width-4, 1), true)
+	return model.styles.card.Width(width).Render("  " + label)
+}
+
+func visibleCardRowRange(heights []int, selected, available int) (int, int) {
+	if len(heights) == 0 || available <= 0 {
+		return 0, 0
+	}
+	selected = clampIndex(selected, len(heights))
+	start := selected
+	used := min(max(heights[selected], 1), available)
+	for start > 0 {
+		height := max(heights[start-1], 1)
+		if used+height > available {
+			break
+		}
+		start--
+		used += height
+	}
+	end := selected + 1
+	for end < len(heights) {
+		height := max(heights[end], 1)
+		if used+height > available {
+			break
+		}
+		end++
+		used += height
+	}
+	return start, end
 }
 
 type cardDisplayRow struct {
@@ -962,26 +1099,23 @@ func isOverdueDate(value *time.Time) bool {
 	if value == nil {
 		return false
 	}
-	now := time.Now().In(time.Local)
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	due := value.In(time.Local)
-	dueDay := time.Date(due.Year(), due.Month(), due.Day(), 0, 0, 0, 0, due.Location())
-	return dueDay.Before(today)
+	return calendarDayDelta(*value, time.Now()) < 0
 }
 
 func (model *Model) renderStatus(width int) string {
 	if model.filterMode {
-		hint := "  live FTS · Enter/Esc close · Ctrl-U clear"
+		hint := "  live FTS · Enter/Esc close · Ctrl-U delete left"
 		if model.filterLoading {
 			hint = "  searching…"
 		} else if model.filterErr != nil {
 			hint = "  error: " + model.filterErr.Error()
 		}
-		info := lipgloss.NewStyle().Width(width).Render(model.styles.command.Render("/"+model.filterText+"█") + model.styles.subtle.Render(hint))
+		inputWidth := max(width-lipgloss.Width(hint)-1, 4)
+		info := lipgloss.NewStyle().Width(width).Render(model.styles.command.Render("/"+textViewport(model.filterText, model.filterCursor, inputWidth)) + model.styles.subtle.Render(hint))
 		return info + "\n" + model.renderShortcutBar(width)
 	}
 	if model.commandMode {
-		line := model.styles.command.Render(":" + model.command + "█")
+		line := model.styles.command.Render(":" + textViewport(model.command, model.commandCursor, max(width-1, 1)))
 		return lipgloss.NewStyle().Width(width).Render(line)
 	}
 	breadcrumb := "Projects"
@@ -1030,7 +1164,11 @@ func (model *Model) renderShortcutBar(width int) string {
 	case boardsScreen:
 		shortcuts = append(shortcuts, shortcut{"j/k", "Navigate"}, shortcut{"Enter", "Open"}, shortcut{"a", "Add"}, shortcut{"e", "Edit"}, shortcut{"D", "Delete"}, shortcut{"d", "Describe"})
 	case boardScreen:
-		shortcuts = append(shortcuts, shortcut{"j/k", "Card"}, shortcut{"h/l", "Column"}, shortcut{"a", "Add"}, shortcut{"e", "Edit"}, shortcut{"D", "Delete"}, shortcut{"/", "Filter"}, shortcut{"s", "Sort"}, shortcut{"v", "Group"}, shortcut{"Tab", "Move"})
+		shortcuts = append(shortcuts, shortcut{"j/k", "Card"}, shortcut{"h/l", "Column"}, shortcut{"M", "Move"})
+		if model.lastMove != nil {
+			shortcuts = append(shortcuts, shortcut{"u", "Undo"})
+		}
+		shortcuts = append(shortcuts, shortcut{"a", "Add"}, shortcut{"e", "Edit"}, shortcut{"/", "Filter"})
 	}
 	if model.filterMode {
 		shortcuts = []shortcut{{"Enter", "Keep"}, {"Esc", "Close"}, {"Ctrl-U", "Clear"}, {"Ctrl-C", "Quit"}}

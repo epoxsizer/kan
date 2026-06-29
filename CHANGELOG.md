@@ -6,6 +6,21 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-06-29
+
+### Added
+
+- Optional conflict-safe JSON synchronization with a fixed S3 object, configurable intervals, startup reconciliation, shutdown push, and local pre-import backups.
+- `kan sync status`, `kan sync pull --yes`, `kan sync push`, and explicit forced-push commands.
+- `$VISUAL` and `$EDITOR` support for editing card comments outside the TUI.
+- Cursor-aware text editing shortcuts, a card destination picker, and undo for the last card move or reorder.
+- Compact card metadata with relative due dates, checklist progress, tags, links, comment previews, and board due-date health.
+
+### Changed
+
+- Automatic SQLite backups remain local while S3 JSON synchronization is enabled.
+- Forms, card movement, and small-terminal behavior now provide clearer keyboard-first feedback.
+
 ## [0.1.4] - 2026-06-26
 
 ### Changed
@@ -54,7 +69,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Theme configuration, inline shortcut help, and accessible empty states.
 - Scriptable CLI commands for projects, boards, columns, cards, and data exchange.
 
-[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.4...main
+[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.5...main
+[0.1.5]: https://github.com/epoxsizer/kan/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/epoxsizer/kan/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/epoxsizer/kan/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/epoxsizer/kan/compare/v0.1.1...v0.1.2

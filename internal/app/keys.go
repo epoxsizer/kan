@@ -11,16 +11,16 @@ const helpText = `NAVIGATION
   Enter / Esc    open / back or close
 EDITING
   a/e/D          add / edit / confirmed delete
-  d/m            describe / edit comments
+  d/m            details / comments; Ctrl-G editor
   c/E/X          add / edit / delete a column
-  H/L S-Tab/Tab   move card left / right
+  H/L/Tab        move; M choose column; u undo
   J/K            move card down / up in its column
 BOARD VIEW
-  /              live FTS filter; Ctrl-U clears
+  /              live FTS filter; Ctrl-U deletes left
   s/v            cycle sort / grouping
 FORMS
-  Tab/Shift-Tab  next / previous field
-  Enter/Ctrl-S   open field / save; Esc cancels
+  ←/→ Home/End   cursor; Ctrl-W/U/K delete text
+  Tab fields · Enter open · Ctrl-S save · Esc cancel
 GENERAL
   ?              toggle help
   :              fuzzy search; settings; layout table/cards

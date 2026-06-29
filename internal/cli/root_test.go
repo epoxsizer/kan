@@ -53,6 +53,16 @@ func TestMigrateSeedAndVersionCommands(t *testing.T) {
 	require.Contains(t, output.String(), "commit abc123")
 }
 
+func TestSyncDestructiveCommandsRequireConfirmation(t *testing.T) {
+	root := New("test", "abc123", "today")
+	root.SetArgs([]string{"sync", "pull"})
+	require.ErrorContains(t, root.Execute(), "requires --yes")
+
+	root = New("test", "abc123", "today")
+	root.SetArgs([]string{"sync", "push", "--force"})
+	require.ErrorContains(t, root.Execute(), "requires --yes")
+}
+
 func TestFirstRunWithoutPathsUsesWorkingDirectory(t *testing.T) {
 	directory := t.TempDir()
 	previous, err := os.Getwd()

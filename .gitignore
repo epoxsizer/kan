@@ -6,11 +6,14 @@ coverage.out
 .env
 .env.*
 !.env.example
+/config.toml
 *.db
 *.db-shm
 *.db-wal
+*.sync-state.json
 *.lock
 *.log
 .DS_Store
 .idea/
 .vscode/
+/AGENTS.md

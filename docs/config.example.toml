@@ -17,6 +17,19 @@ log_level = "info"
 # secret_access_key = "replace-me"
 # force_path_style = false
 
+[sync]
+# enabled = false
+# interval = "30m"
+# object_key = "kan/sync.json"
+
+[sync.s3]
+# bucket = "kan-sync"
+# region = "us-east-1"
+# endpoint = "https://s3.example.com"
+# access_key_id = "replace-me"
+# secret_access_key = "replace-me"
+# force_path_style = false
+
 [theme]
 # primary = "#7D7AFF"
 # muted = "#909090"

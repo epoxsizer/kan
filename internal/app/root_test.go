@@ -74,6 +74,14 @@ func key(value string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyLeft}
 	case "right":
 		return tea.KeyMsg{Type: tea.KeyRight}
+	case "home":
+		return tea.KeyMsg{Type: tea.KeyHome}
+	case "end":
+		return tea.KeyMsg{Type: tea.KeyEnd}
+	case "backspace":
+		return tea.KeyMsg{Type: tea.KeyBackspace}
+	case "delete":
+		return tea.KeyMsg{Type: tea.KeyDelete}
 	case "tab":
 		return tea.KeyMsg{Type: tea.KeyTab}
 	case "shift+tab":
@@ -86,6 +94,16 @@ func key(value string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyCtrlS}
 	case "ctrl+u":
 		return tea.KeyMsg{Type: tea.KeyCtrlU}
+	case "ctrl+a":
+		return tea.KeyMsg{Type: tea.KeyCtrlA}
+	case "ctrl+e":
+		return tea.KeyMsg{Type: tea.KeyCtrlE}
+	case "ctrl+k":
+		return tea.KeyMsg{Type: tea.KeyCtrlK}
+	case "ctrl+w":
+		return tea.KeyMsg{Type: tea.KeyCtrlW}
+	case "ctrl+g":
+		return tea.KeyMsg{Type: tea.KeyCtrlG}
 	default:
 		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)}
 	}
@@ -242,6 +260,78 @@ func TestFormTitlesAcceptSpaceKey(t *testing.T) {
 			require.Equal(t, "Release Planning", model.form.fields[0].value)
 		})
 	}
+}
+
+func TestFocusedFormTitleShowsTailForLongInput(t *testing.T) {
+	model := testModel(readRepository{})
+	model.project = &domain.Project{ID: "project"}
+	model.board = &domain.Board{ID: "board", ProjectID: "project"}
+	model.columns = []domain.Column{{ID: "column", BoardID: "board", Name: "Backlog"}}
+	_ = model.startCardForm(false)
+
+	model.form.fields[0].value = "this is a very long card title that keeps growing after some letter is still visible"
+	model.form.fields[0].cursor = len([]rune(model.form.fields[0].value))
+	view := model.View()
+
+	require.Contains(t, view, "…")
+	require.Contains(t, view, "after some letter is still visible")
+	require.NotContains(t, view, "this is a very long card title that keeps growing")
+}
+
+func TestFormTextFieldsEditAtCursor(t *testing.T) {
+	model := testModel(readRepository{})
+	model.project = &domain.Project{ID: "project"}
+	model.board = &domain.Board{ID: "board", ProjectID: "project"}
+	model.columns = []domain.Column{{ID: "column", BoardID: "board", Name: "Backlog"}}
+	_ = model.startCardForm(false)
+
+	model.Update(key("Ship relese"))
+	model.Update(key("left"))
+	model.Update(key("left"))
+	model.Update(key("a"))
+	model.Update(key("home"))
+	model.Update(key("[P1] "))
+	model.Update(key("end"))
+	model.Update(key("!"))
+
+	require.Equal(t, "[P1] Ship release!", model.form.fields[0].value)
+	require.Equal(t, len([]rune(model.form.fields[0].value)), model.form.fields[0].cursor)
+}
+
+func TestDiscardChangedFormAndCommentEditorRequiresConfirmation(t *testing.T) {
+	model := testModel(readRepository{})
+	model.projects = []domain.Project{{ID: "project", Name: "Project", Description: "old"}}
+	model.startProjectForm(true)
+
+	model.Update(key("!"))
+	model.Update(key("esc"))
+	require.NotNil(t, model.discard)
+	require.Equal(t, discardForm, model.discard.kind)
+	model.Update(key("n"))
+	require.NotNil(t, model.form)
+	model.Update(key("esc"))
+	model.Update(key("y"))
+	require.Nil(t, model.form)
+
+	model.startProjectForm(true)
+	model.form.focus = 1
+	model.Update(key("enter"))
+	model.Update(key(" changed"))
+	model.Update(key("esc"))
+	require.NotNil(t, model.discard)
+	require.Equal(t, discardControl, model.discard.kind)
+	model.Update(key("n"))
+	require.NotNil(t, model.form.control)
+	model.Update(key("esc"))
+	model.Update(key("y"))
+	require.Nil(t, model.form.control)
+	require.NotNil(t, model.form)
+
+	model.form = nil
+	model.startProjectForm(true)
+	model.Update(key("esc"))
+	require.Nil(t, model.form)
+	require.Nil(t, model.discard)
 }
 
 func TestTypedFormDefaultsSelectorsCalendarAndCommentEditor(t *testing.T) {
@@ -420,6 +510,70 @@ func TestOverdueCardsShowDeadlineMarker(t *testing.T) {
 
 	detail := cardDetail(overdue, "Backlog")
 	require.Contains(t, strings.Join(detail.lines, "\n"), "Due: "+pastDue.Format("2006-01-02")+" (! overdue)")
+}
+
+func TestTransientTextInputsEditAtCursorWithoutUnnecessarySearch(t *testing.T) {
+	repo := &searchRepository{}
+	model := testModel(repo)
+	model.loading = false
+	model.screen = boardScreen
+	model.board = &domain.Board{ID: "board"}
+	model.columns = []domain.Column{{ID: "todo", Name: "Todo"}}
+
+	model.Update(key("/"))
+	_, command := model.Update(key("relese"))
+	require.NotNil(t, command)
+	runCommands(model, command)
+	model.Update(key("left"))
+	model.Update(key("left"))
+	_, command = model.Update(key("a"))
+	require.NotNil(t, command)
+	runCommands(model, command)
+	require.Equal(t, "release", model.filterText)
+	queryCount := len(repo.queries)
+	_, command = model.Update(key("left"))
+	require.Nil(t, command)
+	require.Len(t, repo.queries, queryCount)
+
+	model.Update(key("esc"))
+	model.Update(key(":"))
+	model.Update(key("helo"))
+	model.Update(key("left"))
+	model.Update(key("l"))
+	require.Equal(t, "hello", model.command)
+	require.Equal(t, 4, model.commandCursor)
+}
+
+func TestRelatedCardQueryAndChecklistTextEditAtCursor(t *testing.T) {
+	model := testModel(readRepository{})
+	model.project = &domain.Project{ID: "project"}
+	model.board = &domain.Board{ID: "board", ProjectID: "project"}
+	model.columns = []domain.Column{{ID: "todo", Name: "Todo"}}
+	_ = model.startCardForm(false)
+
+	model.form.focus = 6
+	model.Update(key("enter"))
+	model.Update(key("Other crd"))
+	model.Update(key("left"))
+	model.Update(key("left"))
+	model.Update(key("a"))
+	require.Equal(t, "Other card", model.form.control.query)
+
+	model.Update(key("esc"))
+	model.form.focus = 7
+	model.Update(key("enter"))
+	model.Update(key("a"))
+	model.Update(key("Check iem"))
+	model.Update(key("left"))
+	model.Update(key("left"))
+	model.Update(key("t"))
+	require.Equal(t, "Check item", model.form.control.input)
+
+	model.Update(key("esc"))
+	require.NotNil(t, model.discard)
+	require.Equal(t, discardChecklistInput, model.discard.kind)
+	model.Update(key("n"))
+	require.True(t, model.form.control.inputMode)
 }
 
 func TestBuildFTSQueryUsesSafePrefixTerms(t *testing.T) {
@@ -767,7 +921,8 @@ func TestCommandPaletteSearchesAndOpensCards(t *testing.T) {
 	require.Equal(t, 1, model.columnIndex)
 	require.Equal(t, 1, model.cardIndexes["doing"])
 	opened := model.View()
-	require.Contains(t, opened, "[ux] Review keyb")
+	require.Contains(t, opened, "Review keyboard")
+	require.Contains(t, opened, "#ux")
 }
 
 func TestCommandPaletteSearchesCardMetadata(t *testing.T) {

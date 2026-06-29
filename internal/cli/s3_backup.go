@@ -78,27 +78,7 @@ func (realS3Uploader) Upload(ctx context.Context, cfg config.S3Backup, sourcePat
 }
 
 func s3PutURL(cfg config.S3Backup, key string) (string, string, error) {
-	escapedKey := escapeS3Key(key)
-	if cfg.Endpoint == "" {
-		if cfg.ForcePathStyle {
-			return "https://s3." + cfg.Region + ".amazonaws.com/" + cfg.Bucket + "/" + escapedKey, "/" + cfg.Bucket + "/" + escapedKey, nil
-		}
-		return "https://" + cfg.Bucket + ".s3." + cfg.Region + ".amazonaws.com/" + escapedKey, "/" + escapedKey, nil
-	}
-	base, err := url.Parse(strings.TrimRight(cfg.Endpoint, "/"))
-	if err != nil {
-		return "", "", fmt.Errorf("parse s3 endpoint: %w", err)
-	}
-	if base.Scheme == "" || base.Host == "" {
-		return "", "", fmt.Errorf("s3 endpoint must include scheme and host")
-	}
-	if cfg.ForcePathStyle {
-		base.Path = strings.TrimRight(base.Path, "/") + "/" + cfg.Bucket + "/" + escapedKey
-		return base.String(), base.EscapedPath(), nil
-	}
-	base.Host = cfg.Bucket + "." + base.Host
-	base.Path = strings.TrimRight(base.Path, "/") + "/" + escapedKey
-	return base.String(), base.EscapedPath(), nil
+	return s3ObjectURL(cfg.Bucket, cfg.Region, cfg.Endpoint, cfg.ForcePathStyle, key)
 }
 
 func escapeS3Key(key string) string {

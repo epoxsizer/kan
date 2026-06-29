@@ -10,12 +10,23 @@ import (
 type tableRow struct {
 	name     string
 	comments string
+	status   string
 	items    int
 	selected bool
 }
 
 func (model *Model) renderTable(title, itemHeader string, rows []tableRow, width int) string {
 	width = max(width, 24)
+	hasStatus := false
+	for _, row := range rows {
+		if row.status != "" {
+			hasStatus = true
+			break
+		}
+	}
+	if hasStatus {
+		return model.renderStatusTable(title, itemHeader, rows, width)
+	}
 	innerWidth := max(width-4, 20)
 	contentWidth := max(innerWidth-2, 12)
 	available := max(contentWidth-tableSeparatorWidth(), 3)
@@ -36,6 +47,57 @@ func (model *Model) renderTable(title, itemHeader string, rows []tableRow, width
 			name = "> " + name
 		}
 		line := tableLine(name, comments, fmt.Sprintf("%d", row.items), nameWidth, commentWidth, itemWidth)
+		if row.selected {
+			line = model.styles.selectedCard.Copy().Padding(0).Width(lipgloss.Width(header)).Render(line)
+		}
+		lines = append(lines, line)
+	}
+	table := model.styles.panel.Copy().Width(innerWidth).Render(strings.Join(lines, "\n"))
+	return strings.Join([]string{model.styles.header.Render(title), table}, "\n")
+}
+
+func (model *Model) renderStatusTable(title, itemHeader string, rows []tableRow, width int) string {
+	innerWidth := max(width-4, 20)
+	contentWidth := max(innerWidth-2, 12)
+	if width < 64 {
+		available := max(contentWidth-tableSeparatorWidth(), 3)
+		itemWidth := min(max(len(itemHeader), 5), max(1, available-4))
+		remaining := max(available-itemWidth, 2)
+		nameWidth := min(28, max(remaining/2, 2))
+		statusWidth := max(remaining-nameWidth, 1)
+		header := tableLine("NAME", "DUE", itemHeader, nameWidth, statusWidth, itemWidth)
+		lines := []string{model.styles.tableHeader.Render(header), model.styles.subtle.Render(strings.Repeat("─", lipgloss.Width(header)))}
+		for _, row := range rows {
+			name := row.name
+			if row.selected {
+				name = "> " + name
+			}
+			line := tableLine(name, row.status, fmt.Sprintf("%d", row.items), nameWidth, statusWidth, itemWidth)
+			if row.selected {
+				line = model.styles.selectedCard.Copy().Padding(0).Width(lipgloss.Width(header)).Render(line)
+			}
+			lines = append(lines, line)
+		}
+		table := model.styles.panel.Copy().Width(innerWidth).Render(strings.Join(lines, "\n"))
+		return strings.Join([]string{model.styles.header.Render(title), table}, "\n")
+	}
+
+	available := max(contentWidth-(3*lipgloss.Width("  "+tableSeparator()+"  ")), 4)
+	itemWidth := min(max(len(itemHeader), 5), max(1, available-6))
+	statusWidth := min(14, max(8, available/5))
+	remaining := max(available-itemWidth-statusWidth, 2)
+	nameWidth := min(24, max((remaining*2)/5, 16))
+	nameWidth = min(nameWidth, max(remaining-1, 1))
+	commentWidth := max(remaining-nameWidth, 1)
+	header := statusTableLine("NAME", "COMMENTS", "DUE", itemHeader, nameWidth, commentWidth, statusWidth, itemWidth)
+	lines := []string{model.styles.tableHeader.Render(header), model.styles.subtle.Render(strings.Repeat("─", lipgloss.Width(header)))}
+	for _, row := range rows {
+		name := row.name
+		if row.selected {
+			name = "> " + name
+		}
+		comments := strings.Join(strings.Fields(row.comments), " ")
+		line := statusTableLine(name, comments, row.status, fmt.Sprintf("%d", row.items), nameWidth, commentWidth, statusWidth, itemWidth)
 		if row.selected {
 			line = model.styles.selectedCard.Copy().Padding(0).Width(lipgloss.Width(header)).Render(line)
 		}
@@ -75,11 +137,15 @@ func (model *Model) renderListCards(title, itemLabel string, rows []tableRow, wi
 			style = selectedStyle
 			titleStyle = lipgloss.NewStyle().Bold(true).Foreground(namedColors["green"])
 		}
-		body := strings.Join([]string{
+		bodyLines := []string{
 			titleStyle.Render(truncate(row.name, contentWidth)),
 			model.styles.subtle.Render(truncate(comments, contentWidth)),
 			fmt.Sprintf("%s: %d", itemLabel, row.items),
-		}, "\n")
+		}
+		if row.status != "" {
+			bodyLines = append(bodyLines, model.styles.subtle.Render("Due: "+truncate(row.status, max(contentWidth-5, 1))))
+		}
+		body := strings.Join(bodyLines, "\n")
 		rowCards = append(rowCards, style.Render(body))
 		if len(rowCards) == columns {
 			lines = append(lines, lipgloss.JoinHorizontal(lipgloss.Top, rowCards...))
@@ -123,6 +189,14 @@ func tableLine(name, comments, items string, nameWidth, commentWidth, itemWidth 
 	return padRight(truncate(name, nameWidth), nameWidth) +
 		"  " + tableSeparator() + "  " + padRight(truncate(comments, commentWidth), commentWidth) +
 		"  " + tableSeparator() + "  " + fmt.Sprintf("%*s", itemWidth, truncate(items, itemWidth))
+}
+
+func statusTableLine(name, comments, status, items string, nameWidth, commentWidth, statusWidth, itemWidth int) string {
+	separator := "  " + tableSeparator() + "  "
+	return padRight(truncate(name, nameWidth), nameWidth) +
+		separator + padRight(truncate(comments, commentWidth), commentWidth) +
+		separator + padRight(truncate(status, statusWidth), statusWidth) +
+		separator + fmt.Sprintf("%*s", itemWidth, truncate(items, itemWidth))
 }
 
 func tableSeparatorWidth() int {

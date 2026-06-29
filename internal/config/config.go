@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -24,6 +25,7 @@ type Config struct {
 	ShowCardTags bool   `toml:"show_card_tags"`
 	Theme        Theme  `toml:"theme"`
 	Backup       Backup `toml:"backup"`
+	Sync         Sync   `toml:"sync"`
 }
 
 type Theme struct {
@@ -70,6 +72,22 @@ type S3Backup struct {
 	ForcePathStyle  bool   `toml:"force_path_style"`
 }
 
+type Sync struct {
+	Enabled   bool   `toml:"enabled"`
+	Interval  string `toml:"interval"`
+	ObjectKey string `toml:"object_key"`
+	S3        S3Sync `toml:"s3"`
+}
+
+type S3Sync struct {
+	Bucket          string `toml:"bucket"`
+	Region          string `toml:"region"`
+	Endpoint        string `toml:"endpoint"`
+	AccessKeyID     string `toml:"access_key_id"`
+	SecretAccessKey string `toml:"secret_access_key"`
+	ForcePathStyle  bool   `toml:"force_path_style"`
+}
+
 type fileConfig struct {
 	Database     string  `toml:"database"`
 	LogFile      string  `toml:"log_file"`
@@ -77,6 +95,7 @@ type fileConfig struct {
 	ShowCardTags *bool   `toml:"show_card_tags"`
 	Theme        *Theme  `toml:"theme"`
 	Backup       *Backup `toml:"backup"`
+	Sync         *Sync   `toml:"sync"`
 }
 
 type Overrides struct {
@@ -99,6 +118,7 @@ func Defaults() Config {
 			ShortcutKeyForeground: "#FFFFFF", ShortcutKeyBackground: "#5A56E0", ShortcutText: "#909090", HelpText: "#C4C4D0", HelpBorder: "#7D7AFF", Command: "#7D7AFF", ColumnDefault: "#4C8DFF",
 		},
 		Backup: Backup{Storage: "local", S3: S3Backup{Prefix: "kan/backups"}},
+		Sync:   Sync{Interval: "30m", ObjectKey: "kan/sync.json"},
 	}
 }
 
@@ -150,6 +170,9 @@ func Load(overrides Overrides) (Config, error) {
 	if err := validateBackup(cfg.Backup); err != nil {
 		return Config{}, err
 	}
+	if err := validateSync(cfg.Sync); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
 }
 
@@ -167,6 +190,11 @@ storage = %q
 
 [backup.s3]
 prefix = %q
+
+[sync]
+enabled = %t
+interval = %q
+object_key = %q
 
 [theme]
 primary = %q
@@ -202,6 +230,9 @@ column_default = %q
 		cfg.ShowCardTags,
 		cfg.Backup.Storage,
 		cfg.Backup.S3.Prefix,
+		cfg.Sync.Enabled,
+		cfg.Sync.Interval,
+		cfg.Sync.ObjectKey,
 		cfg.Theme.Primary,
 		cfg.Theme.Muted,
 		cfg.Theme.Text,
@@ -260,6 +291,9 @@ func merge(dst *Config, src fileConfig) {
 	}
 	if src.Backup != nil {
 		mergeBackup(&dst.Backup, *src.Backup)
+	}
+	if src.Sync != nil {
+		mergeSync(&dst.Sync, *src.Sync)
 	}
 }
 
@@ -406,6 +440,59 @@ func validateBackup(backup Backup) error {
 	default:
 		return errors.New("backup.storage must be local or s3")
 	}
+}
+
+func mergeSync(dst *Sync, src Sync) {
+	dst.Enabled = src.Enabled
+	if src.Interval != "" {
+		dst.Interval = src.Interval
+	}
+	if src.ObjectKey != "" {
+		dst.ObjectKey = src.ObjectKey
+	}
+	if src.S3.Bucket != "" {
+		dst.S3.Bucket = src.S3.Bucket
+	}
+	if src.S3.Region != "" {
+		dst.S3.Region = src.S3.Region
+	}
+	if src.S3.Endpoint != "" {
+		dst.S3.Endpoint = src.S3.Endpoint
+	}
+	if src.S3.AccessKeyID != "" {
+		dst.S3.AccessKeyID = src.S3.AccessKeyID
+	}
+	if src.S3.SecretAccessKey != "" {
+		dst.S3.SecretAccessKey = src.S3.SecretAccessKey
+	}
+	if src.S3.ForcePathStyle {
+		dst.S3.ForcePathStyle = true
+	}
+}
+
+func validateSync(syncConfig Sync) error {
+	interval, err := time.ParseDuration(syncConfig.Interval)
+	if err != nil {
+		return fmt.Errorf("sync.interval must be a valid duration: %w", err)
+	}
+	if interval < time.Minute {
+		return errors.New("sync.interval must be at least 1m")
+	}
+	if strings.TrimSpace(syncConfig.ObjectKey) == "" {
+		return errors.New("sync.object_key must not be empty")
+	}
+	if !syncConfig.Enabled {
+		return nil
+	}
+	for name, value := range map[string]string{
+		"bucket": syncConfig.S3.Bucket, "region": syncConfig.S3.Region,
+		"access_key_id": syncConfig.S3.AccessKeyID, "secret_access_key": syncConfig.S3.SecretAccessKey,
+	} {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("sync.s3.%s must not be empty when sync is enabled", name)
+		}
+	}
+	return nil
 }
 
 func firstNonEmpty(values ...string) string {

@@ -18,7 +18,7 @@ checklists, custom fields, linked cards, JSON import/export, and automatic
 backups. The database is local by default; backups can optionally be uploaded to
 S3-compatible storage.
 
-Current version: `0.1.4`.
+Current version: `0.1.5`.
 
 ## Interface
 
@@ -26,6 +26,9 @@ Current version: `0.1.4`.
 
 The interface adapts to terminal size. The active column and selected card are
 highlighted, and contextual key hints are shown at the bottom of the screen.
+The selected card expands with relative due information, checklist progress,
+tags, related-card count, and a short comments preview. Board lists summarize
+overdue or nearest-due work.
 
 ## Quick Start From Source
 
@@ -74,6 +77,8 @@ go install github.com/epoxsizer/kan/cmd/kan@latest
 | `H`, `L` | Move the selected card to the previous/next column |
 | `Shift-Tab`, `Tab` | Move the selected card between columns |
 | `J`, `K` | Reorder cards |
+| `M` | Choose a destination column |
+| `u` | Undo the last successful move or reorder |
 | `/` | Search within the current board |
 | `:` | Command bar and global fuzzy search |
 | `:layout table` | Show projects and boards as tables |
@@ -82,7 +87,14 @@ go install github.com/epoxsizer/kan/cmd/kan@latest
 | `Esc` | Back or cancel |
 | `q`, `Ctrl-C` | Quit |
 
-In forms, use `Tab` to move between fields and `Ctrl-S` to save.
+In forms, use `Tab` to move between fields and `Ctrl-S` to save. Text inputs
+support cursor editing with arrows and `Home`/`End`; `Ctrl-W`, `Ctrl-U`, and
+`Ctrl-K` delete the previous word, text before the cursor, and text after the
+cursor.
+
+Inside the comments editor, `Ctrl-G` opens the command configured by `$VISUAL`
+or `$EDITOR` (for example, `EDITOR="code --wait"`). External edits return to the
+comments buffer and still require `Ctrl-S` to apply and save.
 
 ## CLI Commands
 
@@ -154,6 +166,48 @@ kan backup release \
 
 `kan` always creates the local SQLite backup first and then uploads that file to
 S3. The local database remains the source of truth.
+
+## S3 JSON Sync
+
+Optional JSON synchronization uses one fixed S3 object. On startup, `kan` safely
+pulls remote changes or pushes local changes. While the TUI is open it pushes
+local changes at the configured interval (30 minutes by default), and it makes
+one final push during clean shutdown. Conditional S3 writes prevent one client
+from silently overwriting another.
+
+```toml
+[sync]
+enabled = true
+interval = "30m"
+object_key = "kan/sync.json"
+
+[sync.s3]
+bucket = "kan-sync"
+region = "us-east-1"
+endpoint = "https://s3.example.com"
+access_key_id = "replace-me"
+secret_access_key = "replace-me"
+force_path_style = false
+```
+
+The local SQLite database remains the working source of truth. Automatic SQLite
+backups stay local when sync is enabled, and a local pre-sync backup is created
+before remote data replaces a non-empty database. Sync state is stored beside
+the database as `<database>.sync-state.json`.
+
+```sh
+kan sync status
+kan sync push
+kan sync pull --yes
+kan sync push --force --yes
+```
+
+`sync status` reports local, remote, and last-synced hashes as JSON. A safe push
+stops on concurrent remote changes. `pull --yes` explicitly replaces local data;
+`push --force --yes` is the only command that unconditionally overwrites the
+remote object. If S3 is temporarily unavailable at startup, `kan` opens locally
+and retries. A detected data conflict stops startup without overwriting either
+side.
 
 ## Data Paths
 

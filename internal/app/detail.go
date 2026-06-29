@@ -31,11 +31,11 @@ func (model *Model) openSelectedDetail() {
 			return
 		}
 		board := model.boards[clampIndex(model.boardIndex, len(model.boards))]
-		model.detail = boardDetail(board, model.boardCounts[board.ID])
+		model.detail = boardDetail(board, model.boardCounts[board.ID], model.boardHealth[board.ID])
 	case boardScreen:
 		if len(model.columns) == 0 {
 			if model.board != nil {
-				model.detail = boardDetail(*model.board, model.cardCount())
+				model.detail = boardDetail(*model.board, model.cardCount(), summarizeBoardHealth(nil, time.Now()))
 			}
 			return
 		}
@@ -60,12 +60,13 @@ func projectDetail(project domain.Project, boardCount int) *detailPopup {
 	}}
 }
 
-func boardDetail(board domain.Board, cardCount int) *detailPopup {
+func boardDetail(board domain.Board, cardCount int, health boardHealth) *detailPopup {
 	return &detailPopup{kind: "board", title: board.Name, lines: []string{
 		"ID: " + board.ID,
 		"Project ID: " + board.ProjectID,
 		"Comments: " + fallbackValue(board.Description),
 		fmt.Sprintf("Cards: %d", cardCount),
+		"Due health: " + boardHealthLabel(health, time.Now()),
 		fmt.Sprintf("Position: %g", board.Position),
 		"Updated: " + formatDetailTime(board.UpdatedAt),
 	}}

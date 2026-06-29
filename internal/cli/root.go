@@ -46,16 +46,45 @@ func New(version, commit, date string) *cobra.Command {
 				return err
 			}
 			defer res.Close()
+
 			workingDirectory, workingDirectoryErr := os.Getwd()
+			var syncer *syncEngine
+			var startupNotice string
+			if res.config.Sync.Enabled {
+				if workingDirectoryErr != nil {
+					return fmt.Errorf("get working directory for sync backups: %w", workingDirectoryErr)
+				}
+				syncer, err = newSyncEngine(res.repo, res.config.Database, res.config.Sync, workingDirectory, res.logger, realS3SyncClient{})
+				if err != nil {
+					return err
+				}
+				startupContext, cancelStartup := context.WithTimeout(cmd.Context(), 30*time.Second)
+				err = syncer.startup(startupContext)
+				cancelStartup()
+				if err != nil {
+					if isTransientS3Error(err) {
+						startupNotice = "S3 sync unavailable; working locally and retrying"
+						res.logger.Error("startup JSON sync unavailable", "error", err)
+					} else {
+						return fmt.Errorf("startup JSON sync: %w", err)
+					}
+				} else {
+					res.logger.Info("startup JSON sync complete")
+				}
+			}
+
+			var cancelBackups context.CancelFunc
+			var backupsDone <-chan struct{}
 			if workingDirectoryErr != nil {
 				res.logger.Error("automatic backups disabled", "error", workingDirectoryErr)
 			} else {
-				backupContext, cancelBackups := context.WithCancel(cmd.Context())
-				backupsDone := startAutomaticBackups(backupContext, res.repo, res.logger, storage.BackupDirectory(workingDirectory), res.config.Backup)
-				defer func() {
-					cancelBackups()
-					<-backupsDone
-				}()
+				backupContext, cancel := context.WithCancel(cmd.Context())
+				backupConfig := res.config.Backup
+				if res.config.Sync.Enabled {
+					backupConfig.Storage = "local"
+				}
+				backupsDone = startAutomaticBackups(backupContext, res.repo, res.logger, storage.BackupDirectory(workingDirectory), backupConfig)
+				cancelBackups = cancel
 			}
 			res.logger.Info("TUI starting")
 			program := tea.NewProgram(
@@ -66,11 +95,42 @@ func New(version, commit, date string) *cobra.Command {
 					StatusForeground: res.config.Theme.StatusForeground, StatusBackground: res.config.Theme.StatusBackground, StatusAccentForeground: res.config.Theme.StatusAccentForeground, StatusAccentBackground: res.config.Theme.StatusAccentBackground,
 					ShortcutKeyForeground: res.config.Theme.ShortcutKeyForeground, ShortcutKeyBackground: res.config.Theme.ShortcutKeyBackground, ShortcutText: res.config.Theme.ShortcutText, HelpText: res.config.Theme.HelpText, HelpBorder: res.config.Theme.HelpBorder,
 					Command: res.config.Theme.Command, ColumnDefault: res.config.Theme.ColumnDefault,
-				}}),
+				}, StartupNotice: startupNotice}),
 				tea.WithAltScreen(),
 				tea.WithContext(cmd.Context()),
 			)
-			if _, err = program.Run(); err != nil {
+
+			var cancelSync context.CancelFunc
+			var syncDone <-chan struct{}
+			if syncer != nil {
+				syncContext, cancel := context.WithCancel(cmd.Context())
+				cancelSync = cancel
+				syncDone = startAutomaticSync(syncContext, syncer, res.logger, func(message string) {
+					program.Send(app.NoticeMsg{Text: message})
+				})
+			}
+
+			_, runErr := program.Run()
+			if cancelSync != nil {
+				cancelSync()
+				<-syncDone
+			}
+			if cancelBackups != nil {
+				cancelBackups()
+				<-backupsDone
+			}
+			if syncer != nil {
+				shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), 30*time.Second)
+				if syncErr := syncer.push(shutdownContext, false); syncErr != nil {
+					res.logger.Error("final JSON sync failed", "error", syncErr)
+				} else {
+					res.logger.Info("final JSON sync complete")
+				}
+				cancelShutdown()
+			}
+
+			if runErr != nil {
+				err = runErr
 				res.logger.Error("TUI stopped with error", "error", err)
 				return fmt.Errorf("run TUI: %w", err)
 			}
@@ -119,6 +179,7 @@ func New(version, commit, date string) *cobra.Command {
 	root.AddCommand(newBackupCommand(&opts))
 	root.AddCommand(newExportCommand(&opts))
 	root.AddCommand(newImportCommand(&opts))
+	root.AddCommand(newSyncCommand(&opts))
 	root.AddCommand(
 		newProjectCommand(&opts),
 		newBoardCommand(&opts),

@@ -30,6 +30,8 @@ var commandCatalog = []commandSpec{
 	{name: "add", description: "Add an object on the current screen"},
 	{name: "edit", description: "Edit the selected object"},
 	{name: "delete", description: "Delete the selected object with confirmation"},
+	{name: "move", description: "Choose a destination column for the selected card"},
+	{name: "undo", description: "Undo the last card move or reorder"},
 	{name: "add-column", description: "Add a column on the current board"},
 	{name: "settings", description: "Open base kan settings"},
 	{name: "sort", description: "Cycle card sorting on the current board"},
@@ -102,7 +104,7 @@ func (model *Model) renderCommandPalette(width, height int) string {
 	contentWidth := max(innerWidth-4, 14)
 	lines := []string{
 		model.styles.header.Render("Search & Commands"),
-		model.styles.command.Render(":" + model.command + "█"),
+		model.styles.command.Render(":" + textViewport(model.command, model.commandCursor, max(contentWidth-1, 1))),
 		model.styles.subtle.Render(truncate("fuzzy search commands and data · ↑/↓ select · Enter open · Esc close", contentWidth)),
 		"",
 	}

@@ -59,17 +59,14 @@ func (model *Model) handleFilterKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter", "esc":
 		model.filterMode = false
 		return model, nil
-	case "ctrl+u":
-		model.filterText = ""
-	case "backspace":
-		runes := []rune(model.filterText)
-		if len(runes) > 0 {
-			model.filterText = string(runes[:len(runes)-1])
-		}
-	default:
-		if key.Type == tea.KeyRunes || key.Type == tea.KeySpace {
-			model.filterText += string(key.Runes)
-		}
+	}
+	result := editText(model.filterText, model.filterCursor, key, false)
+	if !result.handled {
+		return model, nil
+	}
+	model.filterText, model.filterCursor = result.value, result.cursor
+	if !result.changed {
+		return model, nil
 	}
 	model.cardIndexes = make(map[string]int, len(model.columns))
 	if strings.TrimSpace(model.filterText) == "" {
@@ -86,6 +83,7 @@ func (model *Model) handleFilterKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (model *Model) clearBoardFilter() {
 	model.filterMode = false
 	model.filterText = ""
+	model.filterCursor = 0
 	model.filteredCards = nil
 	model.filterLoading = false
 	model.filterErr = nil

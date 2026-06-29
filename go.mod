@@ -8,6 +8,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/exp/teatest v0.0.0-20240806155701-69247e0abc2a
 	github.com/google/uuid v1.6.0
+	github.com/mattn/go-shellwords v1.0.12
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sys v0.30.0

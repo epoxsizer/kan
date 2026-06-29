@@ -26,19 +26,23 @@ const (
 )
 
 type formControl struct {
-	kind       controlKind
-	field      int
-	value      string
-	cursor     int
-	selection  int
-	date       time.Time
-	query      string
-	selected   map[string]bool
-	standalone bool
-	checklist  []domain.ChecklistItem
-	inputMode  bool
-	input      string
-	editIndex  int
+	kind          controlKind
+	field         int
+	value         string
+	original      string
+	cursor        int
+	selection     int
+	date          time.Time
+	query         string
+	queryCursor   int
+	selected      map[string]bool
+	standalone    bool
+	checklist     []domain.ChecklistItem
+	inputMode     bool
+	input         string
+	inputCursor   int
+	inputOriginal string
+	editIndex     int
 }
 
 type linkCandidate struct {
@@ -71,7 +75,7 @@ func loadLinkCandidates(ctx context.Context, repo domain.Repository, projectID, 
 
 func (form *formModal) openControl() {
 	field := form.fields[form.focus]
-	control := &formControl{field: form.focus, value: field.value, cursor: utf8.RuneCountInString(field.value)}
+	control := &formControl{field: form.focus, value: field.value, original: field.value, cursor: utf8.RuneCountInString(field.value)}
 	switch field.kind {
 	case commentField:
 		control.kind = commentControl
@@ -127,8 +131,14 @@ func (model *Model) handleChecklistKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if control.inputMode {
 		switch key.String() {
 		case "esc":
-			control.inputMode = false
-			control.input = ""
+			if control.input != control.inputOriginal {
+				model.discard = &discardModal{kind: discardChecklistInput, title: "Discard checklist text?", message: "The checklist item text has not been applied."}
+			} else {
+				control.inputMode = false
+				control.input = ""
+				control.inputCursor = 0
+				control.editIndex = -1
+			}
 		case "enter":
 			text := strings.TrimSpace(control.input)
 			if text != "" {
@@ -141,19 +151,13 @@ func (model *Model) handleChecklistKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			control.inputMode = false
 			control.input = ""
+			control.inputCursor = 0
+			control.inputOriginal = ""
 			control.editIndex = -1
-		case "backspace":
-			runes := []rune(control.input)
-			if len(runes) > 0 {
-				control.input = string(runes[:len(runes)-1])
-			}
-		case "ctrl+u":
-			control.input = ""
-		case " ":
-			control.input += " "
 		default:
-			if key.Type == tea.KeyRunes {
-				control.input += string(key.Runes)
+			result := editText(control.input, control.inputCursor, key, false)
+			if result.handled {
+				control.input, control.inputCursor = result.value, result.cursor
 			}
 		}
 		return model, nil
@@ -176,12 +180,16 @@ func (model *Model) handleChecklistKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		control.inputMode = true
 		control.input = ""
+		control.inputCursor = 0
+		control.inputOriginal = ""
 		control.editIndex = -1
 	case "e":
 		if len(control.checklist) > 0 {
 			control.inputMode = true
 			control.editIndex = control.selection
 			control.input = control.checklist[control.selection].Text
+			control.inputCursor = len([]rune(control.input))
+			control.inputOriginal = control.input
 		}
 	case "D":
 		if len(control.checklist) > 0 {
@@ -207,58 +215,32 @@ func (model *Model) handleChecklistKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (model *Model) handleCommentKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	control := model.form.control
-	runes := []rune(control.value)
 	switch key.String() {
 	case "ctrl+c":
 		return model, tea.Quit
+	case "ctrl+g":
+		model.form.err = ""
+		return model, prepareExternalEditor(control.value)
 	case "esc":
-		model.form.control = nil
+		if control.value != control.original {
+			model.discard = &discardModal{kind: discardControl, title: "Discard editor changes?", message: "The text in this editor has not been applied."}
+		} else {
+			model.form.control = nil
+		}
 	case "ctrl+s":
 		model.form.fields[control.field].value = control.value
+		model.form.fields[control.field].cursor = len([]rune(control.value))
 		model.form.control = nil
 		if control.standalone {
 			return model.submitForm()
 		}
-	case "left":
-		control.cursor = max(control.cursor-1, 0)
-	case "right":
-		control.cursor = min(control.cursor+1, len(runes))
-	case "up":
-		control.cursor = verticalCursor(runes, control.cursor, -1)
-	case "down":
-		control.cursor = verticalCursor(runes, control.cursor, 1)
-	case "home":
-		control.cursor = lineStart(runes, control.cursor)
-	case "end":
-		control.cursor = lineEnd(runes, control.cursor)
-	case "backspace":
-		if control.cursor > 0 {
-			runes = append(runes[:control.cursor-1], runes[control.cursor:]...)
-			control.cursor--
-			control.value = string(runes)
-		}
-	case "delete":
-		if control.cursor < len(runes) {
-			control.value = string(append(runes[:control.cursor], runes[control.cursor+1:]...))
-		}
-	case "enter":
-		runes = append(runes[:control.cursor], append([]rune{'\n'}, runes[control.cursor:]...)...)
-		control.cursor++
-		control.value = string(runes)
-	case "tab":
-		runes = append(runes[:control.cursor], append([]rune{'\t'}, runes[control.cursor:]...)...)
-		control.cursor++
-		control.value = string(runes)
-	case " ":
-		runes = append(runes[:control.cursor], append([]rune{' '}, runes[control.cursor:]...)...)
-		control.cursor++
-		control.value = string(runes)
 	default:
-		if key.Type == tea.KeyRunes {
-			insert := key.Runes
-			runes = append(runes[:control.cursor], append(insert, runes[control.cursor:]...)...)
-			control.cursor += len(insert)
-			control.value = string(runes)
+		result := editText(control.value, control.cursor, key, true)
+		if result.handled {
+			control.value, control.cursor = result.value, result.cursor
+			if result.changed {
+				model.form.err = ""
+			}
 		}
 	}
 	return model, nil
@@ -334,18 +316,12 @@ func (model *Model) handleLinksKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			id := matches[clampIndex(control.selection, len(matches))].id
 			control.selected[id] = !control.selected[id]
 		}
-	case "backspace":
-		runes := []rune(control.query)
-		if len(runes) > 0 {
-			control.query = string(runes[:len(runes)-1])
-			control.selection = 0
-		}
-	case " ":
-		control.query += " "
-		control.selection = 0
 	default:
-		if key.Type == tea.KeyRunes {
-			control.query += string(key.Runes)
+		result := editText(control.query, control.queryCursor, key, false)
+		if result.handled {
+			control.query, control.queryCursor = result.value, result.cursor
+		}
+		if result.changed {
 			control.selection = 0
 		}
 	}
@@ -405,7 +381,8 @@ func (model *Model) renderChecklist(width, height int) string {
 		if control.editIndex >= 0 {
 			verb = "Edit"
 		}
-		lines = append(lines, "", model.styles.command.Render(verb+": "+control.input+"█"), model.styles.subtle.Render("Enter accept · Esc cancel"))
+		inputWidth := max(min(width-12, 66)-lipgloss.Width(verb+": "), 8)
+		lines = append(lines, "", model.styles.command.Render(verb+": "+textViewport(control.input, control.inputCursor, inputWidth)), model.styles.subtle.Render("←/→ cursor · Home/End · Enter accept · Esc cancel"))
 	}
 	return centeredControl(model, width, height, 78, strings.Join(lines, "\n"))
 }
@@ -428,11 +405,16 @@ func (model *Model) renderCommentEditor(width, height int) string {
 	control := model.form.control
 	layout := commentEditorLayoutForSize(width, height)
 	title := model.form.fields[control.field].label + " editor"
-	hint := "Enter newline · Ctrl-S apply · Esc discard"
+	hint := "Arrows · Ctrl-G $EDITOR · Ctrl-S apply · Esc cancel"
+	hintStyle := model.styles.subtle
+	if model.form.err != "" {
+		hint = "Editor: " + model.form.err
+		hintStyle = model.styles.error
+	}
 	body := editorViewport(control.value, control.cursor, layout.contentWidth, layout.viewportHeight)
 	lines := []string{
 		model.styles.header.Render(truncate(title, layout.contentWidth)),
-		model.styles.subtle.Render(truncate(hint, layout.contentWidth)),
+		hintStyle.Render(truncate(hint, layout.contentWidth)),
 		"",
 	}
 	if body != "" {
@@ -506,7 +488,8 @@ func (model *Model) renderCalendar(width, height int) string {
 
 func (model *Model) renderLinks(width, height int) string {
 	control := model.form.control
-	lines := []string{model.styles.header.Render("Related cards"), model.styles.command.Render("/" + control.query + "█"), model.styles.subtle.Render("Type to filter · Enter toggle · Ctrl-S apply · Esc cancel"), ""}
+	queryWidth := max(min(width-12, 64), 8)
+	lines := []string{model.styles.header.Render("Related cards"), model.styles.command.Render("/" + textViewport(control.query, control.queryCursor, queryWidth)), model.styles.subtle.Render("Type to filter · ←/→ cursor · Enter toggle · Ctrl-S apply"), ""}
 	if model.form.linksLoading {
 		lines = append(lines, "Loading cards...")
 	} else {
