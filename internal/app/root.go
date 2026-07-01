@@ -787,6 +787,12 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		model.startColumnForm(false)
+	case "column-settings", "edit-column":
+		if model.screen != boardScreen || model.board == nil || len(model.columns) == 0 {
+			model.err = fmt.Errorf("open a board column first")
+			return model, nil
+		}
+		model.startColumnForm(true)
 	case "sort":
 		if model.screen != boardScreen {
 			model.err = fmt.Errorf("open a board first")
@@ -1207,11 +1213,11 @@ func (model *Model) renderShortcutBar(width int) string {
 	case boardsScreen:
 		shortcuts = append(shortcuts, shortcut{"j/k", "Navigate"}, shortcut{"Enter", "Open"}, shortcut{"a", "Add"}, shortcut{"e", "Edit"}, shortcut{"D", "Delete"}, shortcut{"d", "Describe"})
 	case boardScreen:
-		shortcuts = append(shortcuts, shortcut{"j/k", "Card"}, shortcut{"h/l", "Column"}, shortcut{"M", "Move"})
+		shortcuts = append(shortcuts, shortcut{"j/k", "Card"}, shortcut{"h/l", "Column"}, shortcut{"E", "Column"})
 		if model.lastMove != nil {
 			shortcuts = append(shortcuts, shortcut{"u", "Undo"})
 		}
-		shortcuts = append(shortcuts, shortcut{"a", "Add"}, shortcut{"e", "Edit"}, shortcut{"/", "Filter"})
+		shortcuts = append(shortcuts, shortcut{"a", "Add"}, shortcut{"e", "Edit"}, shortcut{"M", "Move"}, shortcut{"/", "Filter"})
 	}
 	if model.filterMode {
 		shortcuts = []shortcut{{"Enter", "Keep"}, {"Esc", "Close"}, {"Ctrl-U", "Clear"}, {"Ctrl-C", "Quit"}}

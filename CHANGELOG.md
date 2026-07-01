@@ -6,6 +6,12 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-07-02
+
+### Added
+
+- Discoverable column settings through `Shift+E` and `:column-settings` for editing the selected column name, WIP limit, and automatic archiving.
+
 ## [0.1.9] - 2026-07-01
 
 ### Added

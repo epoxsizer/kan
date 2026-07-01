@@ -126,7 +126,7 @@ func (model *Model) startColumnForm(edit bool) {
 	}}
 	if edit {
 		column := model.columns[model.columnIndex]
-		form.kind, form.title = editColumnForm, "Edit column"
+		form.kind, form.title = editColumnForm, "Column settings"
 		form.fields[0].value = column.Name
 		if column.WIPLimit != nil {
 			form.fields[1].value = strconv.Itoa(*column.WIPLimit)

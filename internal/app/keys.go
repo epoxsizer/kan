@@ -12,7 +12,7 @@ const helpText = `NAVIGATION
 EDITING
   a/e/D          add / edit / confirmed delete
   d/m            details / comments; Shift+E detail size
-  c/E/X          add / edit / delete a column
+  c/E/X          add / configure / delete a column
   H/L/Tab        move; M choose column; u undo
   J/K            move card down / up in its column
 BOARD VIEW

@@ -18,7 +18,7 @@ checklists, custom fields, linked cards, JSON import/export, and automatic
 backups. The database is local by default; backups can optionally be uploaded to
 S3-compatible storage.
 
-Current version: `0.1.9`.
+Current version: `0.1.10`.
 
 ## Interface
 
@@ -99,7 +99,7 @@ kan upgrade check
 | `h j k l`, arrows | Navigate |
 | `Enter`, `d` | Open the selected object in a compact detail window |
 | `e` | Edit the selected object or card |
-| `Shift-E` | Toggle an open detail window between compact and full-screen |
+| `Shift-E` | Configure the selected column; toggle compact/full-screen when a detail window is open |
 | `a` | Add a card or object on the current screen |
 | `D` | Delete with confirmation |
 | `H`, `L` | Move the selected card to the previous/next column |
@@ -111,6 +111,7 @@ kan upgrade check
 | `:` | Command bar and global fuzzy search |
 | `:archive` | Archive every active card in the selected column |
 | `:archived` | Show archived cards for the current board |
+| `:column-settings` | Configure the selected column |
 | `:filter` | Open ranked fuzzy filtering for cards on the current board |
 | `:layout table` | Show projects and boards as tables |
 | `:layout cards` | Show projects and boards as card grids |

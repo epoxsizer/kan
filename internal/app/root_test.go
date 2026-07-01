@@ -750,7 +750,7 @@ func TestHelpCommandBarAndResize(t *testing.T) {
 
 	model.Update(key(":"))
 	palette := model.View()
-	for _, command := range []string{"projects", "boards", "reload", "help", "quit", "add", "settings"} {
+	for _, command := range []string{"projects", "boards", "reload", "help", "quit", "add", "column-settings", "settings"} {
 		require.Contains(t, palette, command)
 	}
 	require.NotContains(t, palette, "new")
@@ -1152,6 +1152,39 @@ func TestArchiveColumnCommandRequiresConfirmation(t *testing.T) {
 	require.Equal(t, archiveColumnCards, model.confirm.kind)
 	require.Equal(t, "done", model.confirm.id)
 	require.Contains(t, model.confirm.message, "2 active cards")
+}
+
+func TestColumnSettingsCommandOpensSelectedColumn(t *testing.T) {
+	limit := 4
+	model := testModel(readRepository{})
+	model.loading = false
+	model.screen = boardScreen
+	model.board = &domain.Board{ID: "board"}
+	model.columns = []domain.Column{
+		{ID: "todo", BoardID: "board", Name: "Todo", ArchiveAfterDays: 14},
+		{ID: "doing", BoardID: "board", Name: "Doing", WIPLimit: &limit, AutoArchive: true, ArchiveAfterDays: 21},
+	}
+	model.columnIndex = 1
+
+	_, command := model.executeCommand("column-settings")
+	require.Nil(t, command)
+	require.NotNil(t, model.form)
+	require.Equal(t, editColumnForm, model.form.kind)
+	require.Equal(t, "Column settings", model.form.title)
+	require.Equal(t, "Doing", model.form.fields[0].value)
+	require.Equal(t, "4", model.form.fields[1].value)
+	require.Equal(t, "Enabled", model.form.fields[3].value)
+	require.Equal(t, "21", model.form.fields[4].value)
+}
+
+func TestColumnSettingsCommandRequiresBoardColumn(t *testing.T) {
+	model := testModel(readRepository{})
+	model.loading = false
+
+	_, command := model.executeCommand("column-settings")
+	require.Nil(t, command)
+	require.ErrorContains(t, model.err, "open a board column first")
+	require.Nil(t, model.form)
 }
 
 func TestArchivedCommandShowsBoardCards(t *testing.T) {
