@@ -53,6 +53,14 @@ func (repo readRepository) ListCards(context.Context, string) ([]domain.Card, er
 	return repo.cards, nil
 }
 
+func (repo readRepository) ListCardsIncludingDeleted(context.Context, string) ([]domain.Card, error) {
+	return repo.cards, nil
+}
+
+func (repo readRepository) ArchiveExpiredCards(context.Context, string) (int, error) {
+	return 0, nil
+}
+
 func testModel(repo domain.Repository) *Model {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	model := New(context.Background(), repo, logger)
@@ -227,6 +235,7 @@ func TestPhaseTwoTUIFormsMovementAndPersistence(t *testing.T) {
 
 	model.Update(key("D"))
 	require.NotNil(t, model.confirm)
+	require.Equal(t, "Delete card?", model.confirm.title)
 	_, command = model.Update(key("y"))
 	runCommands(model, command)
 	_, err = repo.GetCard(ctx, moved.ID)
@@ -345,6 +354,11 @@ func TestTypedFormDefaultsSelectorsCalendarAndCommentEditor(t *testing.T) {
 	model.startColumnForm(false)
 	require.Equal(t, "10", model.form.fields[1].value)
 	require.Equal(t, "Blue", model.form.fields[2].value)
+	require.Equal(t, "Disabled", model.form.fields[3].value)
+	require.Equal(t, "14", model.form.fields[4].value)
+	model.form.focus = 3
+	model.Update(key(" "))
+	require.Equal(t, "Enabled", model.form.fields[3].value)
 	model.form = nil
 
 	model.startCardForm(false)
@@ -1085,6 +1099,46 @@ func TestMutationKeysOpenFormsAndConfirmations(t *testing.T) {
 	model.Update(key("esc"))
 	model.Update(key("D"))
 	require.Contains(t, model.View(), "Delete project?")
+}
+
+func TestArchiveColumnCommandRequiresConfirmation(t *testing.T) {
+	model := testModel(readRepository{})
+	model.loading = false
+	model.screen = boardScreen
+	model.columns = []domain.Column{{ID: "done", Name: "Done", ArchiveAfterDays: 14}}
+	model.cards["done"] = []domain.Card{{ID: "one", Title: "One"}, {ID: "two", Title: "Two"}}
+
+	_, command := model.executeCommand("archive")
+	require.Nil(t, command)
+	require.NotNil(t, model.confirm)
+	require.Equal(t, archiveColumnCards, model.confirm.kind)
+	require.Equal(t, "done", model.confirm.id)
+	require.Contains(t, model.confirm.message, "2 active cards")
+}
+
+func TestArchivedCommandShowsBoardCards(t *testing.T) {
+	archivedAt := time.Date(2026, 7, 1, 9, 30, 0, 0, time.Local)
+	repo := readRepository{
+		columns: []domain.Column{{ID: "done", BoardID: "board", Name: "Done", ArchiveAfterDays: 14}},
+		cards: []domain.Card{
+			{ID: "active", BoardID: "board", ColumnID: "done", Title: "Still active"},
+			{ID: "archived", BoardID: "board", ColumnID: "done", Title: "Shipped release", DeletedAt: &archivedAt},
+		},
+	}
+	model := testModel(repo)
+	model.loading = false
+	model.screen = boardScreen
+	model.board = &domain.Board{ID: "board"}
+
+	_, command := model.executeCommand("archived")
+	require.NotNil(t, command)
+	require.Contains(t, model.View(), "Loading archived cards")
+	model.Update(command())
+	view := model.View()
+	require.Contains(t, view, "Shipped release")
+	require.Contains(t, view, "Column: Done")
+	require.Contains(t, view, "2026-07-01 09:30")
+	require.NotContains(t, view, "Still active")
 }
 
 func TestDetailPopupForProjectAndBoard(t *testing.T) {

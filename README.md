@@ -18,7 +18,7 @@ checklists, custom fields, linked cards, JSON import/export, and automatic
 backups. The database is local by default; backups can optionally be uploaded to
 S3-compatible storage.
 
-Current version: `0.1.6`.
+Current version: `0.1.7`.
 
 ## Interface
 
@@ -100,6 +100,8 @@ or by the account that owns the executable.
 | `u` | Undo the last successful move or reorder |
 | `/` | Search within the current board |
 | `:` | Command bar and global fuzzy search |
+| `:archive` | Archive every active card in the selected column |
+| `:archived` | Show archived cards for the current board |
 | `:layout table` | Show projects and boards as tables |
 | `:layout cards` | Show projects and boards as card grids |
 | `?` | Full help |
@@ -111,6 +113,10 @@ need to select terminal text. Card drag-and-drop is not enabled.
 
 New cards have no due date by default. Open the due-date field to choose a date,
 or press `x` in the calendar to remove the due date.
+
+Columns can enable automatic archiving and set how many days cards remain in
+that column before archival; new columns default to 14 days with automation
+disabled. The retention timer resets whenever a card enters a different column.
 
 In forms, use `Tab` to move between fields and `Ctrl-S` to save. Text inputs
 support cursor editing with arrows and `Home`/`End`; `Ctrl-W`, `Ctrl-U`, and
@@ -136,6 +142,9 @@ kan column create --board BOARD_ID --name "In Progress"
 kan card create --board BOARD_ID --column COLUMN_ID --title "Prepare release"
 kan card search --board BOARD_ID --query "release"
 kan card update CARD_ID --priority high
+kan card archive CARD_ID
+kan card archived --board BOARD_ID --column COLUMN_ID
+kan card restore CARD_ID
 kan card delete CARD_ID --yes
 ```
 

@@ -10,7 +10,7 @@ import (
 	"github.com/epoxsizer/kan/internal/domain"
 )
 
-const cardColumns = `c.id,c.board_id,c.column_id,c.title,c.description,c.position,c.priority,c.due_date,c.tags,c.fields,c.checklist,c.created_at,c.updated_at,c.deleted_at`
+const cardColumns = `c.id,c.board_id,c.column_id,c.title,c.description,c.position,c.priority,c.due_date,c.tags,c.fields,c.checklist,c.created_at,c.updated_at,c.deleted_at,c.column_entered_at`
 
 func (repo *Repository) CreateCard(ctx context.Context, value *domain.Card) error {
 	if value.Tags == nil {
@@ -23,6 +23,9 @@ func (repo *Repository) CreateCard(ctx context.Context, value *domain.Card) erro
 		value.Checklist = []domain.ChecklistItem{}
 	}
 	prepareIdentity(&value.ID, &value.CreatedAt, &value.UpdatedAt)
+	if value.ColumnEnteredAt.IsZero() {
+		value.ColumnEnteredAt = value.CreatedAt
+	}
 	if err := domain.ValidateCard(*value); err != nil {
 		return err
 	}
@@ -43,7 +46,7 @@ func (repo *Repository) CreateCard(ctx context.Context, value *domain.Card) erro
 		return err
 	}
 	defer tx.Rollback()
-	if _, err = tx.ExecContext(ctx, `INSERT INTO cards(id,board_id,column_id,title,description,position,priority,due_date,tags,fields,checklist,created_at,updated_at,deleted_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, value.ID, value.BoardID, value.ColumnID, value.Title, value.Description, value.Position, value.Priority, encodeOptionalTime(value.DueDate), tags, fields, checklist, encodeTime(value.CreatedAt), encodeTime(value.UpdatedAt), encodeOptionalTime(value.DeletedAt)); err != nil {
+	if _, err = tx.ExecContext(ctx, `INSERT INTO cards(id,board_id,column_id,title,description,position,priority,due_date,tags,fields,checklist,created_at,updated_at,deleted_at,column_entered_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, value.ID, value.BoardID, value.ColumnID, value.Title, value.Description, value.Position, value.Priority, encodeOptionalTime(value.DueDate), tags, fields, checklist, encodeTime(value.CreatedAt), encodeTime(value.UpdatedAt), encodeOptionalTime(value.DeletedAt), encodeTime(value.ColumnEnteredAt)); err != nil {
 		return mapError(err)
 	}
 	if err = replaceCardLinks(ctx, tx, value.ID, value.RelatedCardIDs); err != nil {
@@ -55,8 +58,8 @@ func (repo *Repository) CreateCard(ctx context.Context, value *domain.Card) erro
 func scanCard(row scanner) (domain.Card, error) {
 	var value domain.Card
 	var priority, due, deleted sql.NullString
-	var tags, fields, checklist, created, updated string
-	err := row.Scan(&value.ID, &value.BoardID, &value.ColumnID, &value.Title, &value.Description, &value.Position, &priority, &due, &tags, &fields, &checklist, &created, &updated, &deleted)
+	var tags, fields, checklist, created, updated, entered string
+	err := row.Scan(&value.ID, &value.BoardID, &value.ColumnID, &value.Title, &value.Description, &value.Position, &priority, &due, &tags, &fields, &checklist, &created, &updated, &deleted, &entered)
 	if err != nil {
 		return value, mapError(err)
 	}
@@ -85,6 +88,10 @@ func scanCard(row scanner) (domain.Card, error) {
 		return value, err
 	}
 	value.DeletedAt, err = parseOptionalTime(deleted)
+	if err != nil {
+		return value, err
+	}
+	value.ColumnEnteredAt, err = parseTime(entered)
 	return value, err
 }
 
@@ -164,7 +171,7 @@ func (repo *Repository) UpdateCard(ctx context.Context, value *domain.Card) erro
 		return err
 	}
 	defer tx.Rollback()
-	if err = ensureAffected(tx.ExecContext(ctx, `UPDATE cards SET board_id=?,column_id=?,title=?,description=?,position=?,priority=?,due_date=?,tags=?,fields=?,checklist=?,updated_at=? WHERE id=? AND deleted_at IS NULL`, value.BoardID, value.ColumnID, value.Title, value.Description, value.Position, value.Priority, encodeOptionalTime(value.DueDate), tags, fields, checklist, encodeTime(value.UpdatedAt), value.ID)); err != nil {
+	if err = ensureAffected(tx.ExecContext(ctx, `UPDATE cards SET board_id=?,column_id=?,title=?,description=?,position=?,priority=?,due_date=?,tags=?,fields=?,checklist=?,updated_at=?,column_entered_at=CASE WHEN column_id<>? THEN ? ELSE column_entered_at END WHERE id=? AND deleted_at IS NULL`, value.BoardID, value.ColumnID, value.Title, value.Description, value.Position, value.Priority, encodeOptionalTime(value.DueDate), tags, fields, checklist, encodeTime(value.UpdatedAt), value.ColumnID, encodeTime(value.UpdatedAt), value.ID)); err != nil {
 		return err
 	}
 	if err = replaceCardLinks(ctx, tx, value.ID, value.RelatedCardIDs); err != nil {
@@ -175,6 +182,36 @@ func (repo *Repository) UpdateCard(ctx context.Context, value *domain.Card) erro
 func (repo *Repository) DeleteCard(ctx context.Context, id string) error {
 	now := domain.UTCNow()
 	return ensureAffected(repo.db.ExecContext(ctx, `UPDATE cards SET deleted_at=?,updated_at=? WHERE id=? AND deleted_at IS NULL`, encodeTime(now), encodeTime(now), id))
+}
+
+func (repo *Repository) RestoreCard(ctx context.Context, id string) error {
+	now := domain.UTCNow()
+	return ensureAffected(repo.db.ExecContext(ctx, `UPDATE cards SET deleted_at=NULL,updated_at=?,column_entered_at=? WHERE id=? AND deleted_at IS NOT NULL`, encodeTime(now), encodeTime(now), id))
+}
+
+func (repo *Repository) ArchiveCardsInColumn(ctx context.Context, columnID string) (int, error) {
+	now := encodeTime(domain.UTCNow())
+	result, err := repo.db.ExecContext(ctx, `UPDATE cards SET deleted_at=?,updated_at=? WHERE column_id=? AND deleted_at IS NULL`, now, now, columnID)
+	if err != nil {
+		return 0, mapError(err)
+	}
+	count, err := result.RowsAffected()
+	return int(count), err
+}
+
+func (repo *Repository) ArchiveExpiredCards(ctx context.Context, boardID string) (int, error) {
+	now := encodeTime(domain.UTCNow())
+	result, err := repo.db.ExecContext(ctx, `UPDATE cards SET deleted_at=?,updated_at=?
+		WHERE board_id=? AND deleted_at IS NULL AND column_id IN (
+			SELECT id FROM board_columns WHERE board_id=? AND auto_archive=1
+		) AND julianday(column_entered_at) <= julianday(?) - (
+			SELECT archive_after_days FROM board_columns WHERE id=cards.column_id
+		)`, now, now, boardID, boardID, now)
+	if err != nil {
+		return 0, mapError(err)
+	}
+	count, err := result.RowsAffected()
+	return int(count), err
 }
 
 type queryer interface {

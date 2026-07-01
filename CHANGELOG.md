@@ -6,6 +6,12 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-07-01
+
+### Added
+
+- Explicit card archive, archived-list, and restore workflows in the CLI, plus command-menu archival, an archived-card board view, and configurable automatic archival for active columns in the TUI.
+
 ## [0.1.6] - 2026-07-01
 
 ### Added
@@ -84,7 +90,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Theme configuration, inline shortcut help, and accessible empty states.
 - Scriptable CLI commands for projects, boards, columns, cards, and data exchange.
 
-[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.6...main
+[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.7...main
+[0.1.7]: https://github.com/epoxsizer/kan/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/epoxsizer/kan/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/epoxsizer/kan/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/epoxsizer/kan/compare/v0.1.3...v0.1.4

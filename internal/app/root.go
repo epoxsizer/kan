@@ -186,6 +186,14 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return model, searchBoardCards(model.ctx, model.repo, model.board.ID, model.filterText)
 		}
 		return model, nil
+	case archivedCardsLoadedMsg:
+		if message.err != nil {
+			model.detail = nil
+			model.err = message.err
+		} else {
+			model.detail = archivedCardsDetail(message.cards, message.columns)
+		}
+		return model, nil
 	case paletteLoadedMsg:
 		model.paletteLoading = false
 		model.paletteErr = message.err
@@ -733,6 +741,24 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 		case boardScreen:
 			return model.handleBoardKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
 		}
+	case "archive", "archive-column":
+		if model.screen != boardScreen || len(model.columns) == 0 {
+			model.err = fmt.Errorf("open a board column first")
+			return model, nil
+		}
+		column := model.columns[model.columnIndex]
+		model.confirm = &confirmModal{
+			kind: archiveColumnCards, title: "Archive active column?",
+			message: fmt.Sprintf("Archive %d active cards from %s? They can be restored with the CLI.", len(model.visibleCards(column.ID)), column.Name),
+			id:      column.ID,
+		}
+	case "archived":
+		if model.screen != boardScreen || model.board == nil {
+			model.err = fmt.Errorf("open a board first")
+			return model, nil
+		}
+		model.detail = &detailPopup{kind: "archive", title: "Archived cards", lines: []string{"Loading archived cards..."}}
+		return model, loadArchivedCards(model.ctx, model.repo, model.board.ID)
 	case "move":
 		if model.screen != boardScreen {
 			model.err = fmt.Errorf("open a board first")

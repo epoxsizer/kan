@@ -36,14 +36,16 @@ type Board struct {
 }
 
 type Column struct {
-	ID        string    `json:"id"`
-	BoardID   string    `json:"board_id"`
-	Name      string    `json:"name"`
-	Position  float64   `json:"position"`
-	WIPLimit  *int      `json:"wip_limit,omitempty"`
-	Color     *string   `json:"color,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID               string    `json:"id"`
+	BoardID          string    `json:"board_id"`
+	Name             string    `json:"name"`
+	Position         float64   `json:"position"`
+	WIPLimit         *int      `json:"wip_limit,omitempty"`
+	Color            *string   `json:"color,omitempty"`
+	AutoArchive      bool      `json:"auto_archive,omitempty"`
+	ArchiveAfterDays int       `json:"archive_after_days,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 type FieldValue struct {
@@ -59,21 +61,22 @@ type ChecklistItem struct {
 }
 
 type Card struct {
-	ID             string                `json:"id"`
-	BoardID        string                `json:"board_id"`
-	ColumnID       string                `json:"column_id"`
-	Title          string                `json:"title"`
-	Description    string                `json:"description"`
-	Position       float64               `json:"position"`
-	Priority       *string               `json:"priority,omitempty"`
-	DueDate        *time.Time            `json:"due_date,omitempty"`
-	Tags           []string              `json:"tags"`
-	RelatedCardIDs []string              `json:"related_card_ids"`
-	Checklist      []ChecklistItem       `json:"checklist"`
-	Fields         map[string]FieldValue `json:"fields"`
-	CreatedAt      time.Time             `json:"created_at"`
-	UpdatedAt      time.Time             `json:"updated_at"`
-	DeletedAt      *time.Time            `json:"deleted_at,omitempty"`
+	ID              string                `json:"id"`
+	BoardID         string                `json:"board_id"`
+	ColumnID        string                `json:"column_id"`
+	Title           string                `json:"title"`
+	Description     string                `json:"description"`
+	Position        float64               `json:"position"`
+	Priority        *string               `json:"priority,omitempty"`
+	DueDate         *time.Time            `json:"due_date,omitempty"`
+	Tags            []string              `json:"tags"`
+	RelatedCardIDs  []string              `json:"related_card_ids"`
+	Checklist       []ChecklistItem       `json:"checklist"`
+	Fields          map[string]FieldValue `json:"fields"`
+	CreatedAt       time.Time             `json:"created_at"`
+	UpdatedAt       time.Time             `json:"updated_at"`
+	DeletedAt       *time.Time            `json:"deleted_at,omitempty"`
+	ColumnEnteredAt time.Time             `json:"column_entered_at,omitempty"`
 }
 
 type FieldDef struct {

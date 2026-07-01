@@ -314,6 +314,8 @@ func (model *Model) clickForm(event tea.MouseEvent, width, height int) (tea.Mode
 		labelWidth := lipgloss.Width(field.label + ": ")
 		cell := max(event.X-(left+3+labelWidth), 0)
 		field.cursor = mouseRuneIndex(field.value, cell)
+	} else if field.kind == checkboxField {
+		toggleCheckboxField(field)
 	} else if wasFocused {
 		model.form.openControl()
 	}

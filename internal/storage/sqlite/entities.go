@@ -120,11 +120,14 @@ func (repo *Repository) DeleteBoard(ctx context.Context, id string) error {
 }
 
 func (repo *Repository) CreateColumn(ctx context.Context, value *domain.Column) error {
+	if value.ArchiveAfterDays == 0 {
+		value.ArchiveAfterDays = 14
+	}
 	prepareIdentity(&value.ID, &value.CreatedAt, &value.UpdatedAt)
 	if err := domain.ValidateColumn(*value); err != nil {
 		return err
 	}
-	_, err := repo.db.ExecContext(ctx, `INSERT INTO board_columns(id,board_id,name,position,wip_limit,color,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)`, value.ID, value.BoardID, value.Name, value.Position, value.WIPLimit, value.Color, encodeTime(value.CreatedAt), encodeTime(value.UpdatedAt))
+	_, err := repo.db.ExecContext(ctx, `INSERT INTO board_columns(id,board_id,name,position,wip_limit,color,auto_archive,archive_after_days,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)`, value.ID, value.BoardID, value.Name, value.Position, value.WIPLimit, value.Color, value.AutoArchive, value.ArchiveAfterDays, encodeTime(value.CreatedAt), encodeTime(value.UpdatedAt))
 	return mapError(err)
 }
 func scanColumn(row scanner) (domain.Column, error) {
@@ -132,7 +135,7 @@ func scanColumn(row scanner) (domain.Column, error) {
 	var wip sql.NullInt64
 	var color sql.NullString
 	var created, updated string
-	err := row.Scan(&value.ID, &value.BoardID, &value.Name, &value.Position, &wip, &color, &created, &updated)
+	err := row.Scan(&value.ID, &value.BoardID, &value.Name, &value.Position, &wip, &color, &value.AutoArchive, &value.ArchiveAfterDays, &created, &updated)
 	if err != nil {
 		return value, mapError(err)
 	}
@@ -151,10 +154,10 @@ func scanColumn(row scanner) (domain.Column, error) {
 	return value, err
 }
 func (repo *Repository) GetColumn(ctx context.Context, id string) (domain.Column, error) {
-	return scanColumn(repo.db.QueryRowContext(ctx, `SELECT id,board_id,name,position,wip_limit,color,created_at,updated_at FROM board_columns WHERE id=?`, id))
+	return scanColumn(repo.db.QueryRowContext(ctx, `SELECT id,board_id,name,position,wip_limit,color,auto_archive,archive_after_days,created_at,updated_at FROM board_columns WHERE id=?`, id))
 }
 func (repo *Repository) ListColumns(ctx context.Context, boardID string) ([]domain.Column, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id,board_id,name,position,wip_limit,color,created_at,updated_at FROM board_columns WHERE board_id=? ORDER BY position,id`, boardID)
+	rows, err := repo.db.QueryContext(ctx, `SELECT id,board_id,name,position,wip_limit,color,auto_archive,archive_after_days,created_at,updated_at FROM board_columns WHERE board_id=? ORDER BY position,id`, boardID)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +177,7 @@ func (repo *Repository) UpdateColumn(ctx context.Context, value *domain.Column) 
 	if err := domain.ValidateColumn(*value); err != nil {
 		return err
 	}
-	return ensureAffected(repo.db.ExecContext(ctx, `UPDATE board_columns SET board_id=?,name=?,position=?,wip_limit=?,color=?,updated_at=? WHERE id=?`, value.BoardID, value.Name, value.Position, value.WIPLimit, value.Color, encodeTime(value.UpdatedAt), value.ID))
+	return ensureAffected(repo.db.ExecContext(ctx, `UPDATE board_columns SET board_id=?,name=?,position=?,wip_limit=?,color=?,auto_archive=?,archive_after_days=?,updated_at=? WHERE id=?`, value.BoardID, value.Name, value.Position, value.WIPLimit, value.Color, value.AutoArchive, value.ArchiveAfterDays, encodeTime(value.UpdatedAt), value.ID))
 }
 func (repo *Repository) DeleteColumn(ctx context.Context, id string) error {
 	return ensureAffected(repo.db.ExecContext(ctx, `DELETE FROM board_columns WHERE id=?`, id))

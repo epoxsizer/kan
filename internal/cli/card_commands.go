@@ -16,8 +16,34 @@ func newCardCommand(opts *options) *cobra.Command {
 		newCardSearchCommand(opts),
 		newCardCreateCommand(opts),
 		newCardUpdateCommand(opts),
+		newCardArchivedCommand(opts),
+		newCardArchiveCommand(opts),
+		newCardRestoreCommand(opts),
 		newCardDeleteCommand(opts),
 	)
+	return command
+}
+
+func newCardArchivedCommand(opts *options) *cobra.Command {
+	var boardID, columnID string
+	command := &cobra.Command{Use: "archived", Short: "List archived cards as JSON", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+		return withRepository(cmd, opts, func(ctx context.Context, repo domain.Repository) error {
+			values, err := repo.ListCardsIncludingDeleted(ctx, boardID)
+			if err != nil {
+				return err
+			}
+			archived := make([]domain.Card, 0)
+			for _, value := range values {
+				if value.DeletedAt != nil && (columnID == "" || value.ColumnID == columnID) {
+					archived = append(archived, value)
+				}
+			}
+			return writeJSON(cmd, archived)
+		})
+	}}
+	command.Flags().StringVar(&boardID, "board", "", "parent board ID")
+	command.Flags().StringVar(&columnID, "column", "", "optional column ID filter")
+	_ = command.MarkFlagRequired("board")
 	return command
 }
 
@@ -229,6 +255,32 @@ func newCardDeleteCommand(opts *options) *cobra.Command {
 	}}
 	command.Flags().BoolVar(&yes, "yes", false, "confirm deletion")
 	return command
+}
+
+func newCardArchiveCommand(opts *options) *cobra.Command {
+	return &cobra.Command{Use: "archive <id>", Short: "Archive a card", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		return withRepository(cmd, opts, func(ctx context.Context, repo domain.Repository) error {
+			if err := repo.DeleteCard(ctx, args[0]); err != nil {
+				return err
+			}
+			return writeJSON(cmd, map[string]string{"archived": args[0]})
+		})
+	}}
+}
+
+func newCardRestoreCommand(opts *options) *cobra.Command {
+	return &cobra.Command{Use: "restore <id>", Short: "Restore an archived card", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		return withRepository(cmd, opts, func(ctx context.Context, repo domain.Repository) error {
+			if err := repo.RestoreCard(ctx, args[0]); err != nil {
+				return err
+			}
+			value, err := repo.GetCard(ctx, args[0])
+			if err != nil {
+				return err
+			}
+			return writeJSON(cmd, value)
+		})
+	}}
 }
 
 func nextCardPosition(values []domain.Card, columnID string) float64 {

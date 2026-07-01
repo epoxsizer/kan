@@ -66,7 +66,8 @@ func (repo *Repository) MoveCard(ctx context.Context, cardID, targetColumnID str
 		}
 		position, _ = insertionPosition(cards, targetIndex)
 	}
-	result, err := tx.ExecContext(ctx, `UPDATE cards SET column_id=?,position=?,updated_at=? WHERE id=? AND deleted_at IS NULL`, targetColumnID, position, encodeTime(domain.UTCNow()), cardID)
+	now := encodeTime(domain.UTCNow())
+	result, err := tx.ExecContext(ctx, `UPDATE cards SET column_id=?,position=?,updated_at=?,column_entered_at=? WHERE id=? AND deleted_at IS NULL`, targetColumnID, position, now, now, cardID)
 	if err = ensureAffected(result, err); err != nil {
 		return err
 	}

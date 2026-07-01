@@ -43,6 +43,7 @@ const (
 	calendarField
 	linksField
 	checklistField
+	checkboxField
 )
 
 var columnColors = []string{"Blue", "Green", "Yellow", "Orange", "Red", "Purple", "Gray"}
@@ -71,6 +72,7 @@ const (
 	deleteBoard
 	deleteColumn
 	deleteCard
+	archiveColumnCards
 )
 
 type confirmModal struct {
@@ -115,7 +117,13 @@ func (model *Model) startBoardForm(edit bool) {
 }
 
 func (model *Model) startColumnForm(edit bool) {
-	form := &formModal{kind: createColumnForm, title: "Add column", fields: []formField{{label: "Name"}, {label: "WIP limit", value: "10"}, {label: "Color", value: "Blue", kind: dropdownField, options: columnColors}}}
+	form := &formModal{kind: createColumnForm, title: "Add column", fields: []formField{
+		{label: "Name"},
+		{label: "WIP limit", value: "10"},
+		{label: "Color", value: "Blue", kind: dropdownField, options: columnColors},
+		{label: "Auto archive", value: "Disabled", kind: checkboxField},
+		{label: "Archive after days", value: "14"},
+	}}
 	if edit {
 		column := model.columns[model.columnIndex]
 		form.kind, form.title = editColumnForm, "Edit column"
@@ -131,6 +139,10 @@ func (model *Model) startColumnForm(edit bool) {
 		} else {
 			form.fields[2].value = ""
 		}
+		if column.AutoArchive {
+			form.fields[3].value = "Enabled"
+		}
+		form.fields[4].value = strconv.Itoa(column.ArchiveAfterDays)
 	}
 	model.activateForm(form)
 }
@@ -211,6 +223,10 @@ func (model *Model) handleFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		form.focus = max(form.focus-1, 0)
 		return model, nil
 	case "enter":
+		if form.fields[form.focus].kind == checkboxField {
+			toggleCheckboxField(&form.fields[form.focus])
+			return model, nil
+		}
 		if form.fields[form.focus].kind != textField {
 			form.openControl()
 			return model, nil
@@ -222,6 +238,11 @@ func (model *Model) handleFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return model, nil
 	}
 	field := &form.fields[form.focus]
+	if field.kind == checkboxField && key.String() == " " {
+		toggleCheckboxField(field)
+		form.err = ""
+		return model, nil
+	}
 	if field.kind == textField {
 		result := editText(field.value, field.cursor, key, false)
 		if result.handled {
@@ -325,6 +346,12 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 			color := value(2)
 			column.Color = &color
 		}
+		column.AutoArchive = strings.EqualFold(value(3), "Enabled")
+		days, err := strconv.Atoi(value(4))
+		if err != nil || days < 1 {
+			return invalid(fmt.Errorf("archive after days must be a positive integer"))
+		}
+		column.ArchiveAfterDays = days
 		if err := domain.ValidateColumn(column); err != nil {
 			return invalid(err)
 		}
@@ -411,6 +438,11 @@ func (model *Model) handleConfirmKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return model, mutationCommand(boardScreen, "Column deleted", func() error { return model.repo.DeleteColumn(model.ctx, confirmation.id) })
 	case deleteCard:
 		return model, mutationCommand(boardScreen, "Card deleted", func() error { return model.repo.DeleteCard(model.ctx, confirmation.id) })
+	case archiveColumnCards:
+		return model, mutationCommand(boardScreen, "Column cards archived", func() error {
+			_, err := model.repo.ArchiveCardsInColumn(model.ctx, confirmation.id)
+			return err
+		})
 	}
 	return model, nil
 }
@@ -593,9 +625,23 @@ func fieldDisplayValue(field formField, candidates []linkCandidate) string {
 			}
 		}
 		return fmt.Sprintf("%d/%d done · Enter checklist", done, len(items))
+	case checkboxField:
+		if strings.EqualFold(field.value, "Enabled") {
+			return "[x] Enabled · Space toggle"
+		}
+		return "[ ] Disabled · Space toggle"
 	default:
 		return field.value
 	}
+}
+
+func toggleCheckboxField(field *formField) {
+	if strings.EqualFold(field.value, "Enabled") {
+		field.value = "Disabled"
+	} else {
+		field.value = "Enabled"
+	}
+	field.cursor = len([]rune(field.value))
 }
 
 func withLegacyOption(options []string, value string) []string {

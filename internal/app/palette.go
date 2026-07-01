@@ -30,6 +30,8 @@ var commandCatalog = []commandSpec{
 	{name: "add", description: "Add an object on the current screen"},
 	{name: "edit", description: "Edit the selected object"},
 	{name: "delete", description: "Delete the selected object with confirmation"},
+	{name: "archive", description: "Archive every active card in the selected column"},
+	{name: "archived", description: "Show archived cards for the current board"},
 	{name: "move", description: "Choose a destination column for the selected card"},
 	{name: "undo", description: "Undo the last card move or reorder"},
 	{name: "add-column", description: "Add a column on the current board"},

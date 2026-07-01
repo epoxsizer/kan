@@ -149,6 +149,19 @@ func TestAutomationCLIWorkflow(t *testing.T) {
 	var doneCards []domain.Card
 	require.NoError(t, executeJSONCommand(t, args("card", "list", "--board", board.ID, "--column", done.ID), &doneCards))
 	require.Len(t, doneCards, 1)
+
+	var archived map[string]string
+	require.NoError(t, executeJSONCommand(t, args("card", "archive", card.ID), &archived))
+	require.Equal(t, card.ID, archived["archived"])
+	var archivedCards []domain.Card
+	require.NoError(t, executeJSONCommand(t, args("card", "archived", "--board", board.ID, "--column", done.ID), &archivedCards))
+	require.Len(t, archivedCards, 1)
+	require.NotNil(t, archivedCards[0].DeletedAt)
+	var restored domain.Card
+	require.NoError(t, executeJSONCommand(t, args("card", "restore", card.ID), &restored))
+	require.Equal(t, card.ID, restored.ID)
+	require.Nil(t, restored.DeletedAt)
+
 	require.ErrorContains(t, executeJSONCommand(t, args("card", "delete", card.ID), nil), "requires --yes")
 
 	var deleted map[string]string

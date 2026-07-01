@@ -30,6 +30,9 @@ func ValidateColumn(value Column) error {
 	if value.WIPLimit != nil && *value.WIPLimit < 1 {
 		return validationError("column WIP limit must be positive")
 	}
+	if value.AutoArchive && value.ArchiveAfterDays < 1 {
+		return validationError("column archive period must be positive")
+	}
 	return validateNamed("column", value.Name, value.Position)
 }
 

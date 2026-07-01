@@ -28,6 +28,9 @@ type Repository interface {
 	UpdateCard(context.Context, *Card) error
 	MoveCard(context.Context, string, string, int) error
 	DeleteCard(context.Context, string) error
+	RestoreCard(context.Context, string) error
+	ArchiveCardsInColumn(context.Context, string) (int, error)
+	ArchiveExpiredCards(context.Context, string) (int, error)
 
 	CreateFieldDef(context.Context, *FieldDef) error
 	GetFieldDef(context.Context, string) (FieldDef, error)

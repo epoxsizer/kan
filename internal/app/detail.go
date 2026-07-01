@@ -84,12 +84,17 @@ func columnDetail(column domain.Column, cardCount int) *detailPopup {
 	if column.Color != nil && *column.Color != "" {
 		color = *column.Color
 	}
+	archiving := "disabled"
+	if column.AutoArchive {
+		archiving = fmt.Sprintf("after %d days", column.ArchiveAfterDays)
+	}
 	return &detailPopup{kind: "column", title: column.Name, lines: []string{
 		"ID: " + column.ID,
 		"Board ID: " + column.BoardID,
 		fmt.Sprintf("Cards: %d", cardCount),
 		"WIP limit: " + wipLimit,
 		"Color: " + color,
+		"Auto archive: " + archiving,
 		fmt.Sprintf("Position: %g", column.Position),
 	}}
 }
@@ -143,6 +148,25 @@ func cardDetail(card domain.Card, columnName string) *detailPopup {
 	}
 	lines = append(lines, "Updated: "+formatDetailTime(card.UpdatedAt))
 	return &detailPopup{kind: "card", title: card.Title, lines: lines}
+}
+
+func archivedCardsDetail(cards []domain.Card, columns []domain.Column) *detailPopup {
+	columnNames := make(map[string]string, len(columns))
+	for _, column := range columns {
+		columnNames[column.ID] = column.Name
+	}
+	sort.SliceStable(cards, func(left, right int) bool {
+		return cards[left].DeletedAt.After(*cards[right].DeletedAt)
+	})
+	lines := []string{fmt.Sprintf("Archived cards: %d", len(cards))}
+	if len(cards) == 0 {
+		lines = append(lines, "", "No archived cards on this board.")
+	}
+	for _, card := range cards {
+		column := fallbackValue(columnNames[card.ColumnID])
+		lines = append(lines, "", card.Title, fmt.Sprintf("  Column: %s · Archived: %s", column, card.DeletedAt.Local().Format("2006-01-02 15:04")), "  ID: "+card.ID)
+	}
+	return &detailPopup{kind: "archive", title: "Archived cards", lines: lines}
 }
 
 func (model *Model) renderDetailPopup(width, height int) string {

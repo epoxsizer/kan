@@ -26,6 +26,12 @@ type boardLoadedMsg struct {
 	err     error
 }
 
+type archivedCardsLoadedMsg struct {
+	cards   []domain.Card
+	columns []domain.Column
+	err     error
+}
+
 type mutationDoneMsg struct {
 	scope  screen
 	notice string

@@ -88,11 +88,14 @@ func (repo *Repository) ImportDocument(ctx context.Context, document domain.Expo
 				if column.ID == "" || column.BoardID != board.ID {
 					return importValidation("column ID and board relationship must match its hierarchy")
 				}
+				if column.ArchiveAfterDays == 0 {
+					column.ArchiveAfterDays = 14
+				}
 				if err = domain.ValidateColumn(column); err != nil {
 					return err
 				}
 				column.CreatedAt, column.UpdatedAt = importTimes(column.CreatedAt, column.UpdatedAt, now)
-				if _, err = tx.ExecContext(ctx, `INSERT INTO board_columns(id,board_id,name,position,wip_limit,color,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)`, column.ID, column.BoardID, column.Name, column.Position, column.WIPLimit, column.Color, encodeTime(column.CreatedAt), encodeTime(column.UpdatedAt)); err != nil {
+				if _, err = tx.ExecContext(ctx, `INSERT INTO board_columns(id,board_id,name,position,wip_limit,color,auto_archive,archive_after_days,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)`, column.ID, column.BoardID, column.Name, column.Position, column.WIPLimit, column.Color, column.AutoArchive, column.ArchiveAfterDays, encodeTime(column.CreatedAt), encodeTime(column.UpdatedAt)); err != nil {
 					return mapError(err)
 				}
 
@@ -114,6 +117,9 @@ func (repo *Repository) ImportDocument(ctx context.Context, document domain.Expo
 						return err
 					}
 					card.CreatedAt, card.UpdatedAt = importTimes(card.CreatedAt, card.UpdatedAt, now)
+					if card.ColumnEnteredAt.IsZero() {
+						card.ColumnEnteredAt = card.UpdatedAt
+					}
 					tags, encodeErr := jsonValue(card.Tags, `[]`)
 					if encodeErr != nil {
 						return encodeErr
@@ -126,7 +132,7 @@ func (repo *Repository) ImportDocument(ctx context.Context, document domain.Expo
 					if encodeErr != nil {
 						return encodeErr
 					}
-					if _, err = tx.ExecContext(ctx, `INSERT INTO cards(id,board_id,column_id,title,description,position,priority,due_date,tags,fields,checklist,created_at,updated_at,deleted_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, card.ID, card.BoardID, card.ColumnID, card.Title, card.Description, card.Position, card.Priority, encodeOptionalTime(card.DueDate), tags, fields, checklist, encodeTime(card.CreatedAt), encodeTime(card.UpdatedAt), encodeOptionalTime(card.DeletedAt)); err != nil {
+					if _, err = tx.ExecContext(ctx, `INSERT INTO cards(id,board_id,column_id,title,description,position,priority,due_date,tags,fields,checklist,created_at,updated_at,deleted_at,column_entered_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, card.ID, card.BoardID, card.ColumnID, card.Title, card.Description, card.Position, card.Priority, encodeOptionalTime(card.DueDate), tags, fields, checklist, encodeTime(card.CreatedAt), encodeTime(card.UpdatedAt), encodeOptionalTime(card.DeletedAt), encodeTime(card.ColumnEnteredAt)); err != nil {
 						return mapError(err)
 					}
 					links[card.ID] = append([]string(nil), card.RelatedCardIDs...)

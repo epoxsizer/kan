@@ -53,8 +53,38 @@ func TestMigrationsAreRepeatableAndEnableFeatures(t *testing.T) {
 	require.NoError(t, err)
 	var migrationCount int
 	require.NoError(t, repo.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&migrationCount))
-	require.Equal(t, 3, migrationCount)
+	require.Equal(t, 4, migrationCount)
 	require.NoError(t, repo.Close())
+}
+
+func TestColumnCardArchiving(t *testing.T) {
+	repo := openTestRepository(t)
+	ctx := context.Background()
+	_, board, column := createHierarchy(t, repo)
+	column.AutoArchive = true
+	column.ArchiveAfterDays = 14
+	require.NoError(t, repo.UpdateColumn(ctx, &column))
+
+	expired := domain.Card{BoardID: board.ID, ColumnID: column.ID, Title: "Expired", Position: 1024}
+	current := domain.Card{BoardID: board.ID, ColumnID: column.ID, Title: "Current", Position: 2048}
+	require.NoError(t, repo.CreateCard(ctx, &expired))
+	require.NoError(t, repo.CreateCard(ctx, &current))
+	past := encodeTime(domain.UTCNow().AddDate(0, 0, -15))
+	require.NoError(t, ensureAffected(repo.db.ExecContext(ctx, `UPDATE cards SET column_entered_at=? WHERE id=?`, past, expired.ID)))
+
+	count, err := repo.ArchiveExpiredCards(ctx, board.ID)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	cards, err := repo.ListCards(ctx, board.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"Current"}, []string{cards[0].Title})
+
+	count, err = repo.ArchiveCardsInColumn(ctx, column.ID)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	cards, err = repo.ListCards(ctx, board.ID)
+	require.NoError(t, err)
+	require.Empty(t, cards)
 }
 
 func TestRepositoryCRUDSearchSoftDeleteAndCascade(t *testing.T) {
@@ -115,6 +145,14 @@ func TestRepositoryCRUDSearchSoftDeleteAndCascade(t *testing.T) {
 	results, err = repo.SearchCards(ctx, board.ID, "Updated")
 	require.NoError(t, err)
 	require.Empty(t, results)
+	require.NoError(t, repo.RestoreCard(ctx, card.ID))
+	restored, err := repo.GetCard(ctx, card.ID)
+	require.NoError(t, err)
+	require.Nil(t, restored.DeletedAt)
+	results, err = repo.SearchCards(ctx, board.ID, "Updated")
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.NoError(t, repo.DeleteCard(ctx, card.ID))
 	require.ErrorIs(t, repo.DeleteCard(ctx, card.ID), domain.ErrNotFound)
 
 	require.NoError(t, repo.DeleteProject(ctx, project.ID))
