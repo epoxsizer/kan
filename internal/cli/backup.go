@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	storage "github.com/epoxsizer/kan/internal/storage/sqlite"
 	"github.com/spf13/cobra"
 )
 
@@ -56,6 +57,11 @@ func newBackupCommand(opts *options) *cobra.Command {
 				return err
 			}
 			res.logger.Info("database backup created", "path", result.localPath, "s3", result.s3URI)
+			if removed, rotateErr := rotateBackups(storage.BackupDirectory(workingDirectory), backupConfig, time.Now()); rotateErr != nil {
+				res.logger.Error("backup rotation failed", "error", rotateErr)
+			} else if removed > 0 {
+				res.logger.Info("expired backups removed", "count", removed)
+			}
 			fmt.Fprintf(cmd.OutOrStdout(), "backup created: %s\n", result.localRelative)
 			if result.s3URI != "" {
 				fmt.Fprintf(cmd.OutOrStdout(), "backup uploaded: %s\n", result.s3URI)

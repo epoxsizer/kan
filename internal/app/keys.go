@@ -16,7 +16,7 @@ EDITING
   H/L/Tab        move; M choose column; u undo
   J/K            move card down / up in its column
 BOARD VIEW
-  /              live FTS filter; Ctrl-U deletes left
+  /              fuzzy filter; Ctrl-U clear
   s/v            cycle sort / grouping
 FORMS
   ←/→ Home/End   cursor; Ctrl-W/U/K delete text

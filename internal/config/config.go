@@ -58,8 +58,9 @@ type Theme struct {
 }
 
 type Backup struct {
-	Storage string   `toml:"storage"`
-	S3      S3Backup `toml:"s3"`
+	Storage   string   `toml:"storage"`
+	Retention string   `toml:"retention"`
+	S3        S3Backup `toml:"s3"`
 }
 
 type S3Backup struct {
@@ -117,7 +118,7 @@ func Defaults() Config {
 			PanelBorder: "#909090", FocusedPanelBorder: "#42C77A", StatusForeground: "#909090", StatusBackground: "#24243A", StatusAccentForeground: "#FFFFFF", StatusAccentBackground: "#7D7AFF",
 			ShortcutKeyForeground: "#FFFFFF", ShortcutKeyBackground: "#5A56E0", ShortcutText: "#909090", HelpText: "#C4C4D0", HelpBorder: "#7D7AFF", Command: "#7D7AFF", ColumnDefault: "#4C8DFF",
 		},
-		Backup: Backup{Storage: "local", S3: S3Backup{Prefix: "kan/backups"}},
+		Backup: Backup{Storage: "local", Retention: "336h", S3: S3Backup{Prefix: "kan/backups"}},
 		Sync:   Sync{Interval: "30m", ObjectKey: "kan/sync.json"},
 	}
 }
@@ -187,6 +188,7 @@ show_card_tags = %t
 
 [backup]
 storage = %q
+retention = %q
 
 [backup.s3]
 prefix = %q
@@ -229,6 +231,7 @@ column_default = %q
 		cfg.LogLevel,
 		cfg.ShowCardTags,
 		cfg.Backup.Storage,
+		cfg.Backup.Retention,
 		cfg.Backup.S3.Prefix,
 		cfg.Sync.Enabled,
 		cfg.Sync.Interval,
@@ -408,6 +411,9 @@ func mergeBackup(dst *Backup, src Backup) {
 	if src.Storage != "" {
 		dst.Storage = src.Storage
 	}
+	if src.Retention != "" {
+		dst.Retention = src.Retention
+	}
 	if src.S3.Bucket != "" {
 		dst.S3.Bucket = src.S3.Bucket
 	}
@@ -432,6 +438,13 @@ func mergeBackup(dst *Backup, src Backup) {
 }
 
 func validateBackup(backup Backup) error {
+	retention, err := time.ParseDuration(backup.Retention)
+	if err != nil {
+		return fmt.Errorf("backup.retention must be a valid duration: %w", err)
+	}
+	if retention < 0 {
+		return errors.New("backup.retention must not be negative")
+	}
 	switch backup.Storage {
 	case "", "local":
 		return nil

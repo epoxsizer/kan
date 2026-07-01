@@ -18,7 +18,7 @@ checklists, custom fields, linked cards, JSON import/export, and automatic
 backups. The database is local by default; backups can optionally be uploaded to
 S3-compatible storage.
 
-Current version: `0.1.7`.
+Current version: `0.1.8`.
 
 ## Interface
 
@@ -102,6 +102,7 @@ or by the account that owns the executable.
 | `:` | Command bar and global fuzzy search |
 | `:archive` | Archive every active card in the selected column |
 | `:archived` | Show archived cards for the current board |
+| `:filter` | Open ranked fuzzy filtering for cards on the current board |
 | `:layout table` | Show projects and boards as tables |
 | `:layout cards` | Show projects and boards as card grids |
 | `?` | Full help |
@@ -170,7 +171,8 @@ kan import kan-export.json
 
 Manual and automatic backups are stored in `backup/` relative to the current
 working directory. While the TUI is running, an automatic backup is created about
-every six hours.
+every six hours. Timestamped backups older than 14 days are removed from this
+directory by default. Set `backup.retention = "0"` to disable rotation.
 
 Backup storage is local by default. To upload backups to S3 as well, configure
 `backup.storage = "s3"` in `config.toml` or pass S3 flags to `kan backup`:
@@ -178,6 +180,7 @@ Backup storage is local by default. To upload backups to S3 as well, configure
 ```toml
 [backup]
 storage = "s3"
+retention = "336h"
 
 [backup.s3]
 bucket = "kan-backups"
@@ -199,7 +202,9 @@ kan backup release \
 ```
 
 `kan` always creates the local SQLite backup first and then uploads that file to
-S3. The local database remains the source of truth.
+S3. When S3 backup storage is enabled, the same retention policy removes expired
+generated backup objects under `backup.s3.prefix`; unrelated objects are
+preserved. The local database remains the source of truth.
 
 ## S3 JSON Sync
 

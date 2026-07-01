@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/epoxsizer/kan/internal/domain"
@@ -35,9 +37,111 @@ func searchBoardCards(ctx context.Context, repo domain.Repository, boardID, quer
 		if ftsQuery == "" {
 			return boardFilterMsg{query: query}
 		}
-		cards, err := repo.SearchCards(ctx, boardID, ftsQuery)
-		return boardFilterMsg{query: query, cards: cards, err: err}
+		allCards, err := repo.ListCards(ctx, boardID)
+		if err != nil {
+			return boardFilterMsg{query: query, err: err}
+		}
+		columns, err := repo.ListColumns(ctx, boardID)
+		if err != nil {
+			return boardFilterMsg{query: query, err: err}
+		}
+		exact, err := repo.SearchCards(ctx, boardID, ftsQuery)
+		if err != nil {
+			return boardFilterMsg{query: query, err: err}
+		}
+		columnNames := make(map[string]string, len(columns))
+		for _, column := range columns {
+			columnNames[column.ID] = column.Name
+		}
+		results := make(map[string]domain.Card, len(exact))
+		scores := make(map[string]int, len(exact))
+		for _, card := range exact {
+			results[card.ID] = card
+			scores[card.ID] = 10000
+		}
+		for _, card := range allCards {
+			score := fuzzyCardScore(query, card, columnNames[card.ColumnID])
+			if score <= 0 {
+				continue
+			}
+			results[card.ID] = card
+			scores[card.ID] = max(scores[card.ID], score)
+		}
+		cards := make([]domain.Card, 0, len(results))
+		for _, card := range results {
+			cards = append(cards, card)
+		}
+		return boardFilterMsg{query: query, cards: cards, scores: scores}
 	}
+}
+
+func fuzzyCardScore(query string, card domain.Card, columnName string) int {
+	metadata, _ := json.Marshal(card.Fields)
+	priority := ""
+	if card.Priority != nil {
+		priority = *card.Priority
+	}
+	due := ""
+	if card.DueDate != nil {
+		due = card.DueDate.Format("2006-01-02")
+	}
+	text := strings.ToLower(strings.Join([]string{
+		card.ID, card.Title, card.Description, strings.Join(card.Tags, " "), priority, due,
+		strings.Join(card.RelatedCardIDs, " "), checklistSearchText(card.Checklist), string(metadata), columnName,
+	}, " "))
+	words := strings.FieldsFunc(text, func(character rune) bool {
+		return !unicode.IsLetter(character) && !unicode.IsDigit(character)
+	})
+	total := 0
+	for _, term := range strings.Fields(strings.ToLower(query)) {
+		best := 0
+		if strings.Contains(text, term) {
+			best = 250 + len([]rune(term))
+		}
+		for _, word := range words {
+			switch {
+			case word == term:
+				best = max(best, 400)
+			case strings.HasPrefix(word, term):
+				best = max(best, 320)
+			default:
+				distance := runeEditDistance(term, word)
+				allowed := 1
+				if len([]rune(term)) >= 7 {
+					allowed = 2
+				}
+				if distance <= allowed {
+					best = max(best, 220-distance*40)
+				}
+			}
+		}
+		if best == 0 {
+			return 0
+		}
+		total += best
+	}
+	return total
+}
+
+func runeEditDistance(left, right string) int {
+	a, b := []rune(left), []rune(right)
+	previous := make([]int, len(b)+1)
+	for index := range previous {
+		previous[index] = index
+	}
+	for leftIndex, leftRune := range a {
+		current := make([]int, len(b)+1)
+		current[0] = leftIndex + 1
+		for rightIndex, rightRune := range b {
+			cost := 0
+			if leftRune != rightRune {
+				cost = 1
+			}
+			current[rightIndex+1] = min(current[rightIndex]+1, previous[rightIndex+1]+1, previous[rightIndex]+cost)
+		}
+		previous = current
+	}
+	return previous[len(b)]
 }
 
 func buildFTSQuery(query string) string {
@@ -71,6 +175,7 @@ func (model *Model) handleFilterKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	model.cardIndexes = make(map[string]int, len(model.columns))
 	if strings.TrimSpace(model.filterText) == "" {
 		model.filteredCards = nil
+		model.filterScores = nil
 		model.filterLoading = false
 		model.filterErr = nil
 		return model, nil
@@ -85,6 +190,7 @@ func (model *Model) clearBoardFilter() {
 	model.filterText = ""
 	model.filterCursor = 0
 	model.filteredCards = nil
+	model.filterScores = nil
 	model.filterLoading = false
 	model.filterErr = nil
 }
@@ -104,6 +210,12 @@ func (model *Model) visibleCards(columnID string) []domain.Card {
 			leftGroup, rightGroup := model.cardGroupKey(result[left]), model.cardGroupKey(result[right])
 			if leftGroup != rightGroup {
 				return leftGroup < rightGroup
+			}
+		}
+		if model.filterActive() && model.sortMode == sortPosition {
+			leftScore, rightScore := model.filterScores[result[left].ID], model.filterScores[result[right].ID]
+			if leftScore != rightScore {
+				return leftScore > rightScore
 			}
 		}
 		comparison := model.compareCards(result[left], result[right])

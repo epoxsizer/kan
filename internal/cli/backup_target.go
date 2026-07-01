@@ -19,6 +19,10 @@ type s3BackupUploader interface {
 	Upload(context.Context, config.S3Backup, string, string) error
 }
 
+type s3BackupRotator interface {
+	Rotate(context.Context, config.S3Backup, time.Duration, time.Time) (int, error)
+}
+
 type backupResult struct {
 	localPath     string
 	localRelative string
@@ -49,6 +53,15 @@ func createConfiguredBackup(ctx context.Context, repo backupRepository, cfg conf
 		return result, fmt.Errorf("upload backup to s3: %w", err)
 	}
 	result.s3URI = "s3://" + cfg.S3.Bucket + "/" + key
+	if rotator, ok := uploader.(s3BackupRotator); ok {
+		retention, err := backupRetention(cfg)
+		if err != nil {
+			return result, err
+		}
+		if _, err = rotator.Rotate(ctx, cfg.S3, retention, now); err != nil {
+			return result, fmt.Errorf("rotate s3 backups: %w", err)
+		}
+	}
 	return result, nil
 }
 

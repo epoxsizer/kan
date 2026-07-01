@@ -6,6 +6,13 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-07-01
+
+### Added
+
+- Configurable local and S3 backup rotation with a 14-day default retention period.
+- Dedicated `:filter` card search with ranked fuzzy matching across card content and metadata.
+
 ## [0.1.7] - 2026-07-01
 
 ### Added
@@ -90,7 +97,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Theme configuration, inline shortcut help, and accessible empty states.
 - Scriptable CLI commands for projects, boards, columns, cards, and data exchange.
 
-[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.7...main
+[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.8...main
+[0.1.8]: https://github.com/epoxsizer/kan/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/epoxsizer/kan/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/epoxsizer/kan/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/epoxsizer/kan/compare/v0.1.4...v0.1.5

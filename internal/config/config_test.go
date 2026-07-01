@@ -149,6 +149,7 @@ func TestBackupConfigOverridesAndValidation(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	contents := `[backup]
 storage = "s3"
+retention = "720h"
 
 [backup.s3]
 bucket = "kan-backups"
@@ -163,6 +164,7 @@ force_path_style = true
 	cfg, err := Load(Overrides{ConfigFile: path})
 	require.NoError(t, err)
 	require.Equal(t, "s3", cfg.Backup.Storage)
+	require.Equal(t, "720h", cfg.Backup.Retention)
 	require.Equal(t, "kan-backups", cfg.Backup.S3.Bucket)
 	require.Equal(t, "daily", cfg.Backup.S3.Prefix)
 	require.True(t, cfg.Backup.S3.ForcePathStyle)

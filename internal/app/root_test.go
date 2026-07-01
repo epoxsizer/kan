@@ -491,6 +491,44 @@ func TestLiveBoardFTSFilterAndClear(t *testing.T) {
 	require.Contains(t, model.View(), "Write notes")
 }
 
+func TestFilterCommandUsesFuzzyCardMetadataMatching(t *testing.T) {
+	priority := "Urgent"
+	cards := []domain.Card{
+		{ID: "release", BoardID: "board", ColumnID: "done", Title: "Publish release", Tags: []string{"shipping"}},
+		{ID: "incident", BoardID: "board", ColumnID: "doing", Title: "Investigate outage", Priority: &priority},
+	}
+	columns := []domain.Column{{ID: "doing", Name: "In Progress"}, {ID: "done", Name: "Done"}}
+	repo := &searchRepository{readRepository: readRepository{cards: cards, columns: columns}}
+	model := testModel(repo)
+	model.loading = false
+	model.screen = boardScreen
+	model.board = &domain.Board{ID: "board"}
+	model.columns = columns
+	model.cards["done"] = cards[:1]
+	model.cards["doing"] = cards[1:]
+
+	_, command := model.executeCommand("filter")
+	require.Nil(t, command)
+	require.True(t, model.filterMode)
+	_, command = model.Update(key("relese"))
+	require.NotNil(t, command)
+	model.Update(command())
+	require.Equal(t, []string{"release"}, []string{model.visibleCards("done")[0].ID})
+	require.Empty(t, model.visibleCards("doing"))
+
+	model.Update(key("ctrl+u"))
+	_, command = model.Update(key("urgnt"))
+	require.NotNil(t, command)
+	model.Update(command())
+	require.Equal(t, []string{"incident"}, []string{model.visibleCards("doing")[0].ID})
+}
+
+func TestRuneEditDistance(t *testing.T) {
+	require.Equal(t, 1, runeEditDistance("relese", "release"))
+	require.Equal(t, 1, runeEditDistance("urgnt", "urgent"))
+	require.Equal(t, 0, runeEditDistance("карта", "карта"))
+}
+
 func TestBoardSortGroupAndMetadataLabels(t *testing.T) {
 	urgent, low := "Urgent", "Low"
 	due := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)

@@ -63,6 +63,7 @@ type Model struct {
 	filterLoading bool
 	filterErr     error
 	filteredCards map[string][]domain.Card
+	filterScores  map[string]int
 	sortMode      cardSort
 	groupMode     cardGroup
 	listLayout    listLayout
@@ -247,6 +248,7 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.filterErr = message.err
 		if message.err == nil {
 			model.filteredCards = make(map[string][]domain.Card, len(model.columns))
+			model.filterScores = message.scores
 			for _, card := range message.cards {
 				model.filteredCards[card.ColumnID] = append(model.filteredCards[card.ColumnID], card)
 			}
@@ -759,6 +761,14 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 		}
 		model.detail = &detailPopup{kind: "archive", title: "Archived cards", lines: []string{"Loading archived cards..."}}
 		return model, loadArchivedCards(model.ctx, model.repo, model.board.ID)
+	case "filter", "search-cards":
+		if model.screen != boardScreen || model.board == nil {
+			model.err = fmt.Errorf("open a board first")
+			return model, nil
+		}
+		model.filterMode = true
+		model.filterCursor = len([]rune(model.filterText))
+		model.notice = ""
 	case "move":
 		if model.screen != boardScreen {
 			model.err = fmt.Errorf("open a board first")
@@ -1137,7 +1147,7 @@ func isOverdueDate(value *time.Time) bool {
 
 func (model *Model) renderStatus(width int) string {
 	if model.filterMode {
-		hint := "  live FTS · Enter/Esc close · Ctrl-U delete left"
+		hint := "  fuzzy card filter · Enter/Esc close · Ctrl-U delete left"
 		if model.filterLoading {
 			hint = "  searching…"
 		} else if model.filterErr != nil {

@@ -44,7 +44,8 @@ type linkCandidatesLoadedMsg struct {
 }
 
 type boardFilterMsg struct {
-	query string
-	cards []domain.Card
-	err   error
+	query  string
+	cards  []domain.Card
+	scores map[string]int
+	err    error
 }

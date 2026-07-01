@@ -44,6 +44,9 @@ func startAutomaticBackups(ctx context.Context, repo backupRepository, logger *s
 }
 
 func backupIfDue(ctx context.Context, repo backupRepository, directory string, backupConfig config.Backup, interval time.Duration, now time.Time) (string, bool, error) {
+	if _, err := rotateBackups(directory, backupConfig, now); err != nil {
+		return "", false, err
+	}
 	files, err := filepath.Glob(filepath.Join(directory, "kan-auto-*.db"))
 	if err != nil {
 		return "", false, fmt.Errorf("list automatic backups: %w", err)
@@ -73,9 +76,20 @@ func createAutomaticBackup(ctx context.Context, repo backupRepository, directory
 			return destination, err
 		}
 		key := s3ObjectKey(backupConfig.S3.Prefix, filepath.Base(destination))
-		if err := (realS3Uploader{}).Upload(ctx, backupConfig.S3, destination, key); err != nil {
+		uploader := realS3Uploader{}
+		if err := uploader.Upload(ctx, backupConfig.S3, destination, key); err != nil {
 			return destination, fmt.Errorf("upload automatic backup to s3: %w", err)
 		}
+		retention, err := backupRetention(backupConfig)
+		if err != nil {
+			return destination, err
+		}
+		if _, err = uploader.Rotate(ctx, backupConfig.S3, retention, now); err != nil {
+			return destination, fmt.Errorf("rotate s3 backups: %w", err)
+		}
+	}
+	if _, err := rotateBackups(directory, backupConfig, now); err != nil {
+		return destination, err
 	}
 	return destination, nil
 }
