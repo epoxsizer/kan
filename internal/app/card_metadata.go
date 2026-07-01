@@ -102,7 +102,7 @@ func (model *Model) selectedCardBlock(card domain.Card, width, maxLines int) str
 	width = max(width, 1)
 	maxLines = max(maxLines, 1)
 	contentWidth := max(width-2, 1)
-	lines := []string{"> " + truncate(card.Title, contentWidth)}
+	lines := []string{truncate(card.Title, width)}
 	if len(lines) < maxLines {
 		lines = append(lines, "  "+truncate(model.cardMetadata(card, time.Now()), contentWidth))
 	}

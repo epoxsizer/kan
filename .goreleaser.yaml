@@ -27,9 +27,7 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
-    name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_{{ title .Os }}_
-      {{- if eq .Arch "amd64" }}x86_64{{ else }}{{ .Arch }}{{ end }}
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     files: [LICENSE, README.md, CHANGELOG.md]
 
 checksum:

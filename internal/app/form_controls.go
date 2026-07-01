@@ -367,11 +367,11 @@ func (model *Model) renderChecklist(width, height int) string {
 		if item.Done {
 			mark = "[x]"
 		}
-		prefix := "  "
+		line := mark + " " + item.Text
 		if index == control.selection {
-			prefix = "> "
+			line = model.styles.selected.Copy().Padding(0).Render(line)
 		}
-		lines = append(lines, prefix+mark+" "+item.Text)
+		lines = append(lines, line)
 	}
 	if len(control.checklist) == 0 && !control.inputMode {
 		lines = append(lines, model.styles.subtle.Render("No checklist items. Press a to add one."))
@@ -455,11 +455,11 @@ func (model *Model) renderDropdown(width, height int) string {
 	field := model.form.fields[control.field]
 	lines := []string{model.styles.header.Render(field.label), model.styles.subtle.Render("Arrows select · Enter apply · Esc cancel"), ""}
 	for index, option := range field.options {
-		prefix := "  "
+		line := option
 		if index == control.selection {
-			prefix = "> "
+			line = model.styles.selected.Copy().Padding(0).Render(line)
 		}
-		lines = append(lines, prefix+option)
+		lines = append(lines, line)
 	}
 	return centeredControl(model, width, height, 46, strings.Join(lines, "\n"))
 }
@@ -468,7 +468,7 @@ func (model *Model) renderCalendar(width, height int) string {
 	selected := model.form.control.date
 	first := time.Date(selected.Year(), selected.Month(), 1, 0, 0, 0, 0, time.Local)
 	start := first.AddDate(0, 0, -int(first.Weekday()))
-	lines := []string{model.styles.header.Render(selected.Format("January 2006")), model.styles.subtle.Render("Arrows day/week · PgUp/PgDn month · Enter apply · x clear"), "Su Mo Tu We Th Fr Sa"}
+	lines := []string{model.styles.header.Render(selected.Format("January 2006")), model.styles.subtle.Render("Arrows day/week · PgUp/PgDn month · Enter apply · x no due date"), "Su Mo Tu We Th Fr Sa"}
 	for week := 0; week < 6; week++ {
 		cells := []string{}
 		for day := 0; day < 7; day++ {
@@ -499,11 +499,11 @@ func (model *Model) renderLinks(width, height int) string {
 			if control.selected[candidate.id] {
 				mark = "[x]"
 			}
-			prefix := "  "
+			line := mark + " " + candidate.label
 			if index == control.selection {
-				prefix = "> "
+				line = model.styles.selected.Copy().Padding(0).Render(line)
 			}
-			lines = append(lines, prefix+mark+" "+candidate.label)
+			lines = append(lines, line)
 		}
 	}
 	return centeredControl(model, width, height, 76, strings.Join(lines, "\n"))

@@ -199,8 +199,7 @@ func TestPhaseTwoTUIFormsMovementAndPersistence(t *testing.T) {
 	require.Equal(t, model.columns[0].ID, cards[0].ColumnID)
 	require.NotNil(t, cards[0].Priority)
 	require.Equal(t, "Medium", *cards[0].Priority)
-	require.NotNil(t, cards[0].DueDate)
-	require.Equal(t, time.Now().Format("2006-01-02"), cards[0].DueDate.Format("2006-01-02"))
+	require.Nil(t, cards[0].DueDate)
 
 	_, command = model.Update(key("tab"))
 	runCommands(model, command)
@@ -350,9 +349,11 @@ func TestTypedFormDefaultsSelectorsCalendarAndCommentEditor(t *testing.T) {
 
 	model.startCardForm(false)
 	require.Equal(t, "Medium", model.form.fields[3].value)
-	require.Equal(t, time.Now().Format("2006-01-02"), model.form.fields[4].value)
+	require.Empty(t, model.form.fields[4].value)
+	require.Equal(t, "No due date · Enter calendar", fieldDisplayValue(model.form.fields[4], nil))
 	require.Equal(t, []string{"Todo", "Done"}, model.form.fields[2].options)
 	require.Equal(t, linksField, model.form.fields[6].kind)
+	require.NotContains(t, model.View(), "> Title")
 
 	model.form.focus = 1
 	model.Update(key("enter"))
@@ -368,6 +369,7 @@ func TestTypedFormDefaultsSelectorsCalendarAndCommentEditor(t *testing.T) {
 
 	model.form.focus = 2
 	model.Update(key("enter"))
+	require.NotContains(t, model.View(), "> Todo")
 	model.Update(key("down"))
 	model.Update(key("enter"))
 	require.Equal(t, "Done", model.form.fields[2].value)
@@ -378,6 +380,10 @@ func TestTypedFormDefaultsSelectorsCalendarAndCommentEditor(t *testing.T) {
 	model.Update(key("right"))
 	model.Update(key("enter"))
 	require.Equal(t, before.AddDate(0, 0, 1).Format("2006-01-02"), model.form.fields[4].value)
+	model.Update(key("enter"))
+	model.Update(key("x"))
+	require.Empty(t, model.form.fields[4].value)
+	require.Nil(t, model.form.control)
 
 	model.form.focus = 5
 	model.Update(key("release,"))
@@ -437,7 +443,9 @@ func TestColoredActiveColumnIsExplicit(t *testing.T) {
 	model.cards["active"] = []domain.Card{{ID: "card", Title: "Selected"}}
 	require.Equal(t, lipgloss.Color("#42C77A"), model.styles.selectedColumnBackground)
 	view := model.View()
-	require.Contains(t, view, "ACTIVE • Doing")
+	require.Contains(t, view, "Doing")
+	require.NotContains(t, view, "ACTIVE •")
+	require.NotContains(t, view, "> Selected")
 	require.Contains(t, view, "╔")
 }
 
@@ -750,6 +758,7 @@ func TestCommandPaletteUsesFuzzyMatching(t *testing.T) {
 	}
 	view := model.View()
 	require.Contains(t, view, "projects")
+	require.NotContains(t, view, "> [")
 	model.Update(key("enter"))
 	require.Equal(t, projectsScreen, model.screen)
 
@@ -1152,7 +1161,7 @@ func TestDetailPopupShowsFullMultilineComments(t *testing.T) {
 	require.NotContains(t, view, "This is a long comment that should wrap across multiple lines without being replaced by an ellipsis.…")
 }
 
-func TestDetailPopupUsesFullScreenViewportForHugeComments(t *testing.T) {
+func TestDetailPopupIsCompactAndCanExpandForHugeComments(t *testing.T) {
 	commentLines := make([]string, 0, 80)
 	for index := 0; index < 80; index++ {
 		commentLines = append(commentLines, fmt.Sprintf("comment-line-%02d with enough text to exercise wrapping safely", index))
@@ -1167,6 +1176,8 @@ func TestDetailPopupUsesFullScreenViewportForHugeComments(t *testing.T) {
 	view := model.View()
 	require.Contains(t, view, "comment-line-00")
 	require.NotContains(t, view, "comment-line-79")
+	require.Contains(t, view, "Shift+E expand")
+	require.Contains(t, view, "<?> Help")
 	require.LessOrEqual(t, lipgloss.Height(view), 24)
 	for _, line := range strings.Split(view, "\n") {
 		require.LessOrEqual(t, lipgloss.Width(line), 80)
@@ -1180,6 +1191,15 @@ func TestDetailPopupUsesFullScreenViewportForHugeComments(t *testing.T) {
 	for _, line := range strings.Split(scrolled, "\n") {
 		require.LessOrEqual(t, lipgloss.Width(line), 80)
 	}
+
+	model.Update(key("E"))
+	require.True(t, model.detail.expanded)
+	expanded := model.View()
+	require.Contains(t, expanded, "Shift+E compact")
+	require.NotContains(t, expanded, "<?> Help")
+	model.Update(key("E"))
+	require.False(t, model.detail.expanded)
+	require.Contains(t, model.View(), "<?> Help")
 
 	model.Update(key("G"))
 	require.Contains(t, model.View(), "comment-line-79")
@@ -1224,4 +1244,5 @@ func TestCardDetailCanOpenEditForm(t *testing.T) {
 	require.Equal(t, "Ship release", model.form.fields[0].value)
 	require.Equal(t, "Edit from detail", model.form.fields[1].value)
 	require.NotNil(t, command)
+	require.Contains(t, model.View(), "<?> Help")
 }

@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/epoxsizer/kan/internal/domain"
 	"github.com/spf13/cobra"
@@ -85,17 +84,16 @@ type cardFlags struct {
 }
 
 func addCardFlags(command *cobra.Command, flags *cardFlags, create bool) {
-	priorityDefault, dueDefault := "", ""
+	priorityDefault := ""
 	if create {
 		priorityDefault = "Medium"
-		dueDefault = time.Now().Format("2006-01-02")
 	}
 	command.Flags().StringVar(&flags.board, "board", "", "board ID")
 	command.Flags().StringVar(&flags.column, "column", "", "column/status ID")
 	command.Flags().StringVar(&flags.title, "title", "", "card title")
 	command.Flags().StringVar(&flags.comment, "comment", "", "card description/comment")
 	command.Flags().StringVar(&flags.priority, "priority", priorityDefault, "card priority; empty clears on update")
-	command.Flags().StringVar(&flags.due, "due", dueDefault, "due date in YYYY-MM-DD; empty clears on update")
+	command.Flags().StringVar(&flags.due, "due", "", "due date in YYYY-MM-DD; empty means no due date")
 	command.Flags().StringVar(&flags.tags, "tags", "", "comma-separated tags; empty clears on update")
 	command.Flags().StringVar(&flags.fields, "fields", "", `fields JSON object, e.g. {"key":{"type":"text","value":"value"}}`)
 	command.Flags().StringVar(&flags.links, "links", "", "comma-separated related card IDs from the same project")

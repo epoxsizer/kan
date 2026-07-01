@@ -213,9 +213,9 @@ func (model *Model) renderMovePicker(width, height int) string {
 		if index == model.columnIndex {
 			state = " CURRENT"
 		}
-		line := fmt.Sprintf("  %-*s %7s%s", nameWidth, truncate(column.Name, nameWidth), capacity, state)
+		line := fmt.Sprintf("%-*s %7s%s", nameWidth, truncate(column.Name, nameWidth), capacity, state)
 		if index == model.movePicker.targetColumnIndex {
-			line = model.styles.selected.Copy().Padding(0).Render("> " + strings.TrimPrefix(line, "  "))
+			line = model.styles.selected.Copy().Padding(0).Render(line)
 		}
 		lines = append(lines, line)
 	}

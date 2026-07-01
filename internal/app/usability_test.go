@@ -195,8 +195,10 @@ func TestMovePickerSkipsFullColumnsAndUndoRestoresSource(t *testing.T) {
 	model.Update(key("M"))
 	require.NotNil(t, model.movePicker)
 	require.Equal(t, 2, model.movePicker.targetColumnIndex)
-	require.Contains(t, model.View(), "FULL")
-	require.Contains(t, model.View(), "CURRENT")
+	picker := model.View()
+	require.Contains(t, picker, "FULL")
+	require.Contains(t, picker, "CURRENT")
+	require.NotContains(t, picker, "> Done")
 
 	_, command := model.Update(key("enter"))
 	require.NotNil(t, command)

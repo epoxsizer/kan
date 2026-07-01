@@ -3,19 +3,22 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"image"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/cellbuf"
 	"github.com/epoxsizer/kan/internal/domain"
 )
 
 type detailPopup struct {
-	kind   string
-	title  string
-	lines  []string
-	offset int
+	kind     string
+	title    string
+	lines    []string
+	offset   int
+	expanded bool
 }
 
 func (model *Model) openSelectedDetail() {
@@ -96,7 +99,7 @@ func cardDetail(card domain.Card, columnName string) *detailPopup {
 	if card.Priority != nil && *card.Priority != "" {
 		priority = *card.Priority
 	}
-	due := "none"
+	due := "No due date"
 	if card.DueDate != nil {
 		due = card.DueDate.Format("2006-01-02")
 		if isOverdueDate(card.DueDate) {
@@ -143,7 +146,7 @@ func cardDetail(card domain.Card, columnName string) *detailPopup {
 }
 
 func (model *Model) renderDetailPopup(width, height int) string {
-	layout := detailLayoutForSize(width, height)
+	layout := detailLayoutForSize(width, height, model.detail.expanded)
 	header := []string{
 		model.styles.header.Render(model.detail.title),
 		model.styles.subtle.Render(strings.ToUpper(model.detail.kind)),
@@ -164,13 +167,21 @@ func (model *Model) renderDetailPopup(width, height int) string {
 	if model.detail.kind == "card" {
 		hint += " · e edit"
 	}
+	if model.detail.expanded {
+		hint += " · Shift+E compact"
+	} else {
+		hint += " · Shift+E expand"
+	}
 	hint += fmt.Sprintf(" · j/k scroll · PgUp/PgDn page · %d-%d/%d", min(start+1, len(detailLines)), end, len(detailLines))
 	lines = append(lines, model.styles.subtle.Render(truncate(hint, layout.contentWidth)))
 	if len(lines) > layout.insideHeight {
 		lines = lines[:layout.insideHeight]
 	}
 	popup := model.styles.help.Width(layout.boxWidth).Render(strings.Join(lines, "\n"))
-	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, popup)
+	if model.detail.expanded {
+		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, popup)
+	}
+	return overlayCentered(model.renderWorkspace(width, height), popup, width, height)
 }
 
 type detailLayout struct {
@@ -181,16 +192,20 @@ type detailLayout struct {
 	viewportHeight int
 }
 
-func detailLayoutForSize(width, height int) detailLayout {
+func detailLayoutForSize(width, height int, expanded bool) detailLayout {
 	width = max(width, 20)
 	height = max(height, 6)
 	insideHeight := max(height-4, 1)
+	boxWidth := max(width-2, 14)
+	if !expanded {
+		insideHeight = min(insideHeight, 14)
+		boxWidth = min(max(width-4, 14), 72)
+	}
 	headerLines := 2
 	if insideHeight >= 6 {
 		headerLines = 3
 	}
 	viewportHeight := max(insideHeight-headerLines-1, 0)
-	boxWidth := max(width-2, 14)
 	return detailLayout{
 		boxWidth:       boxWidth,
 		contentWidth:   max(boxWidth-4, 10),
@@ -198,6 +213,21 @@ func detailLayoutForSize(width, height int) detailLayout {
 		headerLines:    headerLines,
 		viewportHeight: viewportHeight,
 	}
+}
+
+func overlayCentered(base, popup string, width, height int) string {
+	buffer := cellbuf.NewBuffer(width, height)
+	cellbuf.SetContent(buffer, base)
+	popupWidth := min(lipgloss.Width(popup), width)
+	popupHeight := min(lipgloss.Height(popup), height)
+	left := max((width-popupWidth)/2, 0)
+	top := max((height-popupHeight)/2, 0)
+	cellbuf.SetContentRect(buffer, popup, image.Rect(left, top, left+popupWidth, top+popupHeight))
+	lines := make([]string, height)
+	for row := range height {
+		_, lines[row] = cellbuf.RenderLine(buffer, row)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func clampDetailOffset(offset, totalLines, viewportHeight int) int {
@@ -259,9 +289,19 @@ func (model *Model) scrollDetail(delta int) {
 		return
 	}
 	width, height := model.dimensions()
-	layout := detailLayoutForSize(width, height)
+	layout := detailLayoutForSize(width, height, model.detail.expanded)
 	total := len(wrappedDetailLines(model.detail.lines, layout.contentWidth))
 	model.detail.offset = clampDetailOffset(model.detail.offset+delta, total, layout.viewportHeight)
+}
+
+func (model *Model) clampDetailForCurrentLayout() {
+	if model.detail == nil {
+		return
+	}
+	width, height := model.dimensions()
+	layout := detailLayoutForSize(width, height, model.detail.expanded)
+	total := len(wrappedDetailLines(model.detail.lines, layout.contentWidth))
+	model.detail.offset = clampDetailOffset(model.detail.offset, total, layout.viewportHeight)
 }
 
 func (model *Model) scrollDetailToEnd() {
@@ -269,7 +309,7 @@ func (model *Model) scrollDetailToEnd() {
 		return
 	}
 	width, height := model.dimensions()
-	layout := detailLayoutForSize(width, height)
+	layout := detailLayoutForSize(width, height, model.detail.expanded)
 	total := len(wrappedDetailLines(model.detail.lines, layout.contentWidth))
 	model.detail.offset = clampDetailOffset(total, total, layout.viewportHeight)
 }

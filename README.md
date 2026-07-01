@@ -18,7 +18,7 @@ checklists, custom fields, linked cards, JSON import/export, and automatic
 backups. The database is local by default; backups can optionally be uploaded to
 S3-compatible storage.
 
-Current version: `0.1.5`.
+Current version: `0.1.6`.
 
 ## Interface
 
@@ -65,15 +65,34 @@ You can also install with Go:
 go install github.com/epoxsizer/kan/cmd/kan@latest
 ```
 
+Released binaries can check for and install the latest stable public release:
+
+```sh
+kan upgrade --check
+kan upgrade
+```
+
+When the TUI starts, `kan` checks for a newer version in the background at most
+once every 24 hours. If an update exists, the status line suggests running
+`kan upgrade`; startup is never delayed and network failures are only written to
+the log. Successful downloads are verified against the release
+`checksums.txt` before the current executable is replaced. Development builds
+cannot self-upgrade, and protected installation paths must be updated manually
+or by the account that owns the executable.
+
 ## Key Bindings
 
 | Key | Action |
 |---|---|
+| Left click | Select an item; click the selected item again to open it |
+| Mouse wheel | Navigate lists/cards or scroll the active detail/control |
+| Right click | Back, close, or cancel like `Esc` |
 | `h j k l`, arrows | Navigate |
-| `Enter`, `e` | Open or edit the selected object |
+| `Enter`, `d` | Open the selected object in a compact detail window |
+| `e` | Edit the selected object or card |
+| `Shift-E` | Toggle an open detail window between compact and full-screen |
 | `a` | Add a card or object on the current screen |
 | `D` | Delete with confirmation |
-| `d` | Show a short description popup |
 | `H`, `L` | Move the selected card to the previous/next column |
 | `Shift-Tab`, `Tab` | Move the selected card between columns |
 | `J`, `K` | Reorder cards |
@@ -86,6 +105,12 @@ go install github.com/epoxsizer/kan/cmd/kan@latest
 | `?` | Full help |
 | `Esc` | Back or cancel |
 | `q`, `Ctrl-C` | Quit |
+
+Mouse support is enabled automatically. Hold `Shift` while dragging when you
+need to select terminal text. Card drag-and-drop is not enabled.
+
+New cards have no due date by default. Open the due-date field to choose a date,
+or press `x` in the calendar to remove the due date.
 
 In forms, use `Tab` to move between fields and `Ctrl-S` to save. Text inputs
 support cursor editing with arrows and `Home`/`End`; `Ctrl-W`, `Ctrl-U`, and

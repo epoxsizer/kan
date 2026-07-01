@@ -287,6 +287,8 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.err = nil
 		model.loading = true
 		return model, loadBoard(model.ctx, model.repo, model.board.ID)
+	case tea.MouseMsg:
+		return model.handleMouse(message)
 	case tea.KeyMsg:
 		return model.handleKey(message)
 	}
@@ -323,6 +325,9 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if model.detail.kind == "card" {
 				return model.openSelectedCardEdit()
 			}
+		case "E":
+			model.detail.expanded = !model.detail.expanded
+			model.clampDetailForCurrentLayout()
 		case "j", "down":
 			model.scrollDetail(1)
 		case "k", "up":
@@ -843,7 +848,10 @@ func (model *Model) View() string {
 		help := model.styles.help.Width(max(boxWidth-6, 10)).Render(model.renderHelpText())
 		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, help)
 	}
+	return model.renderWorkspace(width, height)
+}
 
+func (model *Model) renderWorkspace(width, height int) string {
 	header := model.renderHeader(width)
 	contentHeight := max(height-4, 1)
 	var content string
@@ -956,7 +964,6 @@ func (model *Model) renderColumn(index, width, height int) string {
 	headerStyle := model.styles.header.Copy().Foreground(columnColor)
 	borderColor := columnColor
 	if index == model.columnIndex {
-		title = "ACTIVE • " + title
 		headerStyle = headerStyle.Foreground(model.styles.selectedColumnForeground).Background(model.styles.selectedColumnBackground).Padding(0, 1)
 		borderColor = model.styles.selectedColumnBorder
 	}

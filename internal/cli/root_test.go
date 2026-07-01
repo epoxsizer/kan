@@ -130,7 +130,7 @@ func TestAutomationCLIWorkflow(t *testing.T) {
 	checklist := `[{"id":"verify","text":"Verify package","done":false,"position":1024}]`
 	require.NoError(t, executeJSONCommand(t, args("card", "create", "--board", board.ID, "--column", backlog.ID, "--title", "Publish notes", "--checklist", checklist), &related))
 	require.Equal(t, "Medium", *related.Priority)
-	require.Equal(t, time.Now().Format("2006-01-02"), related.DueDate.Format("2006-01-02"))
+	require.Nil(t, related.DueDate)
 	require.Equal(t, "Verify package", related.Checklist[0].Text)
 
 	var searchResults []domain.Card

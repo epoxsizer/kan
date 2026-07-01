@@ -126,12 +126,12 @@ func (model *Model) renderCommandPalette(width, height int) string {
 			kindWidth := 9
 			nameWidth := min(22, max(contentWidth/3, 8))
 			prefix := padRight("["+match.kind+"]", kindWidth)
-			rowWidth := max(contentWidth-2, 1)
+			rowWidth := max(contentWidth, 1)
 			row := prefix + " " + padRight(truncate(match.label, nameWidth), nameWidth) + "  " + truncate(match.description, max(rowWidth-kindWidth-nameWidth-3, 1))
 			if index == selected {
-				lines = append(lines, model.styles.selected.Copy().Padding(0).Width(contentWidth).Render("> "+row))
+				lines = append(lines, model.styles.selected.Copy().Padding(0).Width(contentWidth).Render(row))
 			} else {
-				lines = append(lines, "  "+row)
+				lines = append(lines, row)
 			}
 		}
 	}

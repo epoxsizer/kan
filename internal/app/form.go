@@ -138,7 +138,7 @@ func (model *Model) startColumnForm(edit bool) {
 func (model *Model) startCardForm(edit bool) tea.Cmd {
 	column := model.columns[model.columnIndex]
 	form := &formModal{kind: createCardForm, title: "Add card", fields: []formField{
-		{label: "Title"}, {label: "Comments", kind: commentField}, {label: "Status", value: column.Name, kind: dropdownField, options: columnNames(model.columns)}, {label: "Priority", value: "Medium", kind: dropdownField, options: priorities}, {label: "Due date", value: time.Now().Format("2006-01-02"), kind: calendarField}, {label: "Tags comma-separated"}, {label: "Related cards", kind: linksField}, {label: "Checklist", value: "[]", kind: checklistField},
+		{label: "Title"}, {label: "Comments", kind: commentField}, {label: "Status", value: column.Name, kind: dropdownField, options: columnNames(model.columns)}, {label: "Priority", value: "Medium", kind: dropdownField, options: priorities}, {label: "Due date", kind: calendarField}, {label: "Tags comma-separated"}, {label: "Related cards", kind: linksField}, {label: "Checklist", value: "[]", kind: checklistField},
 	}}
 	if edit {
 		card := model.selectedCard()
@@ -462,25 +462,25 @@ func (model *Model) renderForm(width, height int) string {
 	for index, field := range model.form.fields {
 		label := field.label + ": "
 		if index == model.form.focus {
-			inputWidth := max(contentWidth-lipgloss.Width(label)-2, 1)
+			inputWidth := max(contentWidth-lipgloss.Width(label), 1)
 			input := fieldDisplayValue(field, model.form.linkCandidates)
 			if field.kind == textField {
 				input = textViewport(field.value, field.cursor, inputWidth)
 			} else {
 				input = truncate(input, inputWidth)
 			}
-			lines = append(lines, model.styles.selected.Copy().Padding(0).Width(contentWidth).Render("> "+label+input))
+			lines = append(lines, model.styles.selected.Copy().Padding(0).Width(contentWidth).Render(label+input))
 		} else {
 			input := fieldDisplayValue(field, model.form.linkCandidates)
-			input = truncate(input, max(contentWidth-lipgloss.Width(label)-2, 1))
-			lines = append(lines, "  "+label+input)
+			input = truncate(input, max(contentWidth-lipgloss.Width(label), 1))
+			lines = append(lines, label+input)
 		}
 	}
 	if model.form.err != "" {
 		lines = append(lines, "", model.styles.error.Render(truncate(model.form.err, contentWidth)))
 	}
 	popup := model.styles.help.Width(innerWidth).Render(strings.Join(lines, "\n"))
-	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, popup)
+	return overlayCentered(model.renderWorkspace(width, height), popup, width, height)
 }
 
 func (model *Model) renderConfirm(width, height int) string {
@@ -558,7 +558,12 @@ func fieldDisplayValue(field formField, candidates []linkCandidate) string {
 			return "(empty · Enter editor)"
 		}
 		return fmt.Sprintf("%d characters · Enter editor", len([]rune(field.value)))
-	case dropdownField, calendarField:
+	case dropdownField:
+		return field.value + " ▾"
+	case calendarField:
+		if field.value == "" {
+			return "No due date · Enter calendar"
+		}
 		return field.value + " ▾"
 	case linksField:
 		ids := splitIDs(field.value)

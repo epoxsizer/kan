@@ -2,13 +2,15 @@
 
 Releases are built by GitHub Actions with GoReleaser. Archives contain statically
 built `kan` binaries for Linux, macOS, and Windows on amd64 and arm64, plus a SHA-256
-checksum file.
+checksum file. Published releases and their assets must remain public so installed
+binaries can check and upgrade without credentials.
 
 ## Prepare
 
 1. Move relevant entries from `Unreleased` to a dated version in `CHANGELOG.md`.
 2. Run `make check` and `make cross-build`.
-3. Optionally run `make snapshot` with GoReleaser v2 installed.
+3. Run `make snapshot` with GoReleaser v2 and verify updater-compatible archive
+   names such as `kan_linux_amd64.tar.gz` and `kan_windows_arm64.zip`.
 4. Commit the release changes and merge them to `main`.
 
 Before the first release, confirm that GitHub Actions is enabled for the
@@ -19,9 +21,10 @@ policy.
 ## Build a release
 
 ```sh
-git tag -a v0.1.5 -m "kan v0.1.5"
+VERSION=vX.Y.Z
+git tag -a "$VERSION" -m "kan $VERSION"
 git push origin main
-git push origin v0.1.5
+git push origin "$VERSION"
 ```
 
 The tag workflow creates a GitHub release and uploads its archives and checksum

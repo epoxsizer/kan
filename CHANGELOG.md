@@ -6,6 +6,21 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-07-01
+
+### Added
+
+- `kan upgrade` installs the latest stable public GitHub release after SHA-256 verification, while `kan upgrade --check` only reports availability.
+- TUI startup checks for new versions asynchronously and caches successful checks for 24 hours.
+- Compact centered detail windows for projects, boards, columns, and cards, with `Shift+E` full-screen expansion.
+- Mouse navigation for lists, boards, forms, controls, dialogs, and detail scrolling.
+
+### Changed
+
+- Release archives now use predictable lowercase operating-system and Go architecture names for cross-platform self-upgrades.
+- Selections now use color without textual arrow or active-column markers, and compact forms keep the workspace visible behind them.
+- New TUI and CLI cards have no due date unless one is explicitly selected.
+
 ## [0.1.5] - 2026-06-29
 
 ### Added
@@ -69,7 +84,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Theme configuration, inline shortcut help, and accessible empty states.
 - Scriptable CLI commands for projects, boards, columns, cards, and data exchange.
 
-[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.5...main
+[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.6...main
+[0.1.6]: https://github.com/epoxsizer/kan/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/epoxsizer/kan/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/epoxsizer/kan/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/epoxsizer/kan/compare/v0.1.2...v0.1.3

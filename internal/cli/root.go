@@ -14,6 +14,7 @@ import (
 	"github.com/epoxsizer/kan/internal/logging"
 	"github.com/epoxsizer/kan/internal/seed"
 	storage "github.com/epoxsizer/kan/internal/storage/sqlite"
+	appupgrade "github.com/epoxsizer/kan/internal/upgrade"
 	"github.com/spf13/cobra"
 )
 
@@ -33,6 +34,7 @@ type resources struct {
 
 func New(version, commit, date string) *cobra.Command {
 	var opts options
+	versionService, versionServiceErr := appupgrade.New()
 	buildVersion := fmt.Sprintf("%s (commit %s, built %s, %s)", version, commit, date, runtime.Version())
 	root := &cobra.Command{
 		Use:           "kan",
@@ -97,6 +99,7 @@ func New(version, commit, date string) *cobra.Command {
 					Command: res.config.Theme.Command, ColumnDefault: res.config.Theme.ColumnDefault,
 				}, StartupNotice: startupNotice}),
 				tea.WithAltScreen(),
+				tea.WithMouseCellMotion(),
 				tea.WithContext(cmd.Context()),
 			)
 
@@ -109,8 +112,14 @@ func New(version, commit, date string) *cobra.Command {
 					program.Send(app.NoticeMsg{Text: message})
 				})
 			}
+			versionContext, cancelVersion := context.WithCancel(cmd.Context())
+			versionDone := startVersionCheck(versionContext, version, versionService, res.logger, func(message string) {
+				program.Send(app.NoticeMsg{Text: message})
+			})
 
 			_, runErr := program.Run()
+			cancelVersion()
+			<-versionDone
 			if cancelSync != nil {
 				cancelSync()
 				<-syncDone
@@ -180,6 +189,7 @@ func New(version, commit, date string) *cobra.Command {
 	root.AddCommand(newExportCommand(&opts))
 	root.AddCommand(newImportCommand(&opts))
 	root.AddCommand(newSyncCommand(&opts))
+	root.AddCommand(newUpgradeCommand(version, versionService, versionServiceErr))
 	root.AddCommand(
 		newProjectCommand(&opts),
 		newBoardCommand(&opts),

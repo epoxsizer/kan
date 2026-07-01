@@ -11,7 +11,7 @@ const helpText = `NAVIGATION
   Enter / Esc    open / back or close
 EDITING
   a/e/D          add / edit / confirmed delete
-  d/m            details / comments; Ctrl-G editor
+  d/m            details / comments; Shift+E detail size
   c/E/X          add / edit / delete a column
   H/L/Tab        move; M choose column; u undo
   J/K            move card down / up in its column
@@ -22,8 +22,8 @@ FORMS
   ←/→ Home/End   cursor; Ctrl-W/U/K delete text
   Tab fields · Enter open · Ctrl-S save · Esc cancel
 GENERAL
-  ?              toggle help
-  :              fuzzy search; settings; layout table/cards
+  Mouse          click/open · wheel · right-click back
+  ? / :          help / search and settings
   q/Ctrl-C       quit`
 
 func (model *Model) renderHelpText() string {

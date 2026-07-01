@@ -42,11 +42,7 @@ func (model *Model) renderTable(title, itemHeader string, rows []tableRow, width
 	}
 	for _, row := range rows {
 		comments := strings.Join(strings.Fields(row.comments), " ")
-		name := row.name
-		if row.selected {
-			name = "> " + name
-		}
-		line := tableLine(name, comments, fmt.Sprintf("%d", row.items), nameWidth, commentWidth, itemWidth)
+		line := tableLine(row.name, comments, fmt.Sprintf("%d", row.items), nameWidth, commentWidth, itemWidth)
 		if row.selected {
 			line = model.styles.selectedCard.Copy().Padding(0).Width(lipgloss.Width(header)).Render(line)
 		}
@@ -68,11 +64,7 @@ func (model *Model) renderStatusTable(title, itemHeader string, rows []tableRow,
 		header := tableLine("NAME", "DUE", itemHeader, nameWidth, statusWidth, itemWidth)
 		lines := []string{model.styles.tableHeader.Render(header), model.styles.subtle.Render(strings.Repeat("─", lipgloss.Width(header)))}
 		for _, row := range rows {
-			name := row.name
-			if row.selected {
-				name = "> " + name
-			}
-			line := tableLine(name, row.status, fmt.Sprintf("%d", row.items), nameWidth, statusWidth, itemWidth)
+			line := tableLine(row.name, row.status, fmt.Sprintf("%d", row.items), nameWidth, statusWidth, itemWidth)
 			if row.selected {
 				line = model.styles.selectedCard.Copy().Padding(0).Width(lipgloss.Width(header)).Render(line)
 			}
@@ -92,12 +84,8 @@ func (model *Model) renderStatusTable(title, itemHeader string, rows []tableRow,
 	header := statusTableLine("NAME", "COMMENTS", "DUE", itemHeader, nameWidth, commentWidth, statusWidth, itemWidth)
 	lines := []string{model.styles.tableHeader.Render(header), model.styles.subtle.Render(strings.Repeat("─", lipgloss.Width(header)))}
 	for _, row := range rows {
-		name := row.name
-		if row.selected {
-			name = "> " + name
-		}
 		comments := strings.Join(strings.Fields(row.comments), " ")
-		line := statusTableLine(name, comments, row.status, fmt.Sprintf("%d", row.items), nameWidth, commentWidth, statusWidth, itemWidth)
+		line := statusTableLine(row.name, comments, row.status, fmt.Sprintf("%d", row.items), nameWidth, commentWidth, statusWidth, itemWidth)
 		if row.selected {
 			line = model.styles.selectedCard.Copy().Padding(0).Width(lipgloss.Width(header)).Render(line)
 		}
