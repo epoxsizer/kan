@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
@@ -44,11 +45,20 @@ type Service struct {
 }
 
 func New() (*Service, error) {
-	source, err := selfupdate.NewGitHubSource(selfupdate.GitHubConfig{})
+	source, err := selfupdate.NewGitHubSource(selfupdate.GitHubConfig{APIToken: githubTokenFromEnv()})
 	if err != nil {
 		return nil, fmt.Errorf("configure GitHub release source: %w", err)
 	}
 	return newWithSource(source, "", "")
+}
+
+func githubTokenFromEnv() string {
+	for _, name := range []string{"KAN_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"} {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func newWithSource(source selfupdate.Source, operatingSystem, architecture string) (*Service, error) {

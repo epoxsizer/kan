@@ -41,6 +41,18 @@ func TestCheckReportsOnlyNewerStableCandidate(t *testing.T) {
 	require.Equal(t, "https://example.test/v1.2.0", result.ReleaseURL)
 }
 
+func TestGitHubTokenEnvironmentPrecedence(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "github")
+	t.Setenv("GH_TOKEN", "gh")
+	t.Setenv("KAN_GITHUB_TOKEN", "kan")
+	require.Equal(t, "kan", githubTokenFromEnv())
+
+	t.Setenv("KAN_GITHUB_TOKEN", "")
+	require.Equal(t, "gh", githubTokenFromEnv())
+	t.Setenv("GH_TOKEN", "")
+	require.Equal(t, "github", githubTokenFromEnv())
+}
+
 func TestUpgradeAppliesNewerCandidateOnly(t *testing.T) {
 	backend := &fakeBackend{candidate: candidate{version: "1.2.0"}, found: true}
 	service := &Service{backend: backend}

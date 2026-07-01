@@ -18,7 +18,7 @@ checklists, custom fields, linked cards, JSON import/export, and automatic
 backups. The database is local by default; backups can optionally be uploaded to
 S3-compatible storage.
 
-Current version: `0.1.8`.
+Current version: `0.1.9`.
 
 ## Interface
 
@@ -69,6 +69,7 @@ Released binaries can check for and install the latest stable public release:
 
 ```sh
 kan upgrade --check
+kan upgrade check
 kan upgrade
 ```
 
@@ -79,6 +80,14 @@ the log. Successful downloads are verified against the release
 `checksums.txt` before the current executable is replaced. Development builds
 cannot self-upgrade, and protected installation paths must be updated manually
 or by the account that owns the executable.
+
+For private GitHub repositories, export `KAN_GITHUB_TOKEN`, `GH_TOKEN`, or
+`GITHUB_TOKEN` with repository Contents read access before checking or upgrading:
+
+```sh
+export KAN_GITHUB_TOKEN="github_pat_..."
+kan upgrade check
+```
 
 ## Key Bindings
 

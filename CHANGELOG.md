@@ -6,6 +6,12 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-07-01
+
+### Added
+
+- Authenticated self-upgrades for private GitHub repositories and `kan upgrade check` command syntax.
+
 ## [0.1.8] - 2026-07-01
 
 ### Added

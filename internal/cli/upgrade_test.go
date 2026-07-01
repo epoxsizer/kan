@@ -56,9 +56,26 @@ func TestUpgradeCommandChecksAndInstalls(t *testing.T) {
 	output.Reset()
 	command = newUpgradeCommand("1.0.0", service, nil)
 	command.SetOut(&output)
+	command.SetArgs([]string{"check"})
+	require.NoError(t, command.Execute())
+	require.Contains(t, output.String(), "update available")
+	require.Equal(t, 2, service.checkCalls)
+
+	output.Reset()
+	command = newUpgradeCommand("1.0.0", service, nil)
+	command.SetOut(&output)
 	require.NoError(t, command.Execute())
 	require.Contains(t, output.String(), "kan upgraded: 1.0.0 -> 1.1.0")
 	require.Equal(t, 1, service.upgradeCalls)
+}
+
+func TestUpgradeCommandExplainsPrivateReleaseAuthentication(t *testing.T) {
+	service := &fakeUpgradeService{checkErr: appupgrade.ErrNoRelease}
+	command := newUpgradeCommand("1.0.0", service, nil)
+	command.SetArgs([]string{"check"})
+	err := command.Execute()
+	require.ErrorContains(t, err, "KAN_GITHUB_TOKEN")
+	require.ErrorContains(t, err, "Contents read")
 }
 
 func TestUpgradeCommandReportsUpToDateAndPermissionGuidance(t *testing.T) {
