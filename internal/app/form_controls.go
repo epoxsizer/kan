@@ -745,24 +745,32 @@ func editorViewport(value string, cursor, width, height int) string {
 	runes := []rune(value)
 	lines := []string{}
 	line := []rune{}
+	lineWidth := 0
 	cursorLine := 0
 	appendRune := func(value rune, atCursor bool) {
-		if len(line) >= width {
+		runeWidth := lipgloss.Width(string(value))
+		if lineWidth > 0 && lineWidth+runeWidth > width {
 			lines = append(lines, string(line))
 			line = []rune{}
+			lineWidth = 0
 		}
 		if atCursor {
 			cursorLine = len(lines)
 		}
 		line = append(line, value)
+		lineWidth += runeWidth
 	}
 	for index, valueRune := range runes {
 		if index == cursor {
 			appendRune('█', true)
 		}
+		if (valueRune < ' ' && valueRune != '\n' && valueRune != '\t') || valueRune == 0x7f {
+			valueRune = '�'
+		}
 		if valueRune == '\n' {
 			lines = append(lines, string(line))
 			line = []rune{}
+			lineWidth = 0
 			continue
 		}
 		if valueRune == '\t' {

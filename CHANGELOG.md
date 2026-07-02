@@ -6,6 +6,16 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-07-03
+
+### Added
+
+- Persistent board-column reordering with `Shift-Left`/`Shift-Right` and command-palette actions.
+
+### Fixed
+
+- Clipboard paste now normalizes line endings, strips terminal control sequences, preserves Markdown structure, and wraps wide Unicode without corrupting the TUI.
+
 ## [0.1.11] - 2026-07-02
 
 ### Added

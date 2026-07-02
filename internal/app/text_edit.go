@@ -2,10 +2,12 @@ package app
 
 import (
 	"slices"
+	"strings"
 	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type textEditResult struct {
@@ -26,6 +28,10 @@ func editText(value string, cursor int, key tea.KeyMsg, multiline bool) textEdit
 			handled: true,
 			changed: string(updated) != value,
 		}
+	}
+	if key.Paste {
+		insert := []rune(normalizeEditorText(string(key.Runes), multiline))
+		return insertRunes(runes, cursor, insert, value)
 	}
 
 	switch key.String() {
@@ -117,6 +123,28 @@ func editText(value string, cursor int, key tea.KeyMsg, multiline bool) textEdit
 		return insertRunes(runes, cursor, insert, value)
 	}
 	return result
+}
+
+func normalizeEditorText(value string, multiline bool) string {
+	value = ansi.Strip(value)
+	value = strings.ReplaceAll(value, "\r\n", "\n")
+	value = strings.ReplaceAll(value, "\r", "\n")
+	var normalized strings.Builder
+	for _, valueRune := range value {
+		switch {
+		case valueRune == '\n' || valueRune == '\t':
+			if multiline {
+				normalized.WriteRune(valueRune)
+			} else {
+				normalized.WriteRune(' ')
+			}
+		case valueRune < ' ' || valueRune == 0x7f:
+			continue
+		default:
+			normalized.WriteRune(valueRune)
+		}
+	}
+	return normalized.String()
 }
 
 func insertRunes(value []rune, cursor int, insert []rune, original string) textEditResult {

@@ -18,7 +18,7 @@ descriptions, checklists, custom fields, linked cards, JSON import/export, and
 automatic backups. The database is local by default; backups can optionally be
 uploaded to S3-compatible storage.
 
-Current version: `0.1.11`.
+Current version: `0.1.12`.
 
 ## Interface
 
@@ -104,6 +104,8 @@ kan upgrade check
 | `D` | Delete with confirmation |
 | `H`, `L` | Move the selected card to the previous/next column |
 | `Shift-Tab`, `Tab` | Move the selected card between columns |
+| `Shift-Left`, `Shift-Right` | Move the selected column left or right |
+| `:move-column-left`, `:move-column-right` | Reorder the selected column from the command bar |
 | `J`, `K` | Reorder cards |
 | `M` | Choose a destination column |
 | `u` | Undo the last successful move or reorder |

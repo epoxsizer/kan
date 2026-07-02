@@ -13,6 +13,7 @@ import (
 var markdownListPattern = regexp.MustCompile(`^(\s*)([-+*]|\d+[.)])(\s+)(\[[ xX]\]\s+)?(.*)$`)
 
 func renderMarkdown(source string, width int) ([]string, error) {
+	source = normalizeEditorText(source, true)
 	if strings.TrimSpace(source) == "" {
 		return nil, nil
 	}

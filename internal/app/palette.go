@@ -36,6 +36,8 @@ var commandCatalog = []commandSpec{
 	{name: "undo", description: "Undo the last card move or reorder"},
 	{name: "add-column", description: "Add a column on the current board"},
 	{name: "column-settings", description: "Configure the selected column name, WIP limit, and archiving"},
+	{name: "move-column-left", description: "Move the selected column one position left"},
+	{name: "move-column-right", description: "Move the selected column one position right"},
 	{name: "settings", description: "Open base kan settings"},
 	{name: "filter", description: "Fuzzy-filter cards on the current board"},
 	{name: "sort", description: "Cycle card sorting on the current board"},

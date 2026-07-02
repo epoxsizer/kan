@@ -208,6 +208,28 @@ func TestMoveCardPersistsOrderAndColumn(t *testing.T) {
 	require.Equal(t, []string{"First"}, byColumn[done.ID])
 }
 
+func TestMoveColumnPersistsOrderAndRenormalizesPositions(t *testing.T) {
+	repo := openTestRepository(t)
+	ctx := context.Background()
+	_, board, _ := createHierarchy(t, repo)
+	second := domain.Column{BoardID: board.ID, Name: "Doing", Position: 1024 + 1e-8}
+	third := domain.Column{BoardID: board.ID, Name: "Done", Position: 3072}
+	require.NoError(t, repo.CreateColumn(ctx, &second))
+	require.NoError(t, repo.CreateColumn(ctx, &third))
+
+	require.NoError(t, repo.MoveColumn(ctx, third.ID, 0))
+	columns, err := repo.ListColumns(ctx, board.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"Done", "Backlog", "Doing"}, []string{columns[0].Name, columns[1].Name, columns[2].Name})
+	require.Equal(t, []float64{1024, 2048, 3072}, []float64{columns[0].Position, columns[1].Position, columns[2].Position})
+
+	require.NoError(t, repo.MoveColumn(ctx, third.ID, 99))
+	columns, err = repo.ListColumns(ctx, board.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"Backlog", "Doing", "Done"}, []string{columns[0].Name, columns[1].Name, columns[2].Name})
+	require.ErrorIs(t, repo.MoveColumn(ctx, "missing", 0), domain.ErrNotFound)
+}
+
 func TestMoveCardEnforcesWIPAndRenormalizesPositions(t *testing.T) {
 	repo := openTestRepository(t)
 	ctx := context.Background()

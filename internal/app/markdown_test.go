@@ -76,3 +76,26 @@ func TestMarkdownEditorUndoRedoSearchAndAdaptivePreview(t *testing.T) {
 	require.Contains(t, ansi.Strip(model.View()), "Heading text")
 	require.NotContains(t, model.View(), "█")
 }
+
+func TestMarkdownEditorPastesMultilineContentAsOneSafeEdit(t *testing.T) {
+	model := testModel(readRepository{})
+	model.form = &formModal{
+		kind:   editCardForm,
+		fields: []formField{{label: "Description", kind: commentField, markdown: true}},
+	}
+	model.form.openControl()
+	paste := "\x1b[2J## Pasted\r\n\r\n- **first**\r- second\x00"
+
+	model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(paste), Paste: true})
+	require.Equal(t, "## Pasted\n\n- **first**\n- second", model.form.control.value)
+	view := model.View()
+	require.NotContains(t, view, "\x1b[2J")
+	require.Contains(t, ansi.Strip(view), "Pasted")
+	require.LessOrEqual(t, lipgloss.Height(view), 24)
+	for _, line := range strings.Split(view, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(line), 80)
+	}
+
+	model.Update(tea.KeyMsg{Type: tea.KeyCtrlZ})
+	require.Empty(t, model.form.control.value)
+}

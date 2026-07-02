@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/epoxsizer/kan/internal/domain"
 	"github.com/stretchr/testify/require"
@@ -164,6 +165,75 @@ type moveRepository struct {
 	readRepository
 	moves   []recordedMove
 	moveErr error
+}
+
+type columnMoveRepository struct {
+	readRepository
+	moves   []string
+	moveErr error
+}
+
+func (repo *columnMoveRepository) MoveColumn(_ context.Context, columnID string, target int) error {
+	repo.moves = append(repo.moves, fmt.Sprintf("%s:%d", columnID, target))
+	if repo.moveErr != nil {
+		return repo.moveErr
+	}
+	current := -1
+	for index := range repo.columns {
+		if repo.columns[index].ID == columnID {
+			current = index
+			break
+		}
+	}
+	column := repo.columns[current]
+	repo.columns = append(repo.columns[:current], repo.columns[current+1:]...)
+	repo.columns = append(repo.columns, domain.Column{})
+	copy(repo.columns[target+1:], repo.columns[target:])
+	repo.columns[target] = column
+	return nil
+}
+
+func TestMoveSelectedColumnLeftAndRight(t *testing.T) {
+	repo := &columnMoveRepository{readRepository: readRepository{
+		columns: []domain.Column{
+			{ID: "backlog", BoardID: "board", Name: "Backlog", Position: 1024},
+			{ID: "doing", BoardID: "board", Name: "Doing", Position: 2048},
+			{ID: "done", BoardID: "board", Name: "Done", Position: 3072},
+		},
+	}}
+	model := testModel(repo)
+	model.loading = false
+	model.screen = boardScreen
+	model.board = &domain.Board{ID: "board"}
+	model.columns = append([]domain.Column{}, repo.columns...)
+	model.columnIndex = 1
+
+	_, command := model.Update(tea.KeyMsg{Type: tea.KeyShiftLeft})
+	require.NotNil(t, command)
+	runCommands(model, command)
+	require.Equal(t, []string{"doing:0"}, repo.moves)
+	require.Equal(t, []string{"Doing", "Backlog", "Done"}, []string{model.columns[0].Name, model.columns[1].Name, model.columns[2].Name})
+	require.Zero(t, model.columnIndex)
+	require.Equal(t, "Column reordered", model.notice)
+
+	_, command = model.Update(tea.KeyMsg{Type: tea.KeyShiftRight})
+	require.NotNil(t, command)
+	runCommands(model, command)
+	require.Equal(t, []string{"doing:0", "doing:1"}, repo.moves)
+	require.Equal(t, 1, model.columnIndex)
+
+	model.columnIndex = len(model.columns) - 1
+	_, command = model.Update(tea.KeyMsg{Type: tea.KeyShiftRight})
+	require.Nil(t, command)
+	require.Equal(t, "Column is already last", model.notice)
+
+	repo.moveErr = errors.New("write failed")
+	model.columnIndex = 1
+	_, command = model.executeCommand("move-column-left")
+	require.NotNil(t, command)
+	model.Update(command())
+	require.ErrorContains(t, model.err, "write failed")
+	require.False(t, model.loading)
 }
 
 func (repo *moveRepository) MoveCard(_ context.Context, cardID, columnID string, index int) error {

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,8 +30,20 @@ func TestEditTextSupportsCursorAndDeletionCommands(t *testing.T) {
 }
 
 func TestEditTextNormalizesMultilinePasteInSingleLineInput(t *testing.T) {
-	result := editText("title", 5, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("\nnext\tpart")}, false)
+	result := editText("title", 5, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("\r\nnext\tpart"), Paste: true}, false)
 	require.Equal(t, "title next part", result.value)
+}
+
+func TestEditTextSanitizesMultilineTerminalPaste(t *testing.T) {
+	paste := "\x1b[2J# Heading\r\n- item\rnext\x00\x07"
+	result := editText("", 0, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(paste), Paste: true}, true)
+	require.Equal(t, "# Heading\n- item\nnext", result.value)
+	require.NotContains(t, result.value, "\r")
+	require.NotContains(t, result.value, "\x1b")
+
+	viewport := editorViewport("safe\x1b[2Jtext", len([]rune("safe\x1b[2Jtext")), 30, 2)
+	require.NotContains(t, viewport, "\x1b")
+	require.Contains(t, viewport, "safe�[2Jtext")
 }
 
 func TestTextViewportFollowsCursorAndRespectsDisplayWidth(t *testing.T) {
@@ -43,4 +56,9 @@ func TestTextViewportFollowsCursorAndRespectsDisplayWidth(t *testing.T) {
 	inMiddle := textViewport(value, 16, 18)
 	require.Contains(t, inMiddle, "█")
 	require.LessOrEqual(t, lipgloss.Width(inMiddle), 18)
+
+	multiline := editorViewport(strings.Repeat("界", 20), 10, 10, 10)
+	for _, line := range strings.Split(multiline, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(line), 10)
+	}
 }

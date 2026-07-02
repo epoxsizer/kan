@@ -231,11 +231,12 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		if message.apply {
-			if model.form.control.markdown && message.content != model.form.control.value {
+			content := normalizeEditorText(message.content, true)
+			if model.form.control.markdown && content != model.form.control.value {
 				model.form.control.pushUndo()
 			}
-			model.form.control.value = message.content
-			model.form.control.cursor = len([]rune(message.content))
+			model.form.control.value = content
+			model.form.control.cursor = len([]rune(content))
 		}
 		if message.err != nil {
 			model.form.err = message.err.Error()
@@ -281,6 +282,17 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return model, loadBoard(model.ctx, model.repo, model.board.ID)
 		}
 		return model, nil
+	case columnMoveDoneMsg:
+		model.loading = false
+		if message.err != nil {
+			model.err = message.err
+			return model, nil
+		}
+		model.notice = "Column reordered"
+		model.pendingColumn = message.columnID
+		model.pendingCard = ""
+		model.loading = true
+		return model, loadBoard(model.ctx, model.repo, model.board.ID)
 	case cardMoveDoneMsg:
 		model.loading = false
 		if message.err != nil {
@@ -556,6 +568,10 @@ func (model *Model) handleBoardKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return model, nil
 	case "u":
 		return model.undoLastCardMove()
+	case "shift+left":
+		return model.moveSelectedColumn(-1)
+	case "shift+right":
+		return model.moveSelectedColumn(1)
 	}
 	if len(model.columns) == 0 {
 		return model, nil
@@ -796,6 +812,18 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		model.startColumnForm(true)
+	case "move-column-left":
+		if model.screen != boardScreen || model.board == nil || len(model.columns) == 0 {
+			model.err = fmt.Errorf("open a board column first")
+			return model, nil
+		}
+		return model.moveSelectedColumn(-1)
+	case "move-column-right":
+		if model.screen != boardScreen || model.board == nil || len(model.columns) == 0 {
+			model.err = fmt.Errorf("open a board column first")
+			return model, nil
+		}
+		return model.moveSelectedColumn(1)
 	case "sort":
 		if model.screen != boardScreen {
 			model.err = fmt.Errorf("open a board first")
@@ -1216,7 +1244,7 @@ func (model *Model) renderShortcutBar(width int) string {
 	case boardsScreen:
 		shortcuts = append(shortcuts, shortcut{"j/k", "Navigate"}, shortcut{"Enter", "Open"}, shortcut{"a", "Add"}, shortcut{"e", "Edit"}, shortcut{"D", "Delete"}, shortcut{"d", "Describe"})
 	case boardScreen:
-		shortcuts = append(shortcuts, shortcut{"j/k", "Card"}, shortcut{"h/l", "Column"}, shortcut{"E", "Column"})
+		shortcuts = append(shortcuts, shortcut{"j/k", "Card"}, shortcut{"h/l", "Column"}, shortcut{"⇧←/→", "Reorder"})
 		if model.lastMove != nil {
 			shortcuts = append(shortcuts, shortcut{"u", "Undo"})
 		}

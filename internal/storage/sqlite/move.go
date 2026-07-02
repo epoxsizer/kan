@@ -16,6 +16,66 @@ type positionedCard struct {
 	position float64
 }
 
+func (repo *Repository) MoveColumn(ctx context.Context, columnID string, targetIndex int) error {
+	tx, err := repo.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin column move: %w", err)
+	}
+	defer tx.Rollback()
+
+	var boardID string
+	if err = tx.QueryRowContext(ctx, `SELECT board_id FROM board_columns WHERE id=?`, columnID).Scan(&boardID); err != nil {
+		return mapError(err)
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM board_columns WHERE board_id=? ORDER BY position,id`, boardID)
+	if err != nil {
+		return err
+	}
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	if err = rows.Close(); err != nil {
+		return err
+	}
+
+	currentIndex := -1
+	for index, id := range ids {
+		if id == columnID {
+			currentIndex = index
+			break
+		}
+	}
+	if currentIndex < 0 {
+		return domain.ErrNotFound
+	}
+	targetIndex = min(max(targetIndex, 0), len(ids)-1)
+	if targetIndex == currentIndex {
+		return nil
+	}
+	ids = append(ids[:currentIndex], ids[currentIndex+1:]...)
+	ids = append(ids, "")
+	copy(ids[targetIndex+1:], ids[targetIndex:])
+	ids[targetIndex] = columnID
+
+	now := encodeTime(domain.UTCNow())
+	for index, id := range ids {
+		position := float64(index+1) * positionSpacing
+		if _, err = tx.ExecContext(ctx, `UPDATE board_columns SET position=?,updated_at=? WHERE id=?`, position, now, id); err != nil {
+			return mapError(err)
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit column move: %w", err)
+	}
+	return nil
+}
+
 func (repo *Repository) MoveCard(ctx context.Context, cardID, targetColumnID string, targetIndex int) error {
 	tx, err := repo.db.BeginTx(ctx, nil)
 	if err != nil {

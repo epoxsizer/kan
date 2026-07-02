@@ -19,6 +19,7 @@ type Repository interface {
 	GetColumn(context.Context, string) (Column, error)
 	ListColumns(context.Context, string) ([]Column, error)
 	UpdateColumn(context.Context, *Column) error
+	MoveColumn(context.Context, string, int) error
 	DeleteColumn(context.Context, string) error
 
 	CreateCard(context.Context, *Card) error
