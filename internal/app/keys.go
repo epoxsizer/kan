@@ -11,7 +11,7 @@ const helpText = `NAVIGATION
   Enter / Esc    open / back or close
 EDITING
   a/e/D          add / edit / confirmed delete
-  d/m            details / comments; Shift+E detail size
+  d/m            details / description; Shift+E detail size
   c/E/X          add / configure / delete a column
   H/L/Tab        move; M choose column; u undo
   J/K            move card down / up in its column
@@ -19,8 +19,7 @@ BOARD VIEW
   /              fuzzy filter; Ctrl-U clear
   s/v            cycle sort / grouping
 FORMS
-  ←/→ Home/End   cursor; Ctrl-W/U/K delete text
-  Tab fields · Enter open · Ctrl-S save · Esc cancel
+  Tab fields · Ctrl-P preview · Ctrl-F find · Ctrl-Z/Y undo · Ctrl-G editor
 GENERAL
   Mouse          click/open · wheel · right-click back
   ? / :          help / search and settings

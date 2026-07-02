@@ -231,6 +231,9 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		if message.apply {
+			if model.form.control.markdown && message.content != model.form.control.value {
+				model.form.control.pushUndo()
+			}
 			model.form.control.value = message.content
 			model.form.control.cursor = len([]rune(message.content))
 		}

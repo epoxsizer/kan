@@ -13,12 +13,12 @@ Data hierarchy:
 Project -> Board -> Column -> Card
 ```
 
-The app includes full-text search, tags, priorities, due dates, comments,
-checklists, custom fields, linked cards, JSON import/export, and automatic
-backups. The database is local by default; backups can optionally be uploaded to
-S3-compatible storage.
+The app includes full-text search, tags, priorities, due dates, Markdown card
+descriptions, checklists, custom fields, linked cards, JSON import/export, and
+automatic backups. The database is local by default; backups can optionally be
+uploaded to S3-compatible storage.
 
-Current version: `0.1.10`.
+Current version: `0.1.11`.
 
 ## Interface
 
@@ -27,7 +27,7 @@ Current version: `0.1.10`.
 The interface adapts to terminal size. The active column and selected card are
 highlighted, and contextual key hints are shown at the bottom of the screen.
 The selected card expands with relative due information, checklist progress,
-tags, related-card count, and a short comments preview. Board lists summarize
+tags, related-card count, and a short description preview. Board lists summarize
 overdue or nearest-due work.
 
 ## Quick Start From Source
@@ -134,9 +134,15 @@ support cursor editing with arrows and `Home`/`End`; `Ctrl-W`, `Ctrl-U`, and
 `Ctrl-K` delete the previous word, text before the cursor, and text after the
 cursor.
 
-Inside the comments editor, `Ctrl-G` opens the command configured by `$VISUAL`
-or `$EDITOR` (for example, `EDITOR="code --wait"`). External edits return to the
-comments buffer and still require `Ctrl-S` to apply and save.
+Card descriptions support Markdown with rendered headings, emphasis, lists,
+task lists, links, tables, and code blocks. In the description editor,
+`Ctrl-P` switches between editing and preview; terminals at least 100 columns
+wide show both panes. `Ctrl-F` searches, `Ctrl-Z`/`Ctrl-Y` undo and redo, and
+`Tab`/`Shift-Tab` indent or outdent list items. Enter continues Markdown lists.
+
+`Ctrl-G` opens the command configured by `$VISUAL` or `$EDITOR` (for example,
+`EDITOR="code --wait"`). External edits return to the description buffer and
+still require `Ctrl-S` to apply and save.
 
 ## CLI Commands
 

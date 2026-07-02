@@ -14,11 +14,13 @@ import (
 )
 
 type detailPopup struct {
-	kind     string
-	title    string
-	lines    []string
-	offset   int
-	expanded bool
+	kind          string
+	title         string
+	lines         []string
+	markdown      string
+	markdownIndex int
+	offset        int
+	expanded      bool
 }
 
 func (model *Model) openSelectedDetail() {
@@ -114,11 +116,15 @@ func cardDetail(card domain.Card, columnName string) *detailPopup {
 	lines := []string{
 		"ID: " + card.ID,
 		"Status: " + columnName,
-		"Comments: " + fallbackValue(card.Description),
 		"Priority: " + priority,
 		"Due: " + due,
 		"Tags: " + fallbackValue(strings.Join(card.Tags, ", ")),
 		"Related cards: " + fallbackValue(strings.Join(card.RelatedCardIDs, ", ")),
+	}
+	markdownIndex := len(lines)
+	if strings.TrimSpace(card.Description) != "" {
+		lines = append(lines, "Description:")
+		markdownIndex = len(lines)
 	}
 	if len(card.Checklist) > 0 {
 		lines = append(lines, "Checklist:")
@@ -147,7 +153,7 @@ func cardDetail(card domain.Card, columnName string) *detailPopup {
 		}
 	}
 	lines = append(lines, "Updated: "+formatDetailTime(card.UpdatedAt))
-	return &detailPopup{kind: "card", title: card.Title, lines: lines}
+	return &detailPopup{kind: "card", title: card.Title, lines: lines, markdown: card.Description, markdownIndex: markdownIndex}
 }
 
 func archivedCardsDetail(cards []domain.Card, columns []domain.Column) *detailPopup {
@@ -178,7 +184,7 @@ func (model *Model) renderDetailPopup(width, height int) string {
 	if layout.headerLines == 3 {
 		header = append(header, "")
 	}
-	detailLines := wrappedDetailLines(model.detail.lines, layout.contentWidth)
+	detailLines := model.detailLines(layout.contentWidth)
 	model.detail.offset = clampDetailOffset(model.detail.offset, len(detailLines), layout.viewportHeight)
 	start := model.detail.offset
 	end := min(start+layout.viewportHeight, len(detailLines))
@@ -206,6 +212,21 @@ func (model *Model) renderDetailPopup(width, height int) string {
 		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, popup)
 	}
 	return overlayCentered(model.renderWorkspace(width, height), popup, width, height)
+}
+
+func (model *Model) detailLines(width int) []string {
+	lines := wrappedDetailLines(model.detail.lines, width)
+	if strings.TrimSpace(model.detail.markdown) == "" {
+		return lines
+	}
+	index := min(model.detail.markdownIndex, len(model.detail.lines))
+	before := wrappedDetailLines(model.detail.lines[:index], width)
+	after := wrappedDetailLines(model.detail.lines[index:], width)
+	rendered, err := renderMarkdown(model.detail.markdown, width)
+	if err != nil {
+		rendered = wrappedDetailLines([]string{model.detail.markdown}, width)
+	}
+	return append(append(before, rendered...), after...)
 }
 
 type detailLayout struct {
@@ -314,7 +335,7 @@ func (model *Model) scrollDetail(delta int) {
 	}
 	width, height := model.dimensions()
 	layout := detailLayoutForSize(width, height, model.detail.expanded)
-	total := len(wrappedDetailLines(model.detail.lines, layout.contentWidth))
+	total := len(model.detailLines(layout.contentWidth))
 	model.detail.offset = clampDetailOffset(model.detail.offset+delta, total, layout.viewportHeight)
 }
 
@@ -324,7 +345,7 @@ func (model *Model) clampDetailForCurrentLayout() {
 	}
 	width, height := model.dimensions()
 	layout := detailLayoutForSize(width, height, model.detail.expanded)
-	total := len(wrappedDetailLines(model.detail.lines, layout.contentWidth))
+	total := len(model.detailLines(layout.contentWidth))
 	model.detail.offset = clampDetailOffset(model.detail.offset, total, layout.viewportHeight)
 }
 
@@ -334,7 +355,7 @@ func (model *Model) scrollDetailToEnd() {
 	}
 	width, height := model.dimensions()
 	layout := detailLayoutForSize(width, height, model.detail.expanded)
-	total := len(wrappedDetailLines(model.detail.lines, layout.contentWidth))
+	total := len(model.detailLines(layout.contentWidth))
 	model.detail.offset = clampDetailOffset(total, total, layout.viewportHeight)
 }
 

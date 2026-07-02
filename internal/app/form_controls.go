@@ -43,6 +43,23 @@ type formControl struct {
 	inputCursor   int
 	inputOriginal string
 	editIndex     int
+	markdown      bool
+	preview       bool
+	previewOffset int
+	undo          []editorState
+	redo          []editorState
+	searching     bool
+	search        string
+	searchCursor  int
+	previewSource string
+	previewWidth  int
+	previewLines  []string
+	previewErr    error
+}
+
+type editorState struct {
+	value  string
+	cursor int
 }
 
 type linkCandidate struct {
@@ -79,6 +96,7 @@ func (form *formModal) openControl() {
 	switch field.kind {
 	case commentField:
 		control.kind = commentControl
+		control.markdown = field.markdown
 	case dropdownField:
 		control.kind = dropdownControl
 		for index, option := range field.options {
@@ -215,9 +233,43 @@ func (model *Model) handleChecklistKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (model *Model) handleCommentKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	control := model.form.control
-	switch key.String() {
-	case "ctrl+c":
+	if key.String() == "ctrl+c" {
 		return model, tea.Quit
+	}
+	if control.searching {
+		switch key.String() {
+		case "esc":
+			control.searching = false
+		case "enter":
+			control.cursor = moveToSearchMatch(control.value, control.search, control.cursor, false)
+		case "shift+enter":
+			control.cursor = moveToSearchMatch(control.value, control.search, control.cursor, true)
+		default:
+			result := editText(control.search, control.searchCursor, key, false)
+			if result.handled {
+				control.search, control.searchCursor = result.value, result.cursor
+			}
+		}
+		return model, nil
+	}
+	switch key.String() {
+	case "ctrl+p":
+		if control.markdown {
+			control.preview = !control.preview
+		}
+	case "ctrl+f":
+		if control.markdown {
+			control.searching = true
+			control.searchCursor = len([]rune(control.search))
+		}
+	case "ctrl+z":
+		if control.markdown {
+			control.undoEdit()
+		}
+	case "ctrl+y":
+		if control.markdown {
+			control.redoEdit()
+		}
 	case "ctrl+g":
 		model.form.err = ""
 		return model, prepareExternalEditor(control.value)
@@ -235,8 +287,44 @@ func (model *Model) handleCommentKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return model.submitForm()
 		}
 	default:
-		result := editText(control.value, control.cursor, key, true)
+		if control.markdown && control.preview {
+			_, height := model.dimensions()
+			switch key.String() {
+			case "up", "k":
+				control.previewOffset = max(control.previewOffset-1, 0)
+			case "down", "j":
+				control.previewOffset++
+			case "pgup":
+				control.previewOffset = max(control.previewOffset-max(height-8, 1), 0)
+			case "pgdown":
+				control.previewOffset += max(height-8, 1)
+			case "home", "g":
+				control.previewOffset = 0
+			case "end", "G":
+				control.previewOffset = int(^uint(0) >> 1)
+			}
+			return model, nil
+		}
+		if control.markdown && (key.String() == "pgup" || key.String() == "pgdown") {
+			_, height := model.dimensions()
+			delta := max(height-8, 1)
+			if key.String() == "pgup" {
+				delta = -delta
+			}
+			control.cursor = moveEditorCursorLines(control.value, control.cursor, delta)
+			return model, nil
+		}
+		result, special := textEditResult{}, false
+		if control.markdown {
+			result, special = markdownEdit(control.value, control.cursor, key.String())
+		}
+		if !special {
+			result = editText(control.value, control.cursor, key, true)
+		}
 		if result.handled {
+			if result.changed {
+				control.pushUndo()
+			}
 			control.value, control.cursor = result.value, result.cursor
 			if result.changed {
 				model.form.err = ""
@@ -406,16 +494,61 @@ func (model *Model) renderCommentEditor(width, height int) string {
 	layout := commentEditorLayoutForSize(width, height)
 	title := model.form.fields[control.field].label + " editor"
 	hint := "Arrows · Ctrl-G $EDITOR · Ctrl-S apply · Esc cancel"
+	if control.markdown {
+		hint = "Ctrl-P edit/preview · Ctrl-F find · Ctrl-Z/Y undo/redo · Ctrl-G $EDITOR · Ctrl-S apply"
+	}
 	hintStyle := model.styles.subtle
 	if model.form.err != "" {
 		hint = "Editor: " + model.form.err
 		hintStyle = model.styles.error
 	}
-	body := editorViewport(control.value, control.cursor, layout.contentWidth, layout.viewportHeight)
+	wide := control.markdown && width >= 100
+	bodyWidth := layout.contentWidth
+	editorHeight := layout.viewportHeight
+	if wide {
+		bodyWidth = max((layout.contentWidth-3)/2, 10)
+		editorHeight = max(editorHeight-1, 1)
+	}
+	editor := editorViewport(control.value, control.cursor, bodyWidth, editorHeight)
+	body := editor
+	if control.markdown {
+		preview, renderErr := control.markdownPreview(bodyWidth)
+		if renderErr != nil {
+			preview = []string{model.styles.error.Render(renderErr.Error())}
+		}
+		control.previewOffset = clampDetailOffset(control.previewOffset, len(preview), layout.viewportHeight)
+		end := min(control.previewOffset+layout.viewportHeight, len(preview))
+		visiblePreview := strings.Join(preview[control.previewOffset:end], "\n")
+		if wide {
+			editorTitle, previewTitle := "EDIT", "PREVIEW"
+			if control.preview {
+				previewTitle += " *"
+			} else {
+				editorTitle += " *"
+			}
+			left := model.styles.subtle.Render(editorTitle) + "\n" + editor
+			right := model.styles.subtle.Render(previewTitle) + "\n" + visiblePreview
+			body = lipgloss.JoinHorizontal(lipgloss.Top,
+				lipgloss.NewStyle().Width(bodyWidth).Render(left),
+				" │ ",
+				lipgloss.NewStyle().Width(bodyWidth).Render(right),
+			)
+		} else if control.preview {
+			body = visiblePreview
+		}
+	}
+	line, column := editorLineColumn(control.value, control.cursor)
+	status := fmt.Sprintf("Ln %d, Col %d · %d chars", line, column, len([]rune(control.value)))
+	if control.value != control.original {
+		status += " · modified"
+	}
+	if control.searching {
+		status = "Find: " + textViewport(control.search, control.searchCursor, max(layout.contentWidth-6, 1)) + " · Enter next · Shift-Enter previous · Esc close"
+	}
 	lines := []string{
 		model.styles.header.Render(truncate(title, layout.contentWidth)),
 		hintStyle.Render(truncate(hint, layout.contentWidth)),
-		"",
+		model.styles.subtle.Render(truncate(status, layout.contentWidth)),
 	}
 	if body != "" {
 		lines = append(lines, strings.Split(body, "\n")...)

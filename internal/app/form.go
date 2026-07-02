@@ -27,11 +27,12 @@ const (
 )
 
 type formField struct {
-	label   string
-	value   string
-	cursor  int
-	kind    fieldKind
-	options []string
+	label    string
+	value    string
+	cursor   int
+	kind     fieldKind
+	options  []string
+	markdown bool
 }
 
 type fieldKind uint8
@@ -150,7 +151,7 @@ func (model *Model) startColumnForm(edit bool) {
 func (model *Model) startCardForm(edit bool) tea.Cmd {
 	column := model.columns[model.columnIndex]
 	form := &formModal{kind: createCardForm, title: "Add card", fields: []formField{
-		{label: "Title"}, {label: "Comments", kind: commentField}, {label: "Status", value: column.Name, kind: dropdownField, options: columnNames(model.columns)}, {label: "Priority", value: "Medium", kind: dropdownField, options: priorities}, {label: "Due date", kind: calendarField}, {label: "Tags comma-separated"}, {label: "Related cards", kind: linksField}, {label: "Checklist", value: "[]", kind: checklistField},
+		{label: "Title"}, {label: "Description", kind: commentField, markdown: true}, {label: "Status", value: column.Name, kind: dropdownField, options: columnNames(model.columns)}, {label: "Priority", value: "Medium", kind: dropdownField, options: priorities}, {label: "Due date", kind: calendarField}, {label: "Tags comma-separated"}, {label: "Related cards", kind: linksField}, {label: "Checklist", value: "[]", kind: checklistField},
 	}}
 	if edit {
 		card := model.selectedCard()

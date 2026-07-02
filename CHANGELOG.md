@@ -6,6 +6,16 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-07-02
+
+### Added
+
+- Markdown card descriptions with responsive edit/preview panes, terminal rendering, search, undo/redo, smart list editing, and external-editor compatibility.
+
+### Fixed
+
+- Stabilized due-date metadata tests so they do not fail after a fixed calendar date.
+
 ## [0.1.10] - 2026-07-02
 
 ### Added

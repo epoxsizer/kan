@@ -531,7 +531,7 @@ func TestRuneEditDistance(t *testing.T) {
 
 func TestBoardSortGroupAndMetadataLabels(t *testing.T) {
 	urgent, low := "Urgent", "Low"
-	due := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	due := time.Now().AddDate(1, 0, 0)
 	model := testModel(readRepository{})
 	model.loading = false
 	model.screen = boardScreen
@@ -551,8 +551,8 @@ func TestBoardSortGroupAndMetadataLabels(t *testing.T) {
 	require.Contains(t, view, "URGENT")
 	require.Contains(t, view, "LOW")
 	label := model.cardLabel(model.cards["todo"][2], 80, false)
-	require.Contains(t, label, "U @2026-07-01 [release] Urgent")
-	require.Contains(t, label, "@2026-07-01")
+	require.Contains(t, label, "U @"+due.Format("2006-01-02")+" [release] Urgent")
+	require.Contains(t, label, "@"+due.Format("2006-01-02"))
 }
 
 func TestOverdueCardsShowDeadlineMarker(t *testing.T) {
@@ -674,7 +674,7 @@ func TestCommentEditorUsesFullScreenViewportForHugeText(t *testing.T) {
 	model.Update(key("enter"))
 	view := model.View()
 
-	require.Contains(t, view, "Comments editor")
+	require.Contains(t, view, "Description editor")
 	require.Contains(t, view, "editor-comment-line-")
 	require.LessOrEqual(t, lipgloss.Height(view), 24)
 	for _, line := range strings.Split(view, "\n") {
