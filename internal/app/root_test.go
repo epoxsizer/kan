@@ -13,6 +13,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/epoxsizer/kan/internal/domain"
 	storagesqlite "github.com/epoxsizer/kan/internal/storage/sqlite"
 	"github.com/stretchr/testify/require"
@@ -448,19 +449,33 @@ func TestCardTagPrefixesCanBeDisabled(t *testing.T) {
 	require.Equal(t, "Ship [1/2]", model.cardLabel(card, 80, true))
 }
 
-func TestColoredActiveColumnIsExplicit(t *testing.T) {
+func TestSelectionUsesPrototypeBlueWithContainerAndItemHierarchy(t *testing.T) {
 	color := "Red"
 	model := testModel(readRepository{})
 	model.loading = false
 	model.screen = boardScreen
 	model.columns = []domain.Column{{ID: "active", Name: "Doing", Color: &color}}
 	model.cards["active"] = []domain.Card{{ID: "card", Title: "Selected"}}
-	require.Equal(t, lipgloss.Color("#42C77A"), model.styles.selectedColumnBackground)
+	prototypeBlue := lipgloss.Color("#4C8DFF")
+	require.Equal(t, prototypeBlue, model.styles.selectedColumnBackground)
+	require.Equal(t, prototypeBlue, model.styles.selectedColumnBorder)
+	require.Equal(t, prototypeBlue, model.styles.selected.GetBackground())
+	require.Equal(t, prototypeBlue, model.styles.selectedCard.GetBackground())
+	require.Equal(t, prototypeBlue, model.styles.focusedPanel.GetBorderTopForeground())
 	view := model.View()
 	require.Contains(t, view, "Doing")
 	require.NotContains(t, view, "ACTIVE •")
 	require.NotContains(t, view, "> Selected")
 	require.Contains(t, view, "╔")
+}
+
+func TestSelectedCardUsesCompactLeftAlignedText(t *testing.T) {
+	model := testModel(readRepository{})
+	row := cardDisplayRow{card: domain.Card{ID: "card", Title: "Stable title"}}
+	normal := ansi.Strip(model.renderCardDisplayRow(row, false, 30, 4))
+	selected := ansi.Strip(model.renderCardDisplayRow(row, true, 30, 4))
+
+	require.Less(t, strings.Index(selected, "Stable title"), strings.Index(normal, "Stable title"))
 }
 
 func TestLiveBoardFTSFilterAndClear(t *testing.T) {

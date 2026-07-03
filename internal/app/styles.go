@@ -87,9 +87,9 @@ type Theme struct {
 
 func DefaultTheme() Theme {
 	return Theme{
-		Primary: "#7D7AFF", Muted: "#909090", Text: "#C4C4D0", Background: "#24243A", SelectedForeground: "#FFFFFF", SelectedBackground: "#5A56E0", Danger: "#FF6B6B", Border: "rounded",
-		SelectedColumnForeground: "#000000", SelectedColumnBackground: "#42C77A", SelectedColumnBorder: "#42C77A", SelectedCardForeground: "#000000", SelectedCardBackground: "#42C77A",
-		PanelBorder: "#909090", FocusedPanelBorder: "#42C77A", StatusForeground: "#909090", StatusBackground: "#24243A", StatusAccentForeground: "#FFFFFF", StatusAccentBackground: "#7D7AFF",
+		Primary: "#7D7AFF", Muted: "#909090", Text: "#C4C4D0", Background: "#24243A", SelectedForeground: "#000000", SelectedBackground: "#4C8DFF", Danger: "#FF6B6B", Border: "rounded",
+		SelectedColumnForeground: "#000000", SelectedColumnBackground: "#4C8DFF", SelectedColumnBorder: "#4C8DFF", SelectedCardForeground: "#000000", SelectedCardBackground: "#4C8DFF",
+		PanelBorder: "#909090", FocusedPanelBorder: "#4C8DFF", StatusForeground: "#909090", StatusBackground: "#24243A", StatusAccentForeground: "#FFFFFF", StatusAccentBackground: "#7D7AFF",
 		ShortcutKeyForeground: "#FFFFFF", ShortcutKeyBackground: "#5A56E0", ShortcutText: "#909090", HelpText: "#C4C4D0", HelpBorder: "#7D7AFF", Command: "#7D7AFF", ColumnDefault: "#4C8DFF",
 	}
 }

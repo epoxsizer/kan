@@ -18,7 +18,7 @@ descriptions, checklists, custom fields, linked cards, JSON import/export, and
 automatic backups. The database is local by default; backups can optionally be
 uploaded to S3-compatible storage.
 
-Current version: `0.1.12`.
+Current version: `0.1.13`.
 
 ## Interface
 
@@ -26,9 +26,10 @@ Current version: `0.1.12`.
 
 The interface adapts to terminal size. The active column and selected card are
 highlighted, and contextual key hints are shown at the bottom of the screen.
-The selected card expands with relative due information, checklist progress,
-tags, related-card count, and a short description preview. Board lists summarize
-overdue or nearest-due work.
+The selected card shows its title and core metadata: relative due information,
+checklist progress, tags, and related-card count. Its Markdown description stays
+in the scrollable detail window instead of expanding the board card. Board lists
+summarize overdue or nearest-due work.
 
 ## Quick Start From Source
 
@@ -283,8 +284,10 @@ An example configuration file is available at
 [`docs/config.example.toml`](docs/config.example.toml).
 
 The theme section supports detailed color overrides for text, panels, selected
-cards, status bars, help popups, command text, and columns. The selected column
-uses green by default through `selected_column_background = "#42C77A"`.
+cards, status bars, help popups, command text, and columns. New configurations
+use the prototype's light-blue `#4C8DFF` for focused borders and selected
+columns, cards, rows, and controls. Existing explicit theme overrides remain
+unchanged.
 
 ## Development
 

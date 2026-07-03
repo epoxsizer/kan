@@ -103,17 +103,9 @@ func (model *Model) selectedCardBlock(card domain.Card, width, maxLines int) str
 	maxLines = max(maxLines, 1)
 	contentWidth := max(width-2, 1)
 	lines := []string{truncate(card.Title, width)}
-	if len(lines) < maxLines {
-		lines = append(lines, "  "+truncate(model.cardMetadata(card, time.Now()), contentWidth))
-	}
-	if strings.TrimSpace(card.Description) != "" && len(lines) < maxLines {
-		description := wrappedDetailLines([]string{markdownPlainText(card.Description)}, contentWidth)
-		for _, line := range description {
-			if len(lines) >= min(maxLines, 4) {
-				break
-			}
-			lines = append(lines, "  "+truncate(line, contentWidth))
-		}
+	metadata := model.cardMetadata(card, time.Now())
+	if metadata != "" && len(lines) < maxLines {
+		lines = append(lines, "  "+truncate(metadata, contentWidth))
 	}
 	return strings.Join(lines, "\n")
 }

@@ -40,7 +40,7 @@ func TestRelativeDueAndBoardHealthLabels(t *testing.T) {
 	require.Equal(t, "no due dates", boardHealthLabel(summarizeBoardHealth(nil, now), now))
 }
 
-func TestSelectedCardExpandsWithinTerminal(t *testing.T) {
+func TestSelectedCardShowsOnlyCoreMetadata(t *testing.T) {
 	priority := "High"
 	due := time.Now().AddDate(0, 0, 1)
 	model := testModel(readRepository{})
@@ -61,9 +61,10 @@ func TestSelectedCardExpandsWithinTerminal(t *testing.T) {
 	}}
 
 	view := model.View()
-	for _, value := range []string{"Review keyboard shortcuts", "HIGH", "due tomorrow", "✓1/2", "#ux +1", "↗1", "Make important actions"} {
+	for _, value := range []string{"Review keyboard shortcuts", "HIGH", "due tomorrow", "✓1/2", "#ux +1", "↗1"} {
 		require.Contains(t, view, value)
 	}
+	require.NotContains(t, view, "Make important actions")
 	require.LessOrEqual(t, lipgloss.Height(view), 24)
 	for _, line := range splitLines(view) {
 		require.LessOrEqual(t, lipgloss.Width(line), 80)

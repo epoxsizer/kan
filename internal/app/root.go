@@ -1074,7 +1074,7 @@ func (model *Model) renderCardDisplayRow(row cardDisplayRow, selected bool, widt
 		return model.styles.subtle.Copy().Bold(true).Render("─ " + truncate(row.group, max(width-2, 1)))
 	}
 	if selected {
-		block := model.selectedCardBlock(row.card, width, min(maxLines, 4))
+		block := model.selectedCardBlock(row.card, width, min(maxLines, 2))
 		return model.styles.selectedCard.Copy().Width(width).Render(block)
 	}
 	label := model.cardLabel(row.card, max(width-4, 1), true)

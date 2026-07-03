@@ -40,14 +40,6 @@ func renderMarkdown(source string, width int) ([]string, error) {
 	return lines, nil
 }
 
-func markdownPlainText(source string) string {
-	lines, err := renderMarkdown(source, 120)
-	if err != nil {
-		return strings.Join(strings.Fields(source), " ")
-	}
-	return strings.Join(strings.Fields(ansi.Strip(strings.Join(lines, "\n"))), " ")
-}
-
 func (control *formControl) markdownPreview(width int) ([]string, error) {
 	if control.previewSource == control.value && control.previewWidth == width {
 		return control.previewLines, control.previewErr

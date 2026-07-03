@@ -108,8 +108,9 @@ func (model *Model) renderListCards(title, itemLabel string, rows []tableRow, wi
 	contentWidth := max(cardWidth-4, 12)
 	normalStyle := model.styles.panel.Copy().Width(cardWidth - 2).Height(cardHeight - 2).MarginRight(gap)
 	selectedStyle := model.styles.focusedPanel.Copy().
-		BorderForeground(namedColors["green"]).
-		Foreground(lipgloss.Color("#FFFFFF")).
+		Border(lipgloss.DoubleBorder()).
+		BorderForeground(model.styles.selectedColumnBorder).
+		Foreground(model.styles.selectedColumnForeground).
 		Width(cardWidth - 2).
 		Height(cardHeight - 2).
 		MarginRight(gap)
@@ -123,7 +124,11 @@ func (model *Model) renderListCards(title, itemLabel string, rows []tableRow, wi
 		titleStyle := model.styles.header
 		if row.selected {
 			style = selectedStyle
-			titleStyle = lipgloss.NewStyle().Bold(true).Foreground(namedColors["green"])
+			titleStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(model.styles.selectedColumnForeground).
+				Background(model.styles.selectedColumnBackground).
+				Width(contentWidth)
 		}
 		bodyLines := []string{
 			titleStyle.Render(truncate(row.name, contentWidth)),

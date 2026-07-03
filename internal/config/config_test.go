@@ -32,6 +32,8 @@ func TestDefaultLoadCreatesLocalConfigAndUsesLocalPaths(t *testing.T) {
 	require.Contains(t, string(contents), `[sync]`)
 	require.Contains(t, string(contents), `interval = "30m"`)
 	require.Contains(t, string(contents), `[theme]`)
+	require.Contains(t, string(contents), `selected_card_background = "#4C8DFF"`)
+	require.Contains(t, string(contents), `focused_panel_border = "#4C8DFF"`)
 }
 
 func TestDatabaseOverrideDoesNotCreateDefaultConfig(t *testing.T) {
@@ -75,12 +77,18 @@ func TestExplicitMissingConfigFails(t *testing.T) {
 }
 
 func TestCardTagDisplayDefaultsOnAndCanBeDisabled(t *testing.T) {
-	require.True(t, Defaults().ShowCardTags)
-	require.Equal(t, "local", Defaults().Backup.Storage)
-	require.Equal(t, "kan/backups", Defaults().Backup.S3.Prefix)
-	require.False(t, Defaults().Sync.Enabled)
-	require.Equal(t, "30m", Defaults().Sync.Interval)
-	require.Equal(t, "kan/sync.json", Defaults().Sync.ObjectKey)
+	defaults := Defaults()
+	require.True(t, defaults.ShowCardTags)
+	require.Equal(t, "local", defaults.Backup.Storage)
+	require.Equal(t, "kan/backups", defaults.Backup.S3.Prefix)
+	require.False(t, defaults.Sync.Enabled)
+	require.Equal(t, "30m", defaults.Sync.Interval)
+	require.Equal(t, "kan/sync.json", defaults.Sync.ObjectKey)
+	require.Equal(t, "#4C8DFF", defaults.Theme.SelectedBackground)
+	require.Equal(t, "#4C8DFF", defaults.Theme.SelectedColumnBackground)
+	require.Equal(t, "#4C8DFF", defaults.Theme.SelectedColumnBorder)
+	require.Equal(t, "#4C8DFF", defaults.Theme.SelectedCardBackground)
+	require.Equal(t, "#4C8DFF", defaults.Theme.FocusedPanelBorder)
 	path := filepath.Join(t.TempDir(), "config.toml")
 	require.NoError(t, os.WriteFile(path, []byte("show_card_tags = false\n"), 0o600))
 	cfg, err := Load(Overrides{ConfigFile: path})

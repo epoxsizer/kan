@@ -6,6 +6,13 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-07-03
+
+### Changed
+
+- Selection now uses the prototype's light-blue accent consistently: double borders identify the focused container, while a filled blue background identifies the selected card, row, or control.
+- Selected board cards now keep a compact two-line layout with core metadata; descriptions remain in the detail window.
+
 ## [0.1.12] - 2026-07-03
 
 ### Added

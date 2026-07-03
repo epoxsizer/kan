@@ -21,8 +21,6 @@ func TestRenderMarkdownAndPlainText(t *testing.T) {
 	for _, line := range lines {
 		require.LessOrEqual(t, lipgloss.Width(line), 42)
 	}
-	require.Contains(t, markdownPlainText(source), "Build")
-	require.NotContains(t, markdownPlainText(source), "**")
 }
 
 func TestMarkdownListEditing(t *testing.T) {
