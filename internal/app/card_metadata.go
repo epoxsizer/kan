@@ -105,7 +105,7 @@ func (model *Model) selectedCardBlock(card domain.Card, width, maxLines int) str
 	lines := []string{truncate(card.Title, width)}
 	metadata := model.cardMetadata(card, time.Now())
 	if metadata != "" && len(lines) < maxLines {
-		lines = append(lines, "  "+truncate(metadata, contentWidth))
+		lines = append(lines, truncate(metadata, contentWidth))
 	}
 	return strings.Join(lines, "\n")
 }

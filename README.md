@@ -15,10 +15,9 @@ Project -> Board -> Column -> Card
 
 The app includes full-text search, tags, priorities, due dates, Markdown card
 descriptions, checklists, custom fields, linked cards, JSON import/export, and
-automatic backups. The database is local by default; backups can optionally be
-uploaded to S3-compatible storage.
+automatic local backups. The database and backups stay on the local machine.
 
-Current version: `0.1.13`.
+Current version: `0.1.14`.
 
 ## Interface
 
@@ -26,10 +25,11 @@ Current version: `0.1.13`.
 
 The interface adapts to terminal size. The active column and selected card are
 highlighted, and contextual key hints are shown at the bottom of the screen.
-The selected card shows its title and core metadata: relative due information,
-checklist progress, tags, and related-card count. Its Markdown description stays
-in the scrollable detail window instead of expanding the board card. Board lists
-summarize overdue or nearest-due work.
+Selecting a card changes only its background by default, without changing its
+text, indentation, or height. Set `show_selected_card_details = true` to add an
+aligned second line with priority, due information, checklist progress, tags,
+and related-card count. Markdown descriptions remain in the scrollable detail
+window. Board lists summarize overdue or nearest-due work.
 
 ## Quick Start From Source
 
@@ -191,89 +191,15 @@ kan import kan-export.json
 Manual and automatic backups are stored in `backup/` relative to the current
 working directory. While the TUI is running, an automatic backup is created about
 every six hours. Timestamped backups older than 14 days are removed from this
-directory by default. Set `backup.retention = "0"` to disable rotation.
-
-Backup storage is local by default. To upload backups to S3 as well, configure
-`backup.storage = "s3"` in `config.toml` or pass S3 flags to `kan backup`:
-
-```toml
-[backup]
-storage = "s3"
-retention = "336h"
-
-[backup.s3]
-bucket = "kan-backups"
-prefix = "kan/backups"
-region = "us-east-1"
-endpoint = "https://s3.example.com"
-access_key_id = "replace-me"
-secret_access_key = "replace-me"
-force_path_style = false
-```
-
-```sh
-kan backup release \
-  --storage s3 \
-  --s3-bucket kan-backups \
-  --s3-region us-east-1 \
-  --s3-access-key-id "$S3_ACCESS_KEY_ID" \
-  --s3-secret-access-key "$S3_SECRET_ACCESS_KEY"
-```
-
-`kan` always creates the local SQLite backup first and then uploads that file to
-S3. When S3 backup storage is enabled, the same retention policy removes expired
-generated backup objects under `backup.s3.prefix`; unrelated objects are
-preserved. The local database remains the source of truth.
-
-## S3 JSON Sync
-
-Optional JSON synchronization uses one fixed S3 object. On startup, `kan` safely
-pulls remote changes or pushes local changes. While the TUI is open it pushes
-local changes at the configured interval (30 minutes by default), and it makes
-one final push during clean shutdown. Conditional S3 writes prevent one client
-from silently overwriting another.
-
-```toml
-[sync]
-enabled = true
-interval = "30m"
-object_key = "kan/sync.json"
-
-[sync.s3]
-bucket = "kan-sync"
-region = "us-east-1"
-endpoint = "https://s3.example.com"
-access_key_id = "replace-me"
-secret_access_key = "replace-me"
-force_path_style = false
-```
-
-The local SQLite database remains the working source of truth. Automatic SQLite
-backups stay local when sync is enabled, and a local pre-sync backup is created
-before remote data replaces a non-empty database. Sync state is stored beside
-the database as `<database>.sync-state.json`.
-
-```sh
-kan sync status
-kan sync push
-kan sync pull --yes
-kan sync push --force --yes
-```
-
-`sync status` reports local, remote, and last-synced hashes as JSON. A safe push
-stops on concurrent remote changes. `pull --yes` explicitly replaces local data;
-`push --force --yes` is the only command that unconditionally overwrites the
-remote object. If S3 is temporarily unavailable at startup, `kan` opens locally
-and retries. A detected data conflict stops startup without overwriting either
-side.
+directory. Backups are always local and their 14-day retention is fixed.
 
 ## Data Paths
 
-By default, `kan` uses files in the current working directory. On first run,
-when no database path is provided, it creates `config.toml` next to the local
-database settings.
+By default, `kan` creates and loads `config.toml` from the directory containing
+the executable. The database and log paths remain relative to the current
+working directory unless explicitly configured.
 
-- config: `./config.toml`
+- config: `<executable-directory>/config.toml`
 - database: `./kan.db`
 - log file: `./kan.log`
 
@@ -287,7 +213,8 @@ The theme section supports detailed color overrides for text, panels, selected
 cards, status bars, help popups, command text, and columns. New configurations
 use the prototype's light-blue `#4C8DFF` for focused borders and selected
 columns, cards, rows, and controls. Existing explicit theme overrides remain
-unchanged.
+unchanged. `show_selected_card_details = false` keeps selected board cards at
+their normal one-line height; set it to `true` for the optional metadata line.
 
 ## Development
 

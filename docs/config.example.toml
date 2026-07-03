@@ -1,34 +1,10 @@
-# Copy to ./config.toml and uncomment values to override defaults.
+# Copy next to the kan executable as config.toml and uncomment values to override defaults.
 
 database = "kan.db"
 log_file = "kan.log"
 log_level = "info"
 # show_card_tags = true
-
-[backup]
-# storage = "local" # local or s3
-
-[backup.s3]
-# bucket = "kan-backups"
-# prefix = "kan/backups"
-# region = "us-east-1"
-# endpoint = "https://s3.example.com"
-# access_key_id = "replace-me"
-# secret_access_key = "replace-me"
-# force_path_style = false
-
-[sync]
-# enabled = false
-# interval = "30m"
-# object_key = "kan/sync.json"
-
-[sync.s3]
-# bucket = "kan-sync"
-# region = "us-east-1"
-# endpoint = "https://s3.example.com"
-# access_key_id = "replace-me"
-# secret_access_key = "replace-me"
-# force_path_style = false
+# show_selected_card_details = false
 
 [theme]
 # primary = "#7D7AFF"

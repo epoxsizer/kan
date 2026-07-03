@@ -6,6 +6,17 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-07-03
+
+### Changed
+
+- Selecting a board card now changes only its background by default; optional aligned metadata can be enabled with `show_selected_card_details`.
+- The default `config.toml` is now created beside the executable; local backup retention is fixed at 14 days and no longer exposed in configuration.
+
+### Removed
+
+- All S3 integration, including backup upload, JSON synchronization, sync-state files, configuration, and CLI commands. Kan now stores its database and backups locally only.
+
 ## [0.1.13] - 2026-07-03
 
 ### Changed

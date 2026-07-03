@@ -2,30 +2,14 @@ package cli
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/epoxsizer/kan/internal/config"
 	"github.com/epoxsizer/kan/internal/domain"
 	"github.com/stretchr/testify/require"
 )
-
-type recordingUploader struct {
-	cfg        string
-	sourcePath string
-	key        string
-}
-
-func (uploader *recordingUploader) Upload(_ context.Context, cfg config.S3Backup, sourcePath, key string) error {
-	uploader.cfg = cfg.Bucket
-	uploader.sourcePath = sourcePath
-	uploader.key = key
-	return nil
-}
 
 func TestMigrateSeedAndVersionCommands(t *testing.T) {
 	dir := t.TempDir()
@@ -53,18 +37,29 @@ func TestMigrateSeedAndVersionCommands(t *testing.T) {
 	require.Contains(t, output.String(), "commit abc123")
 }
 
-func TestSyncDestructiveCommandsRequireConfirmation(t *testing.T) {
+func TestRemovedSyncCommandIsUnavailable(t *testing.T) {
 	root := New("test", "abc123", "today")
-	root.SetArgs([]string{"sync", "pull"})
-	require.ErrorContains(t, root.Execute(), "requires --yes")
-
-	root = New("test", "abc123", "today")
-	root.SetArgs([]string{"sync", "push", "--force"})
-	require.ErrorContains(t, root.Execute(), "requires --yes")
+	root.SetArgs([]string{"sync"})
+	require.ErrorContains(t, root.Execute(), `unknown command "sync"`)
 }
 
-func TestFirstRunWithoutPathsUsesWorkingDirectory(t *testing.T) {
+func TestFirstRunCreatesConfigBesideBinary(t *testing.T) {
 	directory := t.TempDir()
+	executable, err := os.Executable()
+	require.NoError(t, err)
+	configPath := filepath.Join(filepath.Dir(executable), "config.toml")
+	previousConfig, readErr := os.ReadFile(configPath)
+	require.True(t, readErr == nil || os.IsNotExist(readErr))
+	if readErr == nil {
+		require.NoError(t, os.Remove(configPath))
+	}
+	t.Cleanup(func() {
+		_ = os.Remove(configPath)
+		if readErr == nil {
+			require.NoError(t, os.WriteFile(configPath, previousConfig, 0o600))
+		}
+	})
+
 	previous, err := os.Getwd()
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(directory))
@@ -76,7 +71,8 @@ func TestFirstRunWithoutPathsUsesWorkingDirectory(t *testing.T) {
 	root.SetArgs([]string{"migrate"})
 	require.NoError(t, root.Execute())
 	require.Contains(t, output.String(), "migrations applied")
-	require.FileExists(t, filepath.Join(directory, "config.toml"))
+	require.FileExists(t, configPath)
+	require.NoFileExists(t, filepath.Join(directory, "config.toml"))
 	require.FileExists(t, filepath.Join(directory, "kan.db"))
 	require.FileExists(t, filepath.Join(directory, "kan.log"))
 }
@@ -200,40 +196,14 @@ func TestBackupCommandWritesToWorkingDirectory(t *testing.T) {
 	invalidCommand := New("test", "abc123", "today")
 	invalidCommand.SetArgs([]string{"--db", dbPath, "--log", logPath, "backup", "../escape"})
 	require.ErrorContains(t, invalidCommand.Execute(), "backup name must")
-}
 
-func TestConfiguredBackupUploadsToS3AfterLocalBackup(t *testing.T) {
-	directory := t.TempDir()
-	dbPath := filepath.Join(directory, "data", "kan.db")
-	logPath := filepath.Join(directory, "state", "kan.log")
-
-	seedCommand := New("test", "abc123", "today")
-	seedCommand.SetArgs([]string{"--db", dbPath, "--log", logPath, "seed"})
-	require.NoError(t, seedCommand.Execute())
-
-	res, err := open(context.Background(), options{db: dbPath, log: logPath})
-	require.NoError(t, err)
-	defer res.Close()
-
-	uploader := &recordingUploader{}
-	backupConfig := config.Backup{
-		Storage: "s3",
-		S3: config.S3Backup{
-			Bucket:          "kan-bucket",
-			Prefix:          "daily",
-			Region:          "us-east-1",
-			AccessKeyID:     "key",
-			SecretAccessKey: "secret",
-		},
-	}
-	now := time.Date(2026, 6, 24, 9, 0, 0, 0, time.UTC)
-	result, err := createConfiguredBackup(context.Background(), res.repo, backupConfig, directory, "release", now, uploader)
-	require.NoError(t, err)
-	require.Equal(t, "backup/release-20260624-090000.db", result.localRelative)
-	require.Equal(t, "s3://kan-bucket/daily/release-20260624-090000.db", result.s3URI)
-	require.Equal(t, "kan-bucket", uploader.cfg)
-	require.Equal(t, "daily/release-20260624-090000.db", uploader.key)
-	require.FileExists(t, uploader.sourcePath)
+	helpCommand := New("test", "abc123", "today")
+	var help bytes.Buffer
+	helpCommand.SetOut(&help)
+	helpCommand.SetArgs([]string{"backup", "--help"})
+	require.NoError(t, helpCommand.Execute())
+	require.NotContains(t, help.String(), "--storage")
+	require.NotContains(t, help.String(), "--s3-")
 }
 
 func TestExportCommandIncludesCompleteHierarchy(t *testing.T) {

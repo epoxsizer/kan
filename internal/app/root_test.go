@@ -469,13 +469,27 @@ func TestSelectionUsesPrototypeBlueWithContainerAndItemHierarchy(t *testing.T) {
 	require.Contains(t, view, "╔")
 }
 
-func TestSelectedCardUsesCompactLeftAlignedText(t *testing.T) {
+func TestSelectedCardChangesOnlyBackgroundByDefault(t *testing.T) {
 	model := testModel(readRepository{})
-	row := cardDisplayRow{card: domain.Card{ID: "card", Title: "Stable title"}}
+	priority := "High"
+	row := cardDisplayRow{card: domain.Card{ID: "card", Title: "Stable title", Priority: &priority, Tags: []string{"ui"}}}
 	normal := ansi.Strip(model.renderCardDisplayRow(row, false, 30, 4))
 	selected := ansi.Strip(model.renderCardDisplayRow(row, true, 30, 4))
 
-	require.Less(t, strings.Index(selected, "Stable title"), strings.Index(normal, "Stable title"))
+	require.Equal(t, normal, selected)
+	require.Equal(t, lipgloss.Height(normal), lipgloss.Height(selected))
+}
+
+func TestSelectedCardDetailsAlignWithTitleWhenEnabled(t *testing.T) {
+	model := testModel(readRepository{})
+	model.showSelectedCardDetails = true
+	priority := "High"
+	row := cardDisplayRow{card: domain.Card{ID: "card", Title: "Stable title", Priority: &priority}}
+	selected := ansi.Strip(model.renderCardDisplayRow(row, true, 30, 4))
+	lines := strings.Split(selected, "\n")
+
+	require.Len(t, lines, 2)
+	require.Equal(t, strings.Index(lines[0], "Stable title"), strings.Index(lines[1], "HIGH"))
 }
 
 func TestLiveBoardFTSFilterAndClear(t *testing.T) {
@@ -802,6 +816,7 @@ func TestSettingsCommandAppliesBaseParameters(t *testing.T) {
 	model.form.fields[1].value = "Disabled"
 	model.form.fields[2].value = "Due date"
 	model.form.fields[3].value = "Priority"
+	model.form.fields[4].value = "Enabled"
 	model.Update(key("ctrl+s"))
 
 	require.Nil(t, model.form)
@@ -809,6 +824,7 @@ func TestSettingsCommandAppliesBaseParameters(t *testing.T) {
 	require.False(t, model.showCardTags)
 	require.Equal(t, sortDue, model.sortMode)
 	require.Equal(t, groupPriority, model.groupMode)
+	require.True(t, model.showSelectedCardDetails)
 	require.Equal(t, "Settings applied", model.notice)
 }
 
@@ -997,8 +1013,8 @@ func TestCommandPaletteSearchesAndOpensCards(t *testing.T) {
 	require.Equal(t, 1, model.columnIndex)
 	require.Equal(t, 1, model.cardIndexes["doing"])
 	opened := model.View()
-	require.Contains(t, opened, "Review keyboard")
-	require.Contains(t, opened, "#ux")
+	require.Contains(t, opened, "Review keyb")
+	require.Contains(t, opened, "[ux]")
 }
 
 func TestCommandPaletteSearchesCardMetadata(t *testing.T) {

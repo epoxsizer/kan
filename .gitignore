@@ -10,7 +10,6 @@ coverage.out
 *.db
 *.db-shm
 *.db-wal
-*.sync-state.json
 *.lock
 *.log
 .DS_Store

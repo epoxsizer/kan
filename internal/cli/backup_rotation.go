@@ -6,22 +6,13 @@ import (
 	"path/filepath"
 	"regexp"
 	"time"
-
-	"github.com/epoxsizer/kan/internal/config"
 )
 
 const defaultBackupRetention = 14 * 24 * time.Hour
 
 var timestampedBackupPattern = regexp.MustCompile(`^.+-\d{8}-\d{6}\.db$`)
 
-func rotateBackups(directory string, backupConfig config.Backup, now time.Time) (int, error) {
-	retention, err := backupRetention(backupConfig)
-	if err != nil {
-		return 0, err
-	}
-	if retention == 0 {
-		return 0, nil
-	}
+func rotateBackups(directory string, now time.Time) (int, error) {
 	entries, err := os.ReadDir(directory)
 	if os.IsNotExist(err) {
 		return 0, nil
@@ -29,7 +20,7 @@ func rotateBackups(directory string, backupConfig config.Backup, now time.Time) 
 	if err != nil {
 		return 0, fmt.Errorf("read backup directory: %w", err)
 	}
-	cutoff := now.Add(-retention)
+	cutoff := now.Add(-defaultBackupRetention)
 	removed := 0
 	for _, entry := range entries {
 		if entry.IsDir() || !timestampedBackupPattern.MatchString(entry.Name()) {
@@ -48,15 +39,4 @@ func rotateBackups(directory string, backupConfig config.Backup, now time.Time) 
 		removed++
 	}
 	return removed, nil
-}
-
-func backupRetention(backupConfig config.Backup) (time.Duration, error) {
-	if backupConfig.Retention == "" {
-		return defaultBackupRetention, nil
-	}
-	retention, err := time.ParseDuration(backupConfig.Retention)
-	if err != nil {
-		return 0, fmt.Errorf("parse backup retention: %w", err)
-	}
-	return retention, nil
 }

@@ -54,11 +54,11 @@ func newImportCommand(opts *options) *cobra.Command {
 				if cwdErr != nil {
 					return fmt.Errorf("get working directory: %w", cwdErr)
 				}
-				result, backupErr := createConfiguredBackup(cmd.Context(), res.repo, res.config.Backup, workingDirectory, "kan-pre-import", time.Now(), nil)
+				result, backupErr := createLocalBackup(cmd.Context(), res.repo, workingDirectory, "kan-pre-import", time.Now())
 				if backupErr != nil {
 					return fmt.Errorf("backup before import: %w", backupErr)
 				}
-				res.logger.Info("pre-import backup created", "path", result.localPath, "s3", result.s3URI)
+				res.logger.Info("pre-import backup created", "path", result.localPath)
 			}
 			if err = res.repo.ImportDocument(cmd.Context(), document, replace); err != nil {
 				return fmt.Errorf("import data: %w", err)

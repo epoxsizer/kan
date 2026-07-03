@@ -184,11 +184,16 @@ func (model *Model) startSettingsForm() {
 	if model.showCardTags {
 		showTags = "Enabled"
 	}
+	showSelectedDetails := "Disabled"
+	if model.showSelectedCardDetails {
+		showSelectedDetails = "Enabled"
+	}
 	model.activateForm(&formModal{kind: settingsForm, title: "Settings", fields: []formField{
 		{label: "Projects/boards layout", value: titleCase(model.listLayout.String()), kind: dropdownField, options: layoutOptions},
 		{label: "Card title tags", value: showTags, kind: dropdownField, options: booleanOptions},
 		{label: "Card sort", value: titleCase(model.sortMode.String()), kind: dropdownField, options: sortOptions},
 		{label: "Card group", value: titleCase(model.groupMode.String()), kind: dropdownField, options: groupOptions},
+		{label: "Selected card details", value: showSelectedDetails, kind: dropdownField, options: booleanOptions},
 	}})
 }
 
@@ -284,10 +289,15 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		if err != nil {
 			return invalid(err)
 		}
+		showSelectedDetails, err := parseEnabled(value(4))
+		if err != nil {
+			return invalid(err)
+		}
 		model.listLayout = layout
 		model.showCardTags = showTags
 		model.sortMode = sortMode
 		model.groupMode = groupMode
+		model.showSelectedCardDetails = showSelectedDetails
 		model.cardIndexes = make(map[string]int, len(model.columns))
 		model.form = nil
 		model.notice = "Settings applied"

@@ -43,20 +43,23 @@ type Model struct {
 	logger *slog.Logger
 	styles styles
 
-	screen        screen
-	width         int
-	height        int
-	loading       bool
-	err           error
-	help          bool
-	notice        string
-	detail        *detailPopup
-	form          *formModal
-	confirm       *confirmModal
-	discard       *discardModal
-	movePicker    *movePicker
-	lastMove      *cardMoveRecord
-	showCardTags  bool
+	screen       screen
+	width        int
+	height       int
+	loading      bool
+	err          error
+	help         bool
+	notice       string
+	detail       *detailPopup
+	form         *formModal
+	confirm      *confirmModal
+	discard      *discardModal
+	movePicker   *movePicker
+	lastMove     *cardMoveRecord
+	showCardTags bool
+
+	showSelectedCardDetails bool
+
 	filterMode    bool
 	filterText    string
 	filterCursor  int
@@ -98,9 +101,9 @@ func New(ctx context.Context, repo domain.Repository, logger *slog.Logger) *Mode
 }
 
 type Options struct {
-	ShowCardTags  bool
-	Theme         Theme
-	StartupNotice string
+	ShowCardTags            bool
+	ShowSelectedCardDetails bool
+	Theme                   Theme
 }
 
 func NewWithOptions(ctx context.Context, repo domain.Repository, logger *slog.Logger, options Options) *Model {
@@ -123,7 +126,8 @@ func NewWithOptions(ctx context.Context, repo domain.Repository, logger *slog.Lo
 		boardCounts:   make(map[string]int),
 		boardHealth:   make(map[string]boardHealth),
 		showCardTags:  options.ShowCardTags,
-		notice:        options.StartupNotice,
+
+		showSelectedCardDetails: options.ShowSelectedCardDetails,
 	}
 }
 
@@ -1073,12 +1077,22 @@ func (model *Model) renderCardDisplayRow(row cardDisplayRow, selected bool, widt
 	if row.group != "" {
 		return model.styles.subtle.Copy().Bold(true).Render("─ " + truncate(row.group, max(width-2, 1)))
 	}
-	if selected {
-		block := model.selectedCardBlock(row.card, width, min(maxLines, 2))
-		return model.styles.selectedCard.Copy().Width(width).Render(block)
-	}
 	label := model.cardLabel(row.card, max(width-4, 1), true)
-	return model.styles.card.Width(width).Render("  " + label)
+	content := "  " + label
+	if selected {
+		background := model.styles.selectedCard.GetBackground()
+		label = model.cardLabelWithBackground(row.card, max(width-4, 1), true, background)
+		content = "  " + label
+		if model.showSelectedCardDetails {
+			block := model.selectedCardBlock(row.card, max(width-4, 1), min(maxLines, 2))
+			content = "  " + strings.ReplaceAll(block, "\n", "\n  ")
+		}
+		return model.styles.card.Copy().
+			Background(background).
+			Width(width).
+			Render(content)
+	}
+	return model.styles.card.Width(width).Render(content)
 }
 
 func visibleCardRowRange(heights []int, selected, available int) (int, int) {
@@ -1135,6 +1149,10 @@ func (model *Model) cardDisplayRows(cards []domain.Card, selected int) ([]cardDi
 }
 
 func (model *Model) cardLabel(card domain.Card, width int, colorPriority bool) string {
+	return model.cardLabelWithBackground(card, width, colorPriority, nil)
+}
+
+func (model *Model) cardLabelWithBackground(card domain.Card, width int, colorPriority bool, background lipgloss.TerminalColor) string {
 	prefix := ""
 	if model.showCardTags {
 		for _, tag := range card.Tags {
@@ -1171,8 +1189,14 @@ func (model *Model) cardLabel(card domain.Card, width int, colorPriority bool) s
 	if !colorPriority {
 		return priority + " " + truncate(content, max(width-2, 1))
 	}
-	marker := lipgloss.NewStyle().Bold(true).Foreground(priorityColor(*card.Priority)).Render(priority)
-	return marker + " " + truncate(content, max(width-2, 1))
+	markerStyle := lipgloss.NewStyle().Bold(true).Foreground(priorityColor(*card.Priority))
+	textStyle := lipgloss.NewStyle()
+	if background != nil {
+		markerStyle = markerStyle.Background(background)
+		textStyle = textStyle.Background(background)
+	}
+	marker := markerStyle.Render(priority)
+	return marker + textStyle.Render(" "+truncate(content, max(width-2, 1)))
 }
 
 func isOverdueDate(value *time.Time) bool {

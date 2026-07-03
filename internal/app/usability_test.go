@@ -45,6 +45,7 @@ func TestSelectedCardShowsOnlyCoreMetadata(t *testing.T) {
 	due := time.Now().AddDate(0, 0, 1)
 	model := testModel(readRepository{})
 	model.loading = false
+	model.showSelectedCardDetails = true
 	model.screen = boardScreen
 	model.board = &domain.Board{ID: "board", Name: "Delivery"}
 	model.columns = []domain.Column{{ID: "doing", BoardID: "board", Name: "Doing"}}

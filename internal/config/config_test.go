@@ -12,6 +12,12 @@ func TestDefaultLoadCreatesLocalConfigAndUsesLocalPaths(t *testing.T) {
 	t.Setenv(EnvConfig, "")
 	t.Setenv(EnvDB, "")
 	t.Setenv(EnvLog, "")
+	binaryDirectory := t.TempDir()
+	previousExecutablePath := executablePath
+	executablePath = func() (string, error) {
+		return filepath.Join(binaryDirectory, "kan"), nil
+	}
+	t.Cleanup(func() { executablePath = previousExecutablePath })
 	workingDirectory := t.TempDir()
 	previous, err := os.Getwd()
 	require.NoError(t, err)
@@ -20,26 +26,37 @@ func TestDefaultLoadCreatesLocalConfigAndUsesLocalPaths(t *testing.T) {
 
 	cfg, err := Load(Overrides{})
 	require.NoError(t, err)
-	require.Equal(t, "config.toml", cfg.ConfigFile)
+	require.Equal(t, filepath.Join(binaryDirectory, "config.toml"), cfg.ConfigFile)
 	require.Equal(t, "kan.db", cfg.Database)
 	require.Equal(t, "kan.log", cfg.LogFile)
-	require.FileExists(t, filepath.Join(workingDirectory, "config.toml"))
+	require.FileExists(t, cfg.ConfigFile)
+	require.NoFileExists(t, filepath.Join(workingDirectory, "config.toml"))
 
-	contents, err := os.ReadFile(filepath.Join(workingDirectory, "config.toml"))
+	contents, err := os.ReadFile(cfg.ConfigFile)
 	require.NoError(t, err)
 	require.Contains(t, string(contents), `database = "kan.db"`)
 	require.Contains(t, string(contents), `log_file = "kan.log"`)
-	require.Contains(t, string(contents), `[sync]`)
-	require.Contains(t, string(contents), `interval = "30m"`)
+	require.Contains(t, string(contents), `show_selected_card_details = false`)
+	require.NotContains(t, string(contents), `[backup]`)
+	require.NotContains(t, string(contents), `storage =`)
+	require.NotContains(t, string(contents), `[backup.s3]`)
+	require.NotContains(t, string(contents), `[sync]`)
+	require.NotContains(t, string(contents), `[sync.s3]`)
 	require.Contains(t, string(contents), `[theme]`)
 	require.Contains(t, string(contents), `selected_card_background = "#4C8DFF"`)
 	require.Contains(t, string(contents), `focused_panel_border = "#4C8DFF"`)
 }
 
-func TestDatabaseOverrideDoesNotCreateDefaultConfig(t *testing.T) {
+func TestDatabaseOverrideStillCreatesDefaultConfigBesideBinary(t *testing.T) {
 	t.Setenv(EnvConfig, "")
 	t.Setenv(EnvDB, "")
 	t.Setenv(EnvLog, "")
+	binaryDirectory := t.TempDir()
+	previousExecutablePath := executablePath
+	executablePath = func() (string, error) {
+		return filepath.Join(binaryDirectory, "kan"), nil
+	}
+	t.Cleanup(func() { executablePath = previousExecutablePath })
 	workingDirectory := t.TempDir()
 	previous, err := os.Getwd()
 	require.NoError(t, err)
@@ -49,6 +66,7 @@ func TestDatabaseOverrideDoesNotCreateDefaultConfig(t *testing.T) {
 	cfg, err := Load(Overrides{Database: filepath.Join(workingDirectory, "custom.db")})
 	require.NoError(t, err)
 	require.Equal(t, filepath.Join(workingDirectory, "custom.db"), cfg.Database)
+	require.FileExists(t, filepath.Join(binaryDirectory, "config.toml"))
 	require.NoFileExists(t, filepath.Join(workingDirectory, "config.toml"))
 }
 
@@ -79,11 +97,7 @@ func TestExplicitMissingConfigFails(t *testing.T) {
 func TestCardTagDisplayDefaultsOnAndCanBeDisabled(t *testing.T) {
 	defaults := Defaults()
 	require.True(t, defaults.ShowCardTags)
-	require.Equal(t, "local", defaults.Backup.Storage)
-	require.Equal(t, "kan/backups", defaults.Backup.S3.Prefix)
-	require.False(t, defaults.Sync.Enabled)
-	require.Equal(t, "30m", defaults.Sync.Interval)
-	require.Equal(t, "kan/sync.json", defaults.Sync.ObjectKey)
+	require.False(t, defaults.ShowSelectedCardDetails)
 	require.Equal(t, "#4C8DFF", defaults.Theme.SelectedBackground)
 	require.Equal(t, "#4C8DFF", defaults.Theme.SelectedColumnBackground)
 	require.Equal(t, "#4C8DFF", defaults.Theme.SelectedColumnBorder)
@@ -94,14 +108,19 @@ func TestCardTagDisplayDefaultsOnAndCanBeDisabled(t *testing.T) {
 	cfg, err := Load(Overrides{ConfigFile: path})
 	require.NoError(t, err)
 	require.False(t, cfg.ShowCardTags)
+
+	require.NoError(t, os.WriteFile(path, []byte("show_selected_card_details = true\n"), 0o600))
+	cfg, err = Load(Overrides{ConfigFile: path})
+	require.NoError(t, err)
+	require.True(t, cfg.ShowSelectedCardDetails)
 }
 
-func TestSyncConfigOverridesAndValidation(t *testing.T) {
+func TestLegacySyncConfigCompatibility(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	contents := `[sync]
-enabled = true
-interval = "45m"
-object_key = "team/kan.json"
+enabled = false
+interval = "15m"
+object_key = "kan/sync.json"
 
 [sync.s3]
 bucket = "kan-sync"
@@ -112,21 +131,12 @@ secret_access_key = "secret"
 force_path_style = true
 `
 	require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
-	cfg, err := Load(Overrides{ConfigFile: path})
+	_, err := Load(Overrides{ConfigFile: path})
 	require.NoError(t, err)
-	require.True(t, cfg.Sync.Enabled)
-	require.Equal(t, "45m", cfg.Sync.Interval)
-	require.Equal(t, "team/kan.json", cfg.Sync.ObjectKey)
-	require.Equal(t, "kan-sync", cfg.Sync.S3.Bucket)
-	require.True(t, cfg.Sync.S3.ForcePathStyle)
-
-	require.NoError(t, os.WriteFile(path, []byte("[sync]\ninterval = '30s'\n"), 0o600))
-	_, err = Load(Overrides{ConfigFile: path})
-	require.ErrorContains(t, err, "at least 1m")
 
 	require.NoError(t, os.WriteFile(path, []byte("[sync]\nenabled = true\n"), 0o600))
 	_, err = Load(Overrides{ConfigFile: path})
-	require.ErrorContains(t, err, "sync.s3.")
+	require.ErrorContains(t, err, "S3 sync has been removed")
 }
 
 func TestThemeOverridesAndValidation(t *testing.T) {
@@ -153,10 +163,10 @@ border = "double"
 	require.ErrorContains(t, err, "theme.primary")
 }
 
-func TestBackupConfigOverridesAndValidation(t *testing.T) {
+func TestLegacyBackupConfigCompatibility(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	contents := `[backup]
-storage = "s3"
+storage = "local"
 retention = "720h"
 
 [backup.s3]
@@ -169,15 +179,14 @@ secret_access_key = "secret"
 force_path_style = true
 `
 	require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
-	cfg, err := Load(Overrides{ConfigFile: path})
+	_, err := Load(Overrides{ConfigFile: path})
 	require.NoError(t, err)
-	require.Equal(t, "s3", cfg.Backup.Storage)
-	require.Equal(t, "720h", cfg.Backup.Retention)
-	require.Equal(t, "kan-backups", cfg.Backup.S3.Bucket)
-	require.Equal(t, "daily", cfg.Backup.S3.Prefix)
-	require.True(t, cfg.Backup.S3.ForcePathStyle)
+
+	require.NoError(t, os.WriteFile(path, []byte("[backup]\nstorage = 's3'\n"), 0o600))
+	_, err = Load(Overrides{ConfigFile: path})
+	require.ErrorContains(t, err, "S3 backup storage has been removed")
 
 	require.NoError(t, os.WriteFile(path, []byte("[backup]\nstorage = 'ftp'\n"), 0o600))
 	_, err = Load(Overrides{ConfigFile: path})
-	require.ErrorContains(t, err, "backup.storage")
+	require.ErrorContains(t, err, "backup.storage is no longer supported")
 }

@@ -41,15 +41,15 @@ func TestMouseSelectsAndOpensBoardCards(t *testing.T) {
 		{ID: "two", ColumnID: "todo", Title: "Two"},
 	}
 
-	model.Update(mousePress(5, 5, tea.MouseButtonLeft))
+	model.Update(mousePress(5, 4, tea.MouseButtonLeft))
 	require.Equal(t, 1, model.cardIndexes["todo"])
 	require.Nil(t, model.detail)
 
-	model.Update(mousePress(5, 5, tea.MouseButtonLeft))
+	model.Update(mousePress(5, 4, tea.MouseButtonLeft))
 	require.NotNil(t, model.detail)
 	require.Equal(t, "Two", model.detail.title)
 
-	model.Update(mousePress(5, 5, tea.MouseButtonRight))
+	model.Update(mousePress(5, 4, tea.MouseButtonRight))
 	require.Nil(t, model.detail)
 }
 
