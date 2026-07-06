@@ -56,6 +56,7 @@ var groupOptions = []string{"None", "Priority", "Due date", "First tag"}
 
 type formModal struct {
 	kind           formKind
+	entityID       string
 	title          string
 	fields         []formField
 	focus          int
@@ -102,6 +103,7 @@ func (model *Model) startProjectForm(edit bool) {
 	if edit {
 		project := model.projects[model.projectIndex]
 		form.kind, form.title = editProjectForm, "Edit project"
+		form.entityID = project.ID
 		form.fields[0].value, form.fields[1].value = project.Name, project.Description
 	}
 	model.activateForm(form)
@@ -112,6 +114,7 @@ func (model *Model) startBoardForm(edit bool) {
 	if edit {
 		board := model.boards[model.boardIndex]
 		form.kind, form.title = editBoardForm, "Edit board"
+		form.entityID = board.ID
 		form.fields[0].value, form.fields[1].value = board.Name, board.Description
 	}
 	model.activateForm(form)
@@ -128,6 +131,7 @@ func (model *Model) startColumnForm(edit bool) {
 	if edit {
 		column := model.columns[model.columnIndex]
 		form.kind, form.title = editColumnForm, "Column settings"
+		form.entityID = column.ID
 		form.fields[0].value = column.Name
 		if column.WIPLimit != nil {
 			form.fields[1].value = strconv.Itoa(*column.WIPLimit)
@@ -156,6 +160,7 @@ func (model *Model) startCardForm(edit bool) tea.Cmd {
 	if edit {
 		card := model.selectedCard()
 		form.kind, form.title = editCardForm, "Edit card"
+		form.entityID = card.ID
 		form.fields[0].value, form.fields[1].value = card.Title, card.Description
 		form.fields[2].value = column.Name
 		if card.Priority != nil {

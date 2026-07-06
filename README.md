@@ -17,7 +17,7 @@ The app includes full-text search, tags, priorities, due dates, Markdown card
 descriptions, checklists, custom fields, linked cards, JSON import/export, and
 automatic local backups. The database and backups stay on the local machine.
 
-Current version: `0.1.14`.
+Current version: `0.1.15`.
 
 ## Interface
 
@@ -33,7 +33,7 @@ window. Board lists summarize overdue or nearest-due work.
 
 ## Quick Start From Source
 
-Go 1.22 or newer is required.
+Go 1.25 or newer is required.
 
 ```sh
 git clone https://github.com/epoxsizer/kan.git
@@ -176,8 +176,72 @@ kan card --help
 kan card create --help
 ```
 
-Do not run write commands at the same time as the TUI. The database lock protects
-the SQLite database from concurrent writers.
+Do not run separate CLI write commands at the same time as the TUI. Use the
+built-in MCP server described below for supported model-driven changes while
+the TUI is running.
+
+## Pair With A Model Over MCP
+
+Kan includes an optional local
+[Model Context Protocol](https://modelcontextprotocol.io/) server so a model can
+inspect and update the same task board while you work in the TUI. It uses
+Streamable HTTP at `http://127.0.0.1:7337/mcp`, requires bearer authentication,
+and only accepts a literal loopback bind address.
+
+Generate a token, export it, and enable MCP in the `config.toml` beside the Kan
+executable:
+
+```sh
+export KAN_MCP_TOKEN="$(openssl rand -hex 32)"
+```
+
+```toml
+[mcp]
+enabled = true
+address = "127.0.0.1:7337"
+token = "" # KAN_MCP_TOKEN takes precedence
+```
+
+Start `kan` before connecting the model. Invalid MCP configuration or a bind
+failure stops startup instead of silently running without the requested server.
+
+For Codex:
+
+```sh
+codex mcp add kan \
+  --url http://127.0.0.1:7337/mcp \
+  --bearer-token-env-var KAN_MCP_TOKEN
+```
+
+For Claude Code, use a project `.mcp.json` so the token remains in the
+environment:
+
+```json
+{
+  "mcpServers": {
+    "kan": {
+      "type": "http",
+      "url": "http://127.0.0.1:7337/mcp",
+      "headers": {
+        "Authorization": "Bearer ${KAN_MCP_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+The server exposes discovery, listing, search, create, patch, move, archive,
+and restore tools for cards. It deliberately does not expose permanent deletion
+or project, board, column, and custom-field mutation. MCP writes are serialized
+with TUI writes, and the active TUI reloads immediately after a successful
+model change. If both sides edit the same card, stale updates are rejected
+instead of overwriting newer data.
+
+Configuration references:
+
+- [Codex MCP documentation](https://developers.openai.com/codex/mcp)
+- [Claude Code MCP documentation](https://docs.anthropic.com/en/docs/claude-code/mcp)
+- [Kan configuration example](docs/config.example.toml)
 
 ## Import, Export, And Backups
 
@@ -204,7 +268,7 @@ working directory unless explicitly configured.
 - log file: `./kan.log`
 
 Paths can be overridden with `--config`, `--db`, `--log`, or with `KAN_CONFIG`,
-`KAN_DB`, and `KAN_LOG`.
+`KAN_DB`, and `KAN_LOG`. `KAN_MCP_TOKEN` overrides `mcp.token`.
 
 An example configuration file is available at
 [`docs/config.example.toml`](docs/config.example.toml).

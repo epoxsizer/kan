@@ -7,6 +7,14 @@ type NoticeMsg struct {
 	Text string
 }
 
+// ExternalChangeMsg tells the TUI that an MCP client changed persisted task data.
+type ExternalChangeMsg struct {
+	Action   string
+	BoardID  string
+	ColumnID string
+	CardID   string
+}
+
 type projectsLoadedMsg struct {
 	projects []domain.Project
 	counts   map[string]int

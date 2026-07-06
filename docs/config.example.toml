@@ -6,6 +6,13 @@ log_level = "info"
 # show_card_tags = true
 # show_selected_card_details = false
 
+[mcp]
+# Disabled by default. When enabled, Kan serves Streamable HTTP on /mcp.
+enabled = false
+address = "127.0.0.1:7337"
+# Prefer setting KAN_MCP_TOKEN instead of storing the token here.
+token = ""
+
 [theme]
 # primary = "#7D7AFF"
 # muted = "#909090"

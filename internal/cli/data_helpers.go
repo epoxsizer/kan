@@ -27,7 +27,7 @@ func withRepository(cmd *cobra.Command, opts *options, action func(context.Conte
 		return err
 	}
 	defer res.Close()
-	return action(cmd.Context(), res.repo)
+	return action(cmd.Context(), res.tasks)
 }
 
 func requireDeleteConfirmation(yes bool) error {

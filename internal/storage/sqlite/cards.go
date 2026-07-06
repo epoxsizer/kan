@@ -141,28 +141,30 @@ func collectCards(rows *sql.Rows) ([]domain.Card, error) {
 }
 
 func (repo *Repository) UpdateCard(ctx context.Context, value *domain.Card) error {
-	value.UpdatedAt = domain.UTCNow()
-	if value.Tags == nil {
-		value.Tags = []string{}
+	previousUpdatedAt := value.UpdatedAt
+	updated := *value
+	updated.UpdatedAt = domain.UTCNow()
+	if updated.Tags == nil {
+		updated.Tags = []string{}
 	}
-	if value.Fields == nil {
-		value.Fields = map[string]domain.FieldValue{}
+	if updated.Fields == nil {
+		updated.Fields = map[string]domain.FieldValue{}
 	}
-	if value.Checklist == nil {
-		value.Checklist = []domain.ChecklistItem{}
+	if updated.Checklist == nil {
+		updated.Checklist = []domain.ChecklistItem{}
 	}
-	if err := domain.ValidateCard(*value); err != nil {
+	if err := domain.ValidateCard(updated); err != nil {
 		return err
 	}
-	tags, err := jsonValue(value.Tags, `[]`)
+	tags, err := jsonValue(updated.Tags, `[]`)
 	if err != nil {
 		return err
 	}
-	fields, err := jsonValue(value.Fields, `{}`)
+	fields, err := jsonValue(updated.Fields, `{}`)
 	if err != nil {
 		return err
 	}
-	checklist, err := jsonValue(value.Checklist, `[]`)
+	checklist, err := jsonValue(updated.Checklist, `[]`)
 	if err != nil {
 		return err
 	}
@@ -171,13 +173,32 @@ func (repo *Repository) UpdateCard(ctx context.Context, value *domain.Card) erro
 		return err
 	}
 	defer tx.Rollback()
-	if err = ensureAffected(tx.ExecContext(ctx, `UPDATE cards SET board_id=?,column_id=?,title=?,description=?,position=?,priority=?,due_date=?,tags=?,fields=?,checklist=?,updated_at=?,column_entered_at=CASE WHEN column_id<>? THEN ? ELSE column_entered_at END WHERE id=? AND deleted_at IS NULL`, value.BoardID, value.ColumnID, value.Title, value.Description, value.Position, value.Priority, encodeOptionalTime(value.DueDate), tags, fields, checklist, encodeTime(value.UpdatedAt), value.ColumnID, encodeTime(value.UpdatedAt), value.ID)); err != nil {
+	result, err := tx.ExecContext(ctx, `UPDATE cards SET board_id=?,column_id=?,title=?,description=?,position=?,priority=?,due_date=?,tags=?,fields=?,checklist=?,updated_at=?,column_entered_at=CASE WHEN column_id<>? THEN ? ELSE column_entered_at END WHERE id=? AND deleted_at IS NULL AND updated_at=?`, updated.BoardID, updated.ColumnID, updated.Title, updated.Description, updated.Position, updated.Priority, encodeOptionalTime(updated.DueDate), tags, fields, checklist, encodeTime(updated.UpdatedAt), updated.ColumnID, encodeTime(updated.UpdatedAt), updated.ID, encodeTime(previousUpdatedAt))
+	if err != nil {
+		return mapError(err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
 		return err
 	}
-	if err = replaceCardLinks(ctx, tx, value.ID, value.RelatedCardIDs); err != nil {
+	if affected == 0 {
+		var exists int
+		if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM cards WHERE id=? AND deleted_at IS NULL`, updated.ID).Scan(&exists); err != nil {
+			return err
+		}
+		if exists == 0 {
+			return domain.ErrNotFound
+		}
+		return fmt.Errorf("%w: card changed since it was loaded", domain.ErrConflict)
+	}
+	if err = replaceCardLinks(ctx, tx, updated.ID, updated.RelatedCardIDs); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	*value = updated
+	return nil
 }
 func (repo *Repository) DeleteCard(ctx context.Context, id string) error {
 	now := domain.UTCNow()

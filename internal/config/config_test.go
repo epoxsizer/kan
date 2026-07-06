@@ -37,6 +37,8 @@ func TestDefaultLoadCreatesLocalConfigAndUsesLocalPaths(t *testing.T) {
 	require.Contains(t, string(contents), `database = "kan.db"`)
 	require.Contains(t, string(contents), `log_file = "kan.log"`)
 	require.Contains(t, string(contents), `show_selected_card_details = false`)
+	require.Contains(t, string(contents), `[mcp]`)
+	require.Contains(t, string(contents), `address = "127.0.0.1:7337"`)
 	require.NotContains(t, string(contents), `[backup]`)
 	require.NotContains(t, string(contents), `storage =`)
 	require.NotContains(t, string(contents), `[backup.s3]`)
@@ -45,6 +47,47 @@ func TestDefaultLoadCreatesLocalConfigAndUsesLocalPaths(t *testing.T) {
 	require.Contains(t, string(contents), `[theme]`)
 	require.Contains(t, string(contents), `selected_card_background = "#4C8DFF"`)
 	require.Contains(t, string(contents), `focused_panel_border = "#4C8DFF"`)
+}
+
+func TestMCPConfigurationAndTokenOverride(t *testing.T) {
+	t.Setenv(EnvMCPToken, "")
+	path := filepath.Join(t.TempDir(), "config.toml")
+	token := "12345678901234567890123456789012"
+	require.NoError(t, os.WriteFile(path, []byte("[mcp]\nenabled = true\naddress = '127.0.0.1:7447'\ntoken = '"+token+"'\n"), 0o600))
+
+	cfg, err := Load(Overrides{ConfigFile: path})
+	require.NoError(t, err)
+	require.True(t, cfg.MCP.Enabled)
+	require.Equal(t, "127.0.0.1:7447", cfg.MCP.Address)
+	require.Equal(t, token, cfg.MCP.Token)
+
+	override := "abcdefghijklmnopqrstuvwxyzABCDEF"
+	t.Setenv(EnvMCPToken, override)
+	cfg, err = Load(Overrides{ConfigFile: path})
+	require.NoError(t, err)
+	require.Equal(t, override, cfg.MCP.Token)
+}
+
+func TestMCPConfigurationRejectsUnsafeSettings(t *testing.T) {
+	t.Setenv(EnvMCPToken, "")
+	path := filepath.Join(t.TempDir(), "config.toml")
+	for name, contents := range map[string]string{
+		"short token":     "[mcp]\nenabled=true\naddress='127.0.0.1:7337'\ntoken='short'\n",
+		"non-loopback":    "[mcp]\nenabled=true\naddress='0.0.0.0:7337'\ntoken='12345678901234567890123456789012'\n",
+		"hostname":        "[mcp]\nenabled=true\naddress='localhost:7337'\ntoken='12345678901234567890123456789012'\n",
+		"invalid port":    "[mcp]\nenabled=true\naddress='127.0.0.1:0'\ntoken='12345678901234567890123456789012'\n",
+		"missing address": "[mcp]\nenabled=true\naddress='bad'\ntoken='12345678901234567890123456789012'\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
+			_, err := Load(Overrides{ConfigFile: path})
+			require.Error(t, err)
+		})
+	}
+
+	require.NoError(t, os.WriteFile(path, []byte("[mcp]\nenabled=true\naddress='[::1]:7337'\ntoken='12345678901234567890123456789012'\n"), 0o600))
+	_, err := Load(Overrides{ConfigFile: path})
+	require.NoError(t, err)
 }
 
 func TestDatabaseOverrideStillCreatesDefaultConfigBesideBinary(t *testing.T) {

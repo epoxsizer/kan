@@ -3,17 +3,20 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
 )
 
 const (
-	EnvConfig = "KAN_CONFIG"
-	EnvDB     = "KAN_DB"
-	EnvLog    = "KAN_LOG"
+	EnvConfig   = "KAN_CONFIG"
+	EnvDB       = "KAN_DB"
+	EnvLog      = "KAN_LOG"
+	EnvMCPToken = "KAN_MCP_TOKEN"
 )
 
 type Config struct {
@@ -26,6 +29,13 @@ type Config struct {
 	ShowSelectedCardDetails bool `toml:"show_selected_card_details"`
 
 	Theme Theme `toml:"theme"`
+	MCP   MCP   `toml:"mcp"`
+}
+
+type MCP struct {
+	Enabled bool   `toml:"enabled"`
+	Address string `toml:"address"`
+	Token   string `toml:"token"`
 }
 
 type Theme struct {
@@ -98,6 +108,7 @@ type fileConfig struct {
 	ShowSelectedCardDetails *bool `toml:"show_selected_card_details"`
 
 	Theme  *Theme      `toml:"theme"`
+	MCP    *MCP        `toml:"mcp"`
 	Backup *fileBackup `toml:"backup"`
 	Sync   *legacySync `toml:"sync"`
 }
@@ -125,6 +136,7 @@ func Defaults() Config {
 			PanelBorder: "#909090", FocusedPanelBorder: "#4C8DFF", StatusForeground: "#909090", StatusBackground: "#24243A", StatusAccentForeground: "#FFFFFF", StatusAccentBackground: "#7D7AFF",
 			ShortcutKeyForeground: "#FFFFFF", ShortcutKeyBackground: "#5A56E0", ShortcutText: "#909090", HelpText: "#C4C4D0", HelpBorder: "#7D7AFF", Command: "#7D7AFF", ColumnDefault: "#4C8DFF",
 		},
+		MCP: MCP{Address: "127.0.0.1:7337"},
 	}
 }
 
@@ -179,6 +191,7 @@ func Load(overrides Overrides) (Config, error) {
 
 	cfg.Database = firstNonEmpty(overrides.Database, os.Getenv(EnvDB), cfg.Database)
 	cfg.LogFile = firstNonEmpty(overrides.LogFile, os.Getenv(EnvLog), cfg.LogFile)
+	cfg.MCP.Token = firstNonEmpty(os.Getenv(EnvMCPToken), cfg.MCP.Token)
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
 	}
@@ -186,6 +199,9 @@ func Load(overrides Overrides) (Config, error) {
 		return Config{}, errors.New("database and log paths must not be empty")
 	}
 	if err := validateTheme(cfg.Theme); err != nil {
+		return Config{}, err
+	}
+	if err := validateMCP(cfg.MCP); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
@@ -200,6 +216,11 @@ log_file = %q
 log_level = %q
 show_card_tags = %t
 show_selected_card_details = %t
+
+[mcp]
+enabled = %t
+address = %q
+token = %q
 
 [theme]
 primary = %q
@@ -234,6 +255,9 @@ column_default = %q
 		cfg.LogLevel,
 		cfg.ShowCardTags,
 		cfg.ShowSelectedCardDetails,
+		cfg.MCP.Enabled,
+		cfg.MCP.Address,
+		cfg.MCP.Token,
 		cfg.Theme.Primary,
 		cfg.Theme.Muted,
 		cfg.Theme.Text,
@@ -292,6 +316,15 @@ func merge(dst *Config, src fileConfig) {
 	}
 	if src.Theme != nil {
 		mergeTheme(&dst.Theme, *src.Theme)
+	}
+	if src.MCP != nil {
+		dst.MCP.Enabled = src.MCP.Enabled
+		if src.MCP.Address != "" {
+			dst.MCP.Address = src.MCP.Address
+		}
+		if src.MCP.Token != "" {
+			dst.MCP.Token = src.MCP.Token
+		}
 	}
 }
 
@@ -400,6 +433,28 @@ func validateTheme(theme Theme) error {
 	default:
 		return fmt.Errorf("theme.border must be rounded, normal, thick, or double")
 	}
+}
+
+func validateMCP(value MCP) error {
+	if !value.Enabled {
+		return nil
+	}
+	host, portText, err := net.SplitHostPort(value.Address)
+	if err != nil {
+		return fmt.Errorf("mcp.address must use host:port: %w", err)
+	}
+	ip := net.ParseIP(host)
+	if ip == nil || !ip.IsLoopback() {
+		return errors.New("mcp.address must use a literal loopback IP address")
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || port < 1 || port > 65535 {
+		return errors.New("mcp.address must use a port between 1 and 65535")
+	}
+	if len(strings.TrimSpace(value.Token)) < 32 {
+		return errors.New("mcp.token or KAN_MCP_TOKEN must contain at least 32 characters when MCP is enabled")
+	}
+	return nil
 }
 
 func defaultConfigPath() (string, error) {

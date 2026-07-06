@@ -12,8 +12,10 @@ import (
 	"github.com/epoxsizer/kan/internal/app"
 	"github.com/epoxsizer/kan/internal/config"
 	"github.com/epoxsizer/kan/internal/logging"
+	"github.com/epoxsizer/kan/internal/mcpserver"
 	"github.com/epoxsizer/kan/internal/seed"
 	storage "github.com/epoxsizer/kan/internal/storage/sqlite"
+	"github.com/epoxsizer/kan/internal/tasks"
 	appupgrade "github.com/epoxsizer/kan/internal/upgrade"
 	"github.com/spf13/cobra"
 )
@@ -28,7 +30,8 @@ type resources struct {
 	logger *slog.Logger
 	closer interface{ Close() error }
 	lock   *storage.Lock
-	repo   *storage.Repository
+	store  *storage.Repository
+	tasks  *tasks.Coordinator
 	config config.Config
 }
 
@@ -57,12 +60,12 @@ func New(version, commit, date string) *cobra.Command {
 				res.logger.Error("automatic backups disabled", "error", workingDirectoryErr)
 			} else {
 				backupContext, cancel := context.WithCancel(cmd.Context())
-				backupsDone = startAutomaticBackups(backupContext, res.repo, res.logger, storage.BackupDirectory(workingDirectory))
+				backupsDone = startAutomaticBackups(backupContext, res.store, res.logger, storage.BackupDirectory(workingDirectory))
 				cancelBackups = cancel
 			}
 			res.logger.Info("TUI starting")
 			program := tea.NewProgram(
-				app.NewWithOptions(cmd.Context(), res.repo, res.logger, app.Options{ShowCardTags: res.config.ShowCardTags, ShowSelectedCardDetails: res.config.ShowSelectedCardDetails, Theme: app.Theme{
+				app.NewWithOptions(cmd.Context(), res.tasks, res.logger, app.Options{ShowCardTags: res.config.ShowCardTags, ShowSelectedCardDetails: res.config.ShowSelectedCardDetails, Theme: app.Theme{
 					Primary: res.config.Theme.Primary, Muted: res.config.Theme.Muted, Text: res.config.Theme.Text, Background: res.config.Theme.Background, SelectedForeground: res.config.Theme.SelectedForeground, SelectedBackground: res.config.Theme.SelectedBackground, Danger: res.config.Theme.Danger, Border: res.config.Theme.Border,
 					SelectedColumnForeground: res.config.Theme.SelectedColumnForeground, SelectedColumnBackground: res.config.Theme.SelectedColumnBackground, SelectedColumnBorder: res.config.Theme.SelectedColumnBorder,
 					SelectedCardForeground: res.config.Theme.SelectedCardForeground, SelectedCardBackground: res.config.Theme.SelectedCardBackground, PanelBorder: res.config.Theme.PanelBorder, FocusedPanelBorder: res.config.Theme.FocusedPanelBorder,
@@ -75,12 +78,26 @@ func New(version, commit, date string) *cobra.Command {
 				tea.WithContext(cmd.Context()),
 			)
 
+			mcpService, startMCPErr := mcpserver.Start(res.config.MCP, version, res.tasks, res.logger, func(change mcpserver.Change) {
+				program.Send(app.ExternalChangeMsg{Action: change.Action, BoardID: change.BoardID, ColumnID: change.ColumnID, CardID: change.CardID})
+			})
+			if startMCPErr != nil {
+				if cancelBackups != nil {
+					cancelBackups()
+					<-backupsDone
+				}
+				return startMCPErr
+			}
+
 			versionContext, cancelVersion := context.WithCancel(cmd.Context())
 			versionDone := startVersionCheck(versionContext, version, versionService, res.logger, func(message string) {
 				program.Send(app.NoticeMsg{Text: message})
 			})
 
 			_, runErr := program.Run()
+			shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
+			shutdownErr := mcpService.Shutdown(shutdownContext)
+			cancelShutdown()
 			cancelVersion()
 			<-versionDone
 			if cancelBackups != nil {
@@ -92,6 +109,10 @@ func New(version, commit, date string) *cobra.Command {
 				err = runErr
 				res.logger.Error("TUI stopped with error", "error", err)
 				return fmt.Errorf("run TUI: %w", err)
+			}
+			if shutdownErr != nil {
+				res.logger.Error("MCP server stopped with error", "error", shutdownErr)
+				return fmt.Errorf("stop MCP server: %w", shutdownErr)
 			}
 			res.logger.Info("TUI stopped")
 			return nil
@@ -127,7 +148,7 @@ func New(version, commit, date string) *cobra.Command {
 				return err
 			}
 			defer res.Close()
-			if err = seed.Demo(cmd.Context(), res.repo); err != nil {
+			if err = seed.Demo(cmd.Context(), res.tasks); err != nil {
 				return fmt.Errorf("seed demo data: %w", err)
 			}
 			res.logger.Info("demo dataset ready")
@@ -168,14 +189,15 @@ func open(ctx context.Context, opts options) (*resources, error) {
 		closer.Close()
 		return nil, err
 	}
+	taskCoordinator := tasks.New(repo)
 	logger.Info("database opened", "path", cfg.Database)
-	return &resources{logger: logger, closer: closer, lock: lock, repo: repo, config: cfg}, nil
+	return &resources{logger: logger, closer: closer, lock: lock, store: repo, tasks: taskCoordinator, config: cfg}, nil
 }
 
 func (res *resources) Close() error {
 	var first error
-	if res.repo != nil {
-		first = res.repo.Close()
+	if res.store != nil {
+		first = res.store.Close()
 	}
 	if res.lock != nil {
 		if err := res.lock.Close(); first == nil {

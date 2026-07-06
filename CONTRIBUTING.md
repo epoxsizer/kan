@@ -2,7 +2,7 @@
 
 ## Development setup
 
-kan requires Go 1.22 or newer. Clone the repository, then run:
+kan requires Go 1.25 or newer. Clone the repository, then run:
 
 ```sh
 make check

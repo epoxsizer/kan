@@ -147,6 +147,33 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case NoticeMsg:
 		model.notice = message.Text
 		return model, nil
+	case ExternalChangeMsg:
+		model.notice = "MCP: " + message.Action
+		model.err = nil
+		model.lastMove = nil
+		if model.form != nil && model.form.kind == editCardForm && model.form.entityID == message.CardID {
+			model.form = nil
+			model.discard = nil
+			model.notice += "; editor closed because the card changed"
+		}
+		switch model.screen {
+		case projectsScreen:
+			model.loading = true
+			return model, loadProjects(model.ctx, model.repo)
+		case boardsScreen:
+			if model.project != nil {
+				model.loading = true
+				return model, loadBoards(model.ctx, model.repo, model.project.ID)
+			}
+		case boardScreen:
+			if model.board != nil && model.board.ID == message.BoardID {
+				model.pendingColumn = message.ColumnID
+				model.pendingCard = message.CardID
+				model.loading = true
+				return model, loadBoard(model.ctx, model.repo, model.board.ID)
+			}
+		}
+		return model, nil
 	case tea.WindowSizeMsg:
 		model.width = message.Width
 		model.height = message.Height

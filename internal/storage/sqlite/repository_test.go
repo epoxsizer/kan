@@ -308,6 +308,27 @@ func TestRelatedCardsAreSymmetricAndLimitedToProject(t *testing.T) {
 	require.Empty(t, loadedFirst.RelatedCardIDs)
 }
 
+func TestUpdateCardRejectsStaleCopy(t *testing.T) {
+	repo := openTestRepository(t)
+	ctx := context.Background()
+	_, board, column := createHierarchy(t, repo)
+	card := domain.Card{BoardID: board.ID, ColumnID: column.ID, Title: "Original", Position: 1024}
+	require.NoError(t, repo.CreateCard(ctx, &card))
+
+	first, err := repo.GetCard(ctx, card.ID)
+	require.NoError(t, err)
+	stale, err := repo.GetCard(ctx, card.ID)
+	require.NoError(t, err)
+	first.Title = "First update"
+	require.NoError(t, repo.UpdateCard(ctx, &first))
+	stale.Title = "Stale update"
+	require.ErrorIs(t, repo.UpdateCard(ctx, &stale), domain.ErrConflict)
+
+	current, err := repo.GetCard(ctx, card.ID)
+	require.NoError(t, err)
+	require.Equal(t, "First update", current.Title)
+}
+
 func TestSeedIsIdempotent(t *testing.T) {
 	repo := openTestRepository(t)
 	ctx := context.Background()

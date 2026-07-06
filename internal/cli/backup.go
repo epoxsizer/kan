@@ -36,7 +36,7 @@ func newBackupCommand(opts *options) *cobra.Command {
 				return err
 			}
 			defer res.Close()
-			result, err := createLocalBackup(cmd.Context(), res.repo, workingDirectory, name, time.Now())
+			result, err := createLocalBackup(cmd.Context(), res.store, workingDirectory, name, time.Now())
 			if err != nil {
 				return err
 			}

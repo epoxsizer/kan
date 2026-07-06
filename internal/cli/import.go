@@ -54,13 +54,13 @@ func newImportCommand(opts *options) *cobra.Command {
 				if cwdErr != nil {
 					return fmt.Errorf("get working directory: %w", cwdErr)
 				}
-				result, backupErr := createLocalBackup(cmd.Context(), res.repo, workingDirectory, "kan-pre-import", time.Now())
+				result, backupErr := createLocalBackup(cmd.Context(), res.store, workingDirectory, "kan-pre-import", time.Now())
 				if backupErr != nil {
 					return fmt.Errorf("backup before import: %w", backupErr)
 				}
 				res.logger.Info("pre-import backup created", "path", result.localPath)
 			}
-			if err = res.repo.ImportDocument(cmd.Context(), document, replace); err != nil {
+			if err = res.tasks.ImportDocument(cmd.Context(), document, replace); err != nil {
 				return fmt.Errorf("import data: %w", err)
 			}
 			projects, boards, cards := exportCounts(document)

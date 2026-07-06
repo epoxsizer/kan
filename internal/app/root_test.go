@@ -140,6 +140,27 @@ func lineContainsAll(value string, parts ...string) bool {
 	return false
 }
 
+func TestExternalCardChangeReloadsBoardAndClosesStaleEditor(t *testing.T) {
+	board := domain.Board{ID: "board-1", Name: "Board"}
+	column := domain.Column{ID: "column-1", BoardID: board.ID, Name: "Backlog"}
+	card := domain.Card{ID: "card-1", BoardID: board.ID, ColumnID: column.ID, Title: "Changed by model"}
+	repo := readRepository{columns: []domain.Column{column}, cards: []domain.Card{card}}
+	model := testModel(repo)
+	model.screen = boardScreen
+	model.board = &board
+	model.columns = []domain.Column{column}
+	model.cards = map[string][]domain.Card{column.ID: {card}}
+	model.form = &formModal{kind: editCardForm, entityID: card.ID}
+
+	_, command := model.Update(ExternalChangeMsg{Action: "card updated", BoardID: board.ID, ColumnID: column.ID, CardID: card.ID})
+	require.Nil(t, model.form)
+	require.True(t, model.loading)
+	require.Contains(t, model.notice, "editor closed")
+	runCommands(model, command)
+	require.False(t, model.loading)
+	require.Equal(t, card.ID, model.selectedCard().ID)
+}
+
 func TestPhaseTwoTUIFormsMovementAndPersistence(t *testing.T) {
 	ctx := context.Background()
 	repo, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "phase2.db"))

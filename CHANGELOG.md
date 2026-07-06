@@ -6,6 +6,21 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-07-06
+
+### Added
+
+- Optional authenticated local MCP server for pairing Codex, Claude Code, and
+  other Streamable HTTP clients with the running TUI.
+- Safe model tools for project/board discovery and card listing, search,
+  creation, patching, movement, archival, and restoration.
+
+### Changed
+
+- TUI and MCP writes now share a mutation coordinator, card edits use
+  optimistic concurrency, and successful MCP changes refresh the active TUI.
+- The minimum supported Go version is now 1.25 for the official MCP Go SDK.
+
 ## [0.1.14] - 2026-07-03
 
 ### Changed
