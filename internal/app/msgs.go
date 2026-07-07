@@ -40,6 +40,19 @@ type archivedCardsLoadedMsg struct {
 	err     error
 }
 
+type templateLoadPurpose uint8
+
+const (
+	templateLoadChoose templateLoadPurpose = iota
+	templateLoadList
+)
+
+type cardTemplatesLoadedMsg struct {
+	purpose   templateLoadPurpose
+	templates []domain.CardTemplate
+	err       error
+}
+
 type mutationDoneMsg struct {
 	scope  screen
 	notice string

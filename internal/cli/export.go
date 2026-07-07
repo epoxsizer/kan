@@ -62,8 +62,12 @@ func buildExport(ctx context.Context, repo domain.Repository, exportedAt time.Ti
 			return document, listErr
 		}
 		for _, board := range boards {
-			exportedBoard := domain.ExportBoard{Board: board, FieldDefs: []domain.FieldDef{}, Columns: []domain.ExportColumn{}}
+			exportedBoard := domain.ExportBoard{Board: board, FieldDefs: []domain.FieldDef{}, Templates: []domain.CardTemplate{}, Columns: []domain.ExportColumn{}}
 			exportedBoard.FieldDefs, listErr = repo.ListFieldDefs(ctx, board.ID)
+			if listErr != nil {
+				return document, listErr
+			}
+			exportedBoard.Templates, listErr = repo.ListCardTemplates(ctx, board.ID)
 			if listErr != nil {
 				return document, listErr
 			}

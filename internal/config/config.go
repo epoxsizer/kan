@@ -28,14 +28,21 @@ type Config struct {
 
 	ShowSelectedCardDetails bool `toml:"show_selected_card_details"`
 
-	Theme Theme `toml:"theme"`
-	MCP   MCP   `toml:"mcp"`
+	Theme    Theme    `toml:"theme"`
+	MCP      MCP      `toml:"mcp"`
+	Planning Planning `toml:"planning"`
 }
 
 type MCP struct {
 	Enabled bool   `toml:"enabled"`
 	Address string `toml:"address"`
 	Token   string `toml:"token"`
+}
+
+type Planning struct {
+	StaleAfterDays           int      `toml:"stale_after_days"`
+	BlockedTags              []string `toml:"blocked_tags"`
+	UntriagedWithoutPriority bool     `toml:"untriaged_without_priority"`
 }
 
 type Theme struct {
@@ -99,6 +106,12 @@ type legacyS3Sync struct {
 	ForcePathStyle  bool   `toml:"force_path_style"`
 }
 
+type filePlanning struct {
+	StaleAfterDays           *int     `toml:"stale_after_days"`
+	BlockedTags              []string `toml:"blocked_tags"`
+	UntriagedWithoutPriority *bool    `toml:"untriaged_without_priority"`
+}
+
 type fileConfig struct {
 	Database     string `toml:"database"`
 	LogFile      string `toml:"log_file"`
@@ -107,10 +120,11 @@ type fileConfig struct {
 
 	ShowSelectedCardDetails *bool `toml:"show_selected_card_details"`
 
-	Theme  *Theme      `toml:"theme"`
-	MCP    *MCP        `toml:"mcp"`
-	Backup *fileBackup `toml:"backup"`
-	Sync   *legacySync `toml:"sync"`
+	Theme    *Theme        `toml:"theme"`
+	MCP      *MCP          `toml:"mcp"`
+	Planning *filePlanning `toml:"planning"`
+	Backup   *fileBackup   `toml:"backup"`
+	Sync     *legacySync   `toml:"sync"`
 }
 
 type Overrides struct {
@@ -136,7 +150,8 @@ func Defaults() Config {
 			PanelBorder: "#909090", FocusedPanelBorder: "#4C8DFF", StatusForeground: "#909090", StatusBackground: "#24243A", StatusAccentForeground: "#FFFFFF", StatusAccentBackground: "#7D7AFF",
 			ShortcutKeyForeground: "#FFFFFF", ShortcutKeyBackground: "#5A56E0", ShortcutText: "#909090", HelpText: "#C4C4D0", HelpBorder: "#7D7AFF", Command: "#7D7AFF", ColumnDefault: "#4C8DFF",
 		},
-		MCP: MCP{Address: "127.0.0.1:7337"},
+		MCP:      MCP{Address: "127.0.0.1:7337"},
+		Planning: Planning{StaleAfterDays: 7, BlockedTags: []string{"blocked", "blocker"}, UntriagedWithoutPriority: true},
 	}
 }
 
@@ -204,6 +219,9 @@ func Load(overrides Overrides) (Config, error) {
 	if err := validateMCP(cfg.MCP); err != nil {
 		return Config{}, err
 	}
+	if err := validatePlanning(cfg.Planning); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
 }
 
@@ -221,6 +239,11 @@ show_selected_card_details = %t
 enabled = %t
 address = %q
 token = %q
+
+[planning]
+stale_after_days = %d
+blocked_tags = [%s]
+untriaged_without_priority = %t
 
 [theme]
 primary = %q
@@ -258,6 +281,9 @@ column_default = %q
 		cfg.MCP.Enabled,
 		cfg.MCP.Address,
 		cfg.MCP.Token,
+		cfg.Planning.StaleAfterDays,
+		quotedStringList(cfg.Planning.BlockedTags),
+		cfg.Planning.UntriagedWithoutPriority,
 		cfg.Theme.Primary,
 		cfg.Theme.Muted,
 		cfg.Theme.Text,
@@ -324,6 +350,17 @@ func merge(dst *Config, src fileConfig) {
 		}
 		if src.MCP.Token != "" {
 			dst.MCP.Token = src.MCP.Token
+		}
+	}
+	if src.Planning != nil {
+		if src.Planning.StaleAfterDays != nil {
+			dst.Planning.StaleAfterDays = *src.Planning.StaleAfterDays
+		}
+		if src.Planning.BlockedTags != nil {
+			dst.Planning.BlockedTags = append([]string(nil), src.Planning.BlockedTags...)
+		}
+		if src.Planning.UntriagedWithoutPriority != nil {
+			dst.Planning.UntriagedWithoutPriority = *src.Planning.UntriagedWithoutPriority
 		}
 	}
 }
@@ -457,12 +494,32 @@ func validateMCP(value MCP) error {
 	return nil
 }
 
+func validatePlanning(value Planning) error {
+	if value.StaleAfterDays < 1 {
+		return errors.New("planning.stale_after_days must be positive")
+	}
+	for _, tag := range value.BlockedTags {
+		if strings.TrimSpace(tag) == "" {
+			return errors.New("planning.blocked_tags must not contain empty values")
+		}
+	}
+	return nil
+}
+
 func defaultConfigPath() (string, error) {
 	executable, err := executablePath()
 	if err != nil {
 		return "", fmt.Errorf("resolve executable path for default config: %w", err)
 	}
 	return filepath.Join(filepath.Dir(executable), "config.toml"), nil
+}
+
+func quotedStringList(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, fmt.Sprintf("%q", value))
+	}
+	return strings.Join(quoted, ", ")
 }
 
 func firstNonEmpty(values ...string) string {

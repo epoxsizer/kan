@@ -59,17 +59,19 @@ type Model struct {
 	showCardTags bool
 
 	showSelectedCardDetails bool
+	planning                PlanningOptions
 
-	filterMode    bool
-	filterText    string
-	filterCursor  int
-	filterLoading bool
-	filterErr     error
-	filteredCards map[string][]domain.Card
-	filterScores  map[string]int
-	sortMode      cardSort
-	groupMode     cardGroup
-	listLayout    listLayout
+	filterMode     bool
+	filterText     string
+	filterCursor   int
+	filterLoading  bool
+	filterErr      error
+	filteredCards  map[string][]domain.Card
+	filterScores   map[string]int
+	planningFilter planningKind
+	sortMode       cardSort
+	groupMode      cardGroup
+	listLayout     listLayout
 
 	commandMode    bool
 	command        string
@@ -104,6 +106,7 @@ type Options struct {
 	ShowCardTags            bool
 	ShowSelectedCardDetails bool
 	Theme                   Theme
+	Planning                PlanningOptions
 }
 
 func NewWithOptions(ctx context.Context, repo domain.Repository, logger *slog.Logger, options Options) *Model {
@@ -118,6 +121,7 @@ func NewWithOptions(ctx context.Context, repo domain.Repository, logger *slog.Lo
 		repo:          repo,
 		logger:        logger,
 		styles:        stylesForTheme(themeOrDefault(options.Theme)),
+		planning:      planningOrDefault(options.Planning),
 		screen:        projectsScreen,
 		loading:       true,
 		cards:         make(map[string][]domain.Card),
@@ -209,11 +213,14 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			model.columnIndex = clampIndex(model.columnIndex, len(model.columns))
 			model.applyPendingPaletteFocus()
+			if model.planningFilter != planningNone {
+				model.applyPlanningFilter(model.planningFilter)
+			}
 		} else {
 			model.pendingColumn = ""
 			model.pendingCard = ""
 		}
-		if message.err == nil && model.filterActive() {
+		if message.err == nil && strings.TrimSpace(model.filterText) != "" {
 			model.filterLoading = true
 			return model, searchBoardCards(model.ctx, model.repo, model.board.ID, model.filterText)
 		}
@@ -226,6 +233,8 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.detail = archivedCardsDetail(message.cards, message.columns)
 		}
 		return model, nil
+	case cardTemplatesLoadedMsg:
+		return model.handleTemplatesLoaded(message)
 	case paletteLoadedMsg:
 		model.paletteLoading = false
 		model.paletteErr = message.err
@@ -769,6 +778,28 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 				return model, model.startCardForm(false)
 			}
 		}
+	case "template", "new-from-template":
+		if model.screen != boardScreen || model.board == nil || len(model.columns) == 0 {
+			model.err = fmt.Errorf("open a board with at least one column first")
+			return model, nil
+		}
+		model.loading = true
+		return model, loadCardTemplates(model.ctx, model.repo, model.board.ID, templateLoadChoose)
+	case "new-template":
+		if model.screen != boardScreen || model.board == nil {
+			model.err = fmt.Errorf("open a board first")
+			return model, nil
+		}
+		model.startTemplateForm()
+	case "save-template":
+		return model, model.saveSelectedCardAsTemplate()
+	case "templates":
+		if model.screen != boardScreen || model.board == nil {
+			model.err = fmt.Errorf("open a board first")
+			return model, nil
+		}
+		model.loading = true
+		return model, loadCardTemplates(model.ctx, model.repo, model.board.ID, templateLoadList)
 	case "edit":
 		switch model.screen {
 		case projectsScreen:
@@ -816,9 +847,23 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 			model.err = fmt.Errorf("open a board first")
 			return model, nil
 		}
+		model.planningFilter = planningNone
 		model.filterMode = true
 		model.filterCursor = len([]rune(model.filterText))
 		model.notice = ""
+	case "today":
+		model.applyPlanningFilter(planningToday)
+	case "overdue":
+		model.applyPlanningFilter(planningOverdue)
+	case "blocked":
+		model.applyPlanningFilter(planningBlocked)
+	case "stale":
+		model.applyPlanningFilter(planningStale)
+	case "untriaged":
+		model.applyPlanningFilter(planningUntriaged)
+	case "clear-filter":
+		model.clearBoardFilter()
+		model.notice = "Filter cleared"
 	case "move":
 		if model.screen != boardScreen {
 			model.err = fmt.Errorf("open a board first")
@@ -1261,10 +1306,17 @@ func (model *Model) renderStatus(width int) string {
 		breadcrumb += " › " + model.board.Name
 		count = fmt.Sprintf("%d columns · %d cards", len(model.columns), model.cardCount())
 		if model.filterActive() {
-			count = fmt.Sprintf("%d matches · /%s", model.visibleCardCount(), model.filterText)
+			if model.planningFilter != planningNone {
+				count = fmt.Sprintf("%d matches · planning:%s", model.visibleCardCount(), model.planningFilter)
+			} else {
+				count = fmt.Sprintf("%d matches · /%s", model.visibleCardCount(), model.filterText)
+			}
 			if model.filterErr != nil {
 				count = "filter error: " + model.filterErr.Error()
 			}
+		}
+		if health := model.boardPlanningHealth().Summary(); health != "" && model.notice == "" {
+			count += " · " + health
 		}
 		count += " · sort:" + model.sortMode.String() + " · group:" + model.groupMode.String()
 	}

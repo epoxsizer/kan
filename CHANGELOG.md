@@ -6,6 +6,17 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-07-08
+
+### Added
+
+- Board planning views for today, overdue, blocked, stale, and untriaged cards,
+  plus status-line board health summaries.
+- Board-only card templates with TUI commands to create templates, save the
+  selected card as a template, list templates, and create cards from templates.
+- Markdown task-list import from the card description editor into checklist
+  items with `Ctrl-T`.
+
 ## [0.1.15] - 2026-07-06
 
 ### Added

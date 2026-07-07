@@ -23,6 +23,8 @@ const (
 	editColumnForm
 	createCardForm
 	editCardForm
+	createTemplateForm
+	createCardFromTemplateForm
 	settingsForm
 )
 
@@ -65,6 +67,7 @@ type formModal struct {
 	linkCandidates []linkCandidate
 	linksLoading   bool
 	initialValues  []string
+	templates      []domain.CardTemplate
 }
 
 type deleteKind uint8
@@ -182,6 +185,30 @@ func (model *Model) startCardForm(edit bool) tea.Cmd {
 	form.linksLoading = true
 	model.activateForm(form)
 	return loadLinkCandidates(model.ctx, model.repo, model.project.ID, selectedCardID(form, model))
+}
+
+func (model *Model) startTemplateForm() {
+	model.activateForm(&formModal{kind: createTemplateForm, title: "Add card template", fields: []formField{
+		{label: "Name"},
+		{label: "Title"},
+		{label: "Description", kind: commentField, markdown: true},
+		{label: "Priority", value: "Medium", kind: dropdownField, options: priorities},
+		{label: "Due offset days"},
+		{label: "Tags comma-separated"},
+		{label: "Checklist", value: "[]", kind: checklistField},
+	}})
+}
+
+func (model *Model) startCardFromTemplateForm(templates []domain.CardTemplate) {
+	form := &formModal{kind: createCardFromTemplateForm, title: "New card from template", fields: []formField{
+		{label: "Template", kind: dropdownField, options: templateNames(templates)},
+		{label: "Status", value: model.columns[model.columnIndex].Name, kind: dropdownField, options: columnNames(model.columns)},
+		{label: "Title override"},
+	}, templates: append([]domain.CardTemplate(nil), templates...)}
+	if len(templates) > 0 {
+		form.fields[0].value = templates[0].Name
+	}
+	model.activateForm(form)
 }
 
 func (model *Model) startSettingsForm() {
@@ -425,6 +452,57 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 			return model, mutationCommand(boardScreen, "Card added", func() error { return model.repo.CreateCard(model.ctx, &card) })
 		}
 		return model, mutationCommand(boardScreen, "Card updated", func() error { return model.repo.UpdateCard(model.ctx, &card) })
+	case createTemplateForm:
+		template := domain.CardTemplate{BoardID: model.board.ID, Name: value(0), Title: value(1), Description: raw(2), Position: 1024, Tags: splitTags(value(5)), Checklist: []domain.ChecklistItem{}}
+		if value(3) != "" {
+			priority := value(3)
+			template.Priority = &priority
+		}
+		if value(4) != "" {
+			offset, err := strconv.Atoi(value(4))
+			if err != nil || offset < 0 {
+				return invalid(fmt.Errorf("due offset days must be zero or a positive integer"))
+			}
+			template.DueOffsetDays = &offset
+		}
+		if err := json.Unmarshal([]byte(raw(6)), &template.Checklist); err != nil {
+			return invalid(fmt.Errorf("invalid checklist: %w", err))
+		}
+		if err := domain.ValidateCardTemplate(template); err != nil {
+			return invalid(err)
+		}
+		model.form = nil
+		model.loading = true
+		return model, mutationCommand(boardScreen, "Template added", func() error {
+			templates, err := model.repo.ListCardTemplates(model.ctx, model.board.ID)
+			if err != nil {
+				return err
+			}
+			template.Position = nextTemplatePosition(templates)
+			return model.repo.CreateCardTemplate(model.ctx, &template)
+		})
+	case createCardFromTemplateForm:
+		template, ok := templateByNameOrID(form.templates, value(0))
+		if !ok {
+			return invalid(fmt.Errorf("template must match a template name or ID"))
+		}
+		column, ok := model.columnByNameOrID(value(1))
+		if !ok {
+			return invalid(fmt.Errorf("status must match a column name or ID"))
+		}
+		if column.WIPLimit != nil && len(model.cards[column.ID]) >= *column.WIPLimit {
+			return invalid(fmt.Errorf("%w: target column WIP limit reached", domain.ErrConflict))
+		}
+		card := cardFromTemplate(template, model.board.ID, column.ID, nextCardPosition(model.cards[column.ID]))
+		if value(2) != "" {
+			card.Title = value(2)
+		}
+		if err := domain.ValidateCard(card); err != nil {
+			return invalid(err)
+		}
+		model.form = nil
+		model.loading = true
+		return model, mutationCommand(boardScreen, "Card added from template", func() error { return model.repo.CreateCard(model.ctx, &card) })
 	}
 	return model, nil
 }

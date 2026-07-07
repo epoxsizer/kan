@@ -83,3 +83,10 @@ func loadArchivedCards(ctx context.Context, repo domain.Repository, boardID stri
 		return archivedCardsLoadedMsg{cards: archived, columns: columns}
 	}
 }
+
+func loadCardTemplates(ctx context.Context, repo domain.Repository, boardID string, purpose templateLoadPurpose) tea.Cmd {
+	return func() tea.Msg {
+		templates, err := repo.ListCardTemplates(ctx, boardID)
+		return cardTemplatesLoadedMsg{purpose: purpose, templates: templates, err: err}
+	}
+}

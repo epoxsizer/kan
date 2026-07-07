@@ -53,7 +53,7 @@ func TestMigrationsAreRepeatableAndEnableFeatures(t *testing.T) {
 	require.NoError(t, err)
 	var migrationCount int
 	require.NoError(t, repo.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&migrationCount))
-	require.Equal(t, 4, migrationCount)
+	require.Equal(t, 5, migrationCount)
 	require.NoError(t, repo.Close())
 }
 
@@ -114,8 +114,24 @@ func TestRepositoryCRUDSearchSoftDeleteAndCascade(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "Component", defs[0].Label)
 
-	due := time.Now().UTC().Add(24 * time.Hour).Truncate(time.Microsecond)
 	priority := "high"
+	offset := 3
+	template := domain.CardTemplate{BoardID: board.ID, Name: "Bug", Title: "Fix bug", Description: "- [ ] Reproduce", Priority: &priority, DueOffsetDays: &offset, Tags: []string{"bug"}, Checklist: []domain.ChecklistItem{{ID: "tpl-1", Text: "Reproduce", Position: 1024}}, Position: 1024}
+	require.NoError(t, repo.CreateCardTemplate(ctx, &template))
+	templates, err := repo.ListCardTemplates(ctx, board.ID)
+	require.NoError(t, err)
+	require.Len(t, templates, 1)
+	require.Equal(t, "Bug", templates[0].Name)
+	loadedTemplate, err := repo.GetCardTemplate(ctx, template.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"bug"}, loadedTemplate.Tags)
+	loadedTemplate.Name = "Bug report"
+	require.NoError(t, repo.UpdateCardTemplate(ctx, &loadedTemplate))
+	loadedTemplate, err = repo.GetCardTemplate(ctx, template.ID)
+	require.NoError(t, err)
+	require.Equal(t, "Bug report", loadedTemplate.Name)
+
+	due := time.Now().UTC().Add(24 * time.Hour).Truncate(time.Microsecond)
 	card := domain.Card{BoardID: board.ID, ColumnID: column.ID, Title: "Build repository", Description: "SQLite persistence layer", Position: 1024, Priority: &priority, DueDate: &due, Tags: []string{"backend", "urgent"}, Checklist: []domain.ChecklistItem{{ID: "check-1", Text: "Verify deployment", Done: false, Position: 1024}}, Fields: map[string]domain.FieldValue{"area": {Type: domain.FieldSelect, Value: "Storage"}, "owner": {Type: domain.FieldText, Value: "Ada"}}}
 	require.NoError(t, repo.CreateCard(ctx, &card))
 	loaded, err := repo.GetCard(ctx, card.ID)

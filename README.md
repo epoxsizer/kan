@@ -17,7 +17,7 @@ The app includes full-text search, tags, priorities, due dates, Markdown card
 descriptions, checklists, custom fields, linked cards, JSON import/export, and
 automatic local backups. The database and backups stay on the local machine.
 
-Current version: `0.1.15`.
+Current version: `0.1.16`.
 
 ## Interface
 
@@ -116,6 +116,8 @@ kan upgrade check
 | `:archived` | Show archived cards for the current board |
 | `:column-settings` | Configure the selected column |
 | `:filter` | Open ranked fuzzy filtering for cards on the current board |
+| `:today`, `:overdue`, `:blocked`, `:stale`, `:untriaged` | Show planning views for the current board |
+| `:new-template`, `:save-template`, `:template`, `:templates` | Create and use board-only card templates |
 | `:layout table` | Show projects and boards as tables |
 | `:layout cards` | Show projects and boards as card grids |
 | `?` | Full help |
@@ -140,8 +142,15 @@ cursor.
 Card descriptions support Markdown with rendered headings, emphasis, lists,
 task lists, links, tables, and code blocks. In the description editor,
 `Ctrl-P` switches between editing and preview; terminals at least 100 columns
-wide show both panes. `Ctrl-F` searches, `Ctrl-Z`/`Ctrl-Y` undo and redo, and
-`Tab`/`Shift-Tab` indent or outdent list items. Enter continues Markdown lists.
+wide show both panes. `Ctrl-F` searches, `Ctrl-Z`/`Ctrl-Y` undo and redo,
+`Ctrl-T` imports Markdown task-list items into the card checklist while keeping
+the original description text, and `Tab`/`Shift-Tab` indent or outdent list
+items. Enter continues Markdown lists.
+
+Board-only card templates help create repeated work. Use `:new-template` to
+define one manually, `:save-template` to copy the selected card into a template,
+`:template` or `:new-from-template` to create a card from a template, and
+`:templates` to inspect available templates on the current board.
 
 `Ctrl-G` opens the command configured by `$VISUAL` or `$EDITOR` (for example,
 `EDITOR="code --wait"`). External edits return to the description buffer and
@@ -279,6 +288,11 @@ use the prototype's light-blue `#4C8DFF` for focused borders and selected
 columns, cards, rows, and controls. Existing explicit theme overrides remain
 unchanged. `show_selected_card_details = false` keeps selected board cards at
 their normal one-line height; set it to `true` for the optional metadata line.
+
+The planning section controls board health and planning views. By default,
+cards are stale after 7 days without updates, blocked cards are detected by the
+`blocked` or `blocker` tag, and untriaged cards are active cards without both a
+priority and due date.
 
 ## Development
 

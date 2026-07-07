@@ -13,13 +13,12 @@ EDITING
   a/e/D          add / edit / confirmed delete
   d/m            details / description; Shift+E detail size
   c/E/X columns · ⇧←/→ reorder
-  H/L/Tab        move; M choose column; u undo
-  J/K            move card down / up in its column
+  H/L/Tab/J/K    move/reorder cards; M choose; u undo
 BOARD VIEW
-  /              fuzzy filter; Ctrl-U clear
+  /              fuzzy filter; :today/:blocked/:stale planning views
   s/v            cycle sort / grouping
 FORMS
-  Tab fields · Ctrl-P preview · Ctrl-F find · Ctrl-Z/Y undo · Ctrl-G editor
+  Tab fields · Ctrl-P preview · Ctrl-F find · Ctrl-T tasks · Ctrl-G editor
 GENERAL
   Mouse          click/open · wheel · right-click back
   ? / :          help / search and settings

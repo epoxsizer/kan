@@ -72,6 +72,8 @@ func New(version, commit, date string) *cobra.Command {
 					StatusForeground: res.config.Theme.StatusForeground, StatusBackground: res.config.Theme.StatusBackground, StatusAccentForeground: res.config.Theme.StatusAccentForeground, StatusAccentBackground: res.config.Theme.StatusAccentBackground,
 					ShortcutKeyForeground: res.config.Theme.ShortcutKeyForeground, ShortcutKeyBackground: res.config.Theme.ShortcutKeyBackground, ShortcutText: res.config.Theme.ShortcutText, HelpText: res.config.Theme.HelpText, HelpBorder: res.config.Theme.HelpBorder,
 					Command: res.config.Theme.Command, ColumnDefault: res.config.Theme.ColumnDefault,
+				}, Planning: app.PlanningOptions{
+					StaleAfterDays: res.config.Planning.StaleAfterDays, BlockedTags: res.config.Planning.BlockedTags, UntriagedWithoutPriority: res.config.Planning.UntriagedWithoutPriority,
 				}}),
 				tea.WithAltScreen(),
 				tea.WithMouseCellMotion(),

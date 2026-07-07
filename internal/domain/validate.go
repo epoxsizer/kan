@@ -79,6 +79,44 @@ func ValidateCard(value Card) error {
 	return nil
 }
 
+func ValidateCardTemplate(value CardTemplate) error {
+	if value.BoardID == "" {
+		return validationError("card template board ID is required")
+	}
+	if strings.TrimSpace(value.Name) == "" {
+		return validationError("card template name is required")
+	}
+	if strings.TrimSpace(value.Title) == "" {
+		return validationError("card template title is required")
+	}
+	if !validPosition(value.Position) {
+		return validationError("card template position must be finite")
+	}
+	if value.DueOffsetDays != nil && *value.DueOffsetDays < 0 {
+		return validationError("card template due offset must not be negative")
+	}
+	checklistIDs := map[string]struct{}{}
+	for _, item := range value.Checklist {
+		if item.ID == "" {
+			return validationError("checklist item ID is required")
+		}
+		if strings.TrimSpace(item.Text) == "" {
+			return validationError("checklist item text is required")
+		}
+		if !validPosition(item.Position) {
+			return validationError("checklist item position must be finite")
+		}
+		if _, exists := checklistIDs[item.ID]; exists {
+			return validationError("checklist item IDs must be unique")
+		}
+		checklistIDs[item.ID] = struct{}{}
+	}
+	if _, err := json.Marshal(value.Checklist); err != nil {
+		return validationError(fmt.Sprintf("card template checklist is not JSON-compatible: %v", err))
+	}
+	return nil
+}
+
 func validateFieldValue(key string, field FieldValue) error {
 	if field.Value == nil {
 		return nil

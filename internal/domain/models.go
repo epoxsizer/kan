@@ -79,6 +79,21 @@ type Card struct {
 	ColumnEnteredAt time.Time             `json:"column_entered_at,omitempty"`
 }
 
+type CardTemplate struct {
+	ID            string          `json:"id"`
+	BoardID       string          `json:"board_id"`
+	Name          string          `json:"name"`
+	Title         string          `json:"title"`
+	Description   string          `json:"description"`
+	Priority      *string         `json:"priority,omitempty"`
+	DueOffsetDays *int            `json:"due_offset_days,omitempty"`
+	Tags          []string        `json:"tags"`
+	Checklist     []ChecklistItem `json:"checklist"`
+	Position      float64         `json:"position"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
 type FieldDef struct {
 	ID        string          `json:"id"`
 	BoardID   string          `json:"board_id"`

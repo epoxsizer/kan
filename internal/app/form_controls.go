@@ -273,6 +273,10 @@ func (model *Model) handleCommentKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+g":
 		model.form.err = ""
 		return model, prepareExternalEditor(control.value)
+	case "ctrl+t":
+		if control.markdown {
+			model.importMarkdownTasksToChecklist(control.value)
+		}
 	case "esc":
 		if control.value != control.original {
 			model.discard = &discardModal{kind: discardControl, title: "Discard editor changes?", message: "The text in this editor has not been applied."}
@@ -495,7 +499,7 @@ func (model *Model) renderCommentEditor(width, height int) string {
 	title := model.form.fields[control.field].label + " editor"
 	hint := "Arrows · Ctrl-G $EDITOR · Ctrl-S apply · Esc cancel"
 	if control.markdown {
-		hint = "Ctrl-P edit/preview · Ctrl-F find · Ctrl-Z/Y undo/redo · Ctrl-G $EDITOR · Ctrl-S apply"
+		hint = "Ctrl-P preview · Ctrl-F find · Ctrl-T tasks→checklist · Ctrl-G $EDITOR · Ctrl-S apply"
 	}
 	hintStyle := model.styles.subtle
 	if model.form.err != "" {

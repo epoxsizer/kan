@@ -16,6 +16,11 @@ func TestValidation(t *testing.T) {
 	require.NoError(t, ValidateFieldDef(FieldDef{BoardID: "b", Key: "area", Label: "Area", Type: FieldSelect, Options: json.RawMessage(`["TUI"]`), Position: 1}))
 	err := ValidateFieldDef(FieldDef{BoardID: "b", Key: "bad key", Label: "Bad", Type: FieldText, Position: 1})
 	require.True(t, errors.Is(err, ErrValidation))
+	offset := 7
+	require.NoError(t, ValidateCardTemplate(CardTemplate{BoardID: "b", Name: "Bug", Title: "Fix bug", Position: 1, DueOffsetDays: &offset, Checklist: []ChecklistItem{{ID: "one", Text: "Reproduce", Position: 1}}}))
+	negative := -1
+	require.ErrorIs(t, ValidateCardTemplate(CardTemplate{BoardID: "b", Name: "Bug", Title: "Fix bug", Position: 1, DueOffsetDays: &negative}), ErrValidation)
+	require.ErrorIs(t, ValidateCardTemplate(CardTemplate{BoardID: "b", Name: "", Title: "Fix bug", Position: 1}), ErrValidation)
 }
 
 func TestCardFieldValueTypes(t *testing.T) {

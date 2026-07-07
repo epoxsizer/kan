@@ -106,6 +106,18 @@ func (coordinator *Coordinator) ArchiveExpiredCards(ctx context.Context, boardID
 	return coordinator.Repository.ArchiveExpiredCards(ctx, boardID)
 }
 
+func (coordinator *Coordinator) CreateCardTemplate(ctx context.Context, value *domain.CardTemplate) error {
+	return coordinator.mutate(func() error { return coordinator.Repository.CreateCardTemplate(ctx, value) })
+}
+
+func (coordinator *Coordinator) UpdateCardTemplate(ctx context.Context, value *domain.CardTemplate) error {
+	return coordinator.mutate(func() error { return coordinator.Repository.UpdateCardTemplate(ctx, value) })
+}
+
+func (coordinator *Coordinator) DeleteCardTemplate(ctx context.Context, id string) error {
+	return coordinator.mutate(func() error { return coordinator.Repository.DeleteCardTemplate(ctx, id) })
+}
+
 func (coordinator *Coordinator) CreateFieldDef(ctx context.Context, value *domain.FieldDef) error {
 	return coordinator.mutate(func() error { return coordinator.Repository.CreateFieldDef(ctx, value) })
 }

@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-const ExportVersion = 3
+const ExportVersion = 4
 
 type ExportDocument struct {
 	Format     string          `json:"format"`
@@ -19,6 +19,7 @@ type ExportProject struct {
 type ExportBoard struct {
 	Board
 	FieldDefs []FieldDef     `json:"field_defs"`
+	Templates []CardTemplate `json:"templates,omitempty"`
 	Columns   []ExportColumn `json:"columns"`
 }
 

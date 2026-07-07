@@ -193,10 +193,11 @@ func (model *Model) clearBoardFilter() {
 	model.filterScores = nil
 	model.filterLoading = false
 	model.filterErr = nil
+	model.planningFilter = planningNone
 }
 
 func (model *Model) filterActive() bool {
-	return strings.TrimSpace(model.filterText) != ""
+	return model.planningFilter != planningNone || strings.TrimSpace(model.filterText) != ""
 }
 
 func (model *Model) visibleCards(columnID string) []domain.Card {

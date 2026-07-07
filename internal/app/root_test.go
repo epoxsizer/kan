@@ -113,6 +113,8 @@ func key(value string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyCtrlW}
 	case "ctrl+g":
 		return tea.KeyMsg{Type: tea.KeyCtrlG}
+	case "ctrl+t":
+		return tea.KeyMsg{Type: tea.KeyCtrlT}
 	default:
 		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)}
 	}
@@ -159,6 +161,94 @@ func TestExternalCardChangeReloadsBoardAndClosesStaleEditor(t *testing.T) {
 	runCommands(model, command)
 	require.False(t, model.loading)
 	require.Equal(t, card.ID, model.selectedCard().ID)
+}
+
+func TestPlanningFiltersAndMarkdownTaskImport(t *testing.T) {
+	now := time.Now()
+	priority := "High"
+	board := domain.Board{ID: "board-1", Name: "Board"}
+	column := domain.Column{ID: "column-1", BoardID: board.ID, Name: "Backlog"}
+	dueToday := now
+	overdue := now.AddDate(0, 0, -1)
+	cards := []domain.Card{
+		{ID: "today", BoardID: board.ID, ColumnID: column.ID, Title: "Today", DueDate: &dueToday, Priority: &priority, UpdatedAt: now},
+		{ID: "blocked", BoardID: board.ID, ColumnID: column.ID, Title: "Blocked", Tags: []string{"blocked"}, UpdatedAt: now},
+		{ID: "stale", BoardID: board.ID, ColumnID: column.ID, Title: "Stale", Priority: &priority, UpdatedAt: now.AddDate(0, 0, -8)},
+		{ID: "untriaged", BoardID: board.ID, ColumnID: column.ID, Title: "Untriaged", UpdatedAt: now},
+		{ID: "overdue", BoardID: board.ID, ColumnID: column.ID, Title: "Overdue", DueDate: &overdue, Priority: &priority, UpdatedAt: now},
+	}
+	model := testModel(readRepository{})
+	model.screen = boardScreen
+	model.board = &board
+	model.columns = []domain.Column{column}
+	model.cards = map[string][]domain.Card{column.ID: cards}
+	model.planning = defaultPlanningOptions()
+
+	_, command := model.executeCommand("blocked")
+	require.Nil(t, command)
+	require.Equal(t, planningBlocked, model.planningFilter)
+	require.Equal(t, []string{"Blocked"}, []string{model.visibleCards(column.ID)[0].Title})
+	_, command = model.executeCommand("stale")
+	require.Nil(t, command)
+	require.Equal(t, []string{"Stale"}, []string{model.visibleCards(column.ID)[0].Title})
+	_, command = model.executeCommand("untriaged")
+	require.Nil(t, command)
+	require.Equal(t, []string{"Blocked", "Untriaged"}, []string{model.visibleCards(column.ID)[0].Title, model.visibleCards(column.ID)[1].Title})
+
+	model.form = &formModal{kind: createCardForm, fields: []formField{{label: "Description", kind: commentField, markdown: true}, {label: "Checklist", value: "[]", kind: checklistField}}}
+	model.importMarkdownTasksToChecklist("- [ ] Reproduce\n- [x] Fix")
+	var checklist []domain.ChecklistItem
+	require.NoError(t, json.Unmarshal([]byte(model.form.fields[1].value), &checklist))
+	require.Len(t, checklist, 2)
+	require.Equal(t, "Reproduce", checklist[0].Text)
+	require.True(t, checklist[1].Done)
+}
+
+func TestCardTemplatesCreateCards(t *testing.T) {
+	ctx := context.Background()
+	repo, err := storagesqlite.Open(ctx, filepath.Join(t.TempDir(), "templates.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, repo.Close()) })
+	model := testModel(repo)
+	runCommands(model, model.Init())
+
+	model.Update(key("a"))
+	model.Update(key("Project"))
+	_, command := model.Update(key("ctrl+s"))
+	runCommands(model, command)
+	_, command = model.Update(key("enter"))
+	runCommands(model, command)
+	model.Update(key("a"))
+	model.Update(key("Board"))
+	_, command = model.Update(key("ctrl+s"))
+	runCommands(model, command)
+	_, command = model.Update(key("enter"))
+	runCommands(model, command)
+	model.Update(key("c"))
+	model.Update(key("Backlog"))
+	_, command = model.Update(key("ctrl+s"))
+	runCommands(model, command)
+
+	_, command = model.executeCommand("new-template")
+	require.Nil(t, command)
+	model.Update(key("Bug"))
+	model.Update(key("tab"))
+	model.Update(key("Fix bug"))
+	_, command = model.Update(key("ctrl+s"))
+	runCommands(model, command)
+	templates, err := repo.ListCardTemplates(ctx, model.board.ID)
+	require.NoError(t, err)
+	require.Len(t, templates, 1)
+
+	_, command = model.executeCommand("template")
+	runCommands(model, command)
+	require.NotNil(t, model.form)
+	_, command = model.Update(key("ctrl+s"))
+	runCommands(model, command)
+	cards, err := repo.ListCards(ctx, model.board.ID)
+	require.NoError(t, err)
+	require.Len(t, cards, 1)
+	require.Equal(t, "Fix bug", cards[0].Title)
 }
 
 func TestPhaseTwoTUIFormsMovementAndPersistence(t *testing.T) {

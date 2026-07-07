@@ -33,6 +33,12 @@ type Repository interface {
 	ArchiveCardsInColumn(context.Context, string) (int, error)
 	ArchiveExpiredCards(context.Context, string) (int, error)
 
+	CreateCardTemplate(context.Context, *CardTemplate) error
+	GetCardTemplate(context.Context, string) (CardTemplate, error)
+	ListCardTemplates(context.Context, string) ([]CardTemplate, error)
+	UpdateCardTemplate(context.Context, *CardTemplate) error
+	DeleteCardTemplate(context.Context, string) error
+
 	CreateFieldDef(context.Context, *FieldDef) error
 	GetFieldDef(context.Context, string) (FieldDef, error)
 	ListFieldDefs(context.Context, string) ([]FieldDef, error)

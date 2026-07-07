@@ -65,6 +65,36 @@ func (repo *Repository) ImportDocument(ctx context.Context, document domain.Expo
 				return mapError(err)
 			}
 
+			if document.Version >= 4 {
+				for templateIndex := range exportedBoard.Templates {
+					template := exportedBoard.Templates[templateIndex]
+					if template.ID == "" || template.BoardID != board.ID {
+						return importValidation("template ID and board relationship must match its hierarchy")
+					}
+					if template.Tags == nil {
+						template.Tags = []string{}
+					}
+					if template.Checklist == nil {
+						template.Checklist = []domain.ChecklistItem{}
+					}
+					if err = domain.ValidateCardTemplate(template); err != nil {
+						return err
+					}
+					template.CreatedAt, template.UpdatedAt = importTimes(template.CreatedAt, template.UpdatedAt, now)
+					tags, encodeErr := jsonValue(template.Tags, `[]`)
+					if encodeErr != nil {
+						return encodeErr
+					}
+					checklist, encodeErr := jsonValue(template.Checklist, `[]`)
+					if encodeErr != nil {
+						return encodeErr
+					}
+					if _, err = tx.ExecContext(ctx, `INSERT INTO card_templates(id,board_id,name,title,description,priority,due_offset_days,tags,checklist,position,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, template.ID, template.BoardID, template.Name, template.Title, template.Description, template.Priority, template.DueOffsetDays, tags, checklist, template.Position, encodeTime(template.CreatedAt), encodeTime(template.UpdatedAt)); err != nil {
+						return mapError(err)
+					}
+				}
+			}
+
 			for defIndex := range exportedBoard.FieldDefs {
 				def := exportedBoard.FieldDefs[defIndex]
 				if def.ID == "" || def.BoardID != board.ID {
