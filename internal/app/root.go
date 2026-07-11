@@ -105,6 +105,7 @@ func New(ctx context.Context, repo domain.Repository, logger *slog.Logger) *Mode
 type Options struct {
 	ShowCardTags            bool
 	ShowSelectedCardDetails bool
+	StartupNotice           string
 	Theme                   Theme
 	Planning                PlanningOptions
 }
@@ -130,6 +131,7 @@ func NewWithOptions(ctx context.Context, repo domain.Repository, logger *slog.Lo
 		boardCounts:   make(map[string]int),
 		boardHealth:   make(map[string]boardHealth),
 		showCardTags:  options.ShowCardTags,
+		notice:        options.StartupNotice,
 
 		showSelectedCardDetails: options.ShowSelectedCardDetails,
 	}

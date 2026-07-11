@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -31,6 +33,7 @@ type Config struct {
 	Theme    Theme    `toml:"theme"`
 	MCP      MCP      `toml:"mcp"`
 	Planning Planning `toml:"planning"`
+	Sync     Sync     `toml:"sync"`
 }
 
 type MCP struct {
@@ -90,14 +93,14 @@ type fileBackup struct {
 	S3        legacyS3Backup `toml:"s3"`
 }
 
-type legacySync struct {
-	Enabled   bool         `toml:"enabled"`
-	Interval  string       `toml:"interval"`
-	ObjectKey string       `toml:"object_key"`
-	S3        legacyS3Sync `toml:"s3"`
+type Sync struct {
+	Enabled   bool   `toml:"enabled"`
+	Interval  string `toml:"interval"`
+	ObjectKey string `toml:"object_key"`
+	S3        S3Sync `toml:"s3"`
 }
 
-type legacyS3Sync struct {
+type S3Sync struct {
 	Bucket          string `toml:"bucket"`
 	Region          string `toml:"region"`
 	Endpoint        string `toml:"endpoint"`
@@ -124,7 +127,7 @@ type fileConfig struct {
 	MCP      *MCP          `toml:"mcp"`
 	Planning *filePlanning `toml:"planning"`
 	Backup   *fileBackup   `toml:"backup"`
-	Sync     *legacySync   `toml:"sync"`
+	Sync     *Sync         `toml:"sync"`
 }
 
 type Overrides struct {
@@ -152,6 +155,7 @@ func Defaults() Config {
 		},
 		MCP:      MCP{Address: "127.0.0.1:7337"},
 		Planning: Planning{StaleAfterDays: 7, BlockedTags: []string{"blocked", "blocker"}, UntriagedWithoutPriority: true},
+		Sync:     Sync{Interval: "10m", ObjectKey: "kan/sync.json"},
 	}
 }
 
@@ -190,9 +194,6 @@ func Load(overrides Overrides) (Config, error) {
 				return Config{}, errors.New("backup.storage is no longer supported; backups are local-only")
 			}
 		}
-		if fileCfg.Sync != nil && fileCfg.Sync.Enabled {
-			return Config{}, errors.New("S3 sync has been removed")
-		}
 		merge(&cfg, fileCfg)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Config{}, fmt.Errorf("stat config %q: %w", configPath, err)
@@ -222,6 +223,9 @@ func Load(overrides Overrides) (Config, error) {
 	if err := validatePlanning(cfg.Planning); err != nil {
 		return Config{}, err
 	}
+	if err := validateSync(cfg.Sync); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
 }
 
@@ -244,6 +248,19 @@ token = %q
 stale_after_days = %d
 blocked_tags = [%s]
 untriaged_without_priority = %t
+
+[sync]
+enabled = %t
+interval = %q
+object_key = %q
+
+[sync.s3]
+bucket = %q
+region = %q
+endpoint = %q
+access_key_id = %q
+secret_access_key = %q
+force_path_style = %t
 
 [theme]
 primary = %q
@@ -284,6 +301,15 @@ column_default = %q
 		cfg.Planning.StaleAfterDays,
 		quotedStringList(cfg.Planning.BlockedTags),
 		cfg.Planning.UntriagedWithoutPriority,
+		cfg.Sync.Enabled,
+		cfg.Sync.Interval,
+		cfg.Sync.ObjectKey,
+		cfg.Sync.S3.Bucket,
+		cfg.Sync.S3.Region,
+		cfg.Sync.S3.Endpoint,
+		cfg.Sync.S3.AccessKeyID,
+		cfg.Sync.S3.SecretAccessKey,
+		cfg.Sync.S3.ForcePathStyle,
 		cfg.Theme.Primary,
 		cfg.Theme.Muted,
 		cfg.Theme.Text,
@@ -362,6 +388,37 @@ func merge(dst *Config, src fileConfig) {
 		if src.Planning.UntriagedWithoutPriority != nil {
 			dst.Planning.UntriagedWithoutPriority = *src.Planning.UntriagedWithoutPriority
 		}
+	}
+	if src.Sync != nil {
+		mergeSync(&dst.Sync, *src.Sync)
+	}
+}
+
+func mergeSync(dst *Sync, src Sync) {
+	dst.Enabled = src.Enabled
+	if src.Interval != "" {
+		dst.Interval = src.Interval
+	}
+	if src.ObjectKey != "" {
+		dst.ObjectKey = src.ObjectKey
+	}
+	if src.S3.Bucket != "" {
+		dst.S3.Bucket = src.S3.Bucket
+	}
+	if src.S3.Region != "" {
+		dst.S3.Region = src.S3.Region
+	}
+	if src.S3.Endpoint != "" {
+		dst.S3.Endpoint = src.S3.Endpoint
+	}
+	if src.S3.AccessKeyID != "" {
+		dst.S3.AccessKeyID = src.S3.AccessKeyID
+	}
+	if src.S3.SecretAccessKey != "" {
+		dst.S3.SecretAccessKey = src.S3.SecretAccessKey
+	}
+	if src.S3.ForcePathStyle {
+		dst.S3.ForcePathStyle = true
 	}
 }
 
@@ -501,6 +558,37 @@ func validatePlanning(value Planning) error {
 	for _, tag := range value.BlockedTags {
 		if strings.TrimSpace(tag) == "" {
 			return errors.New("planning.blocked_tags must not contain empty values")
+		}
+	}
+	return nil
+}
+
+func validateSync(value Sync) error {
+	interval, err := time.ParseDuration(value.Interval)
+	if err != nil {
+		return fmt.Errorf("sync.interval must be a valid duration: %w", err)
+	}
+	if interval < time.Minute {
+		return errors.New("sync.interval must be at least 1m")
+	}
+	if strings.TrimSpace(value.ObjectKey) == "" {
+		return errors.New("sync.object_key must not be empty")
+	}
+	if !value.Enabled {
+		return nil
+	}
+	for name, field := range map[string]string{
+		"bucket": value.S3.Bucket, "region": value.S3.Region,
+		"access_key_id": value.S3.AccessKeyID, "secret_access_key": value.S3.SecretAccessKey,
+	} {
+		if strings.TrimSpace(field) == "" {
+			return fmt.Errorf("sync.s3.%s must not be empty when sync is enabled", name)
+		}
+	}
+	if value.S3.Endpoint != "" {
+		endpoint, err := url.Parse(value.S3.Endpoint)
+		if err != nil || endpoint.Scheme == "" || endpoint.Host == "" {
+			return errors.New("sync.s3.endpoint must include scheme and host")
 		}
 	}
 	return nil

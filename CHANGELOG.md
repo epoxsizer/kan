@@ -6,6 +6,19 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-07-11
+
+### Added
+
+- Optional conflict-safe S3 JSON synchronization with configurable scheduling,
+  startup and shutdown reconciliation, ETag protection, and manual recovery
+  commands.
+
+### Changed
+
+- Scheduled synchronization now shares the TUI and MCP mutation coordinator,
+  preventing remote imports and snapshots from racing local edits.
+
 ## [0.1.16] - 2026-07-08
 
 ### Added
@@ -173,7 +186,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Theme configuration, inline shortcut help, and accessible empty states.
 - Scriptable CLI commands for projects, boards, columns, cards, and data exchange.
 
-[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.8...main
+[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.17...main
+[0.1.17]: https://github.com/epoxsizer/kan/compare/v0.1.16...v0.1.17
 [0.1.8]: https://github.com/epoxsizer/kan/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/epoxsizer/kan/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/epoxsizer/kan/compare/v0.1.5...v0.1.6

@@ -18,6 +18,22 @@ stale_after_days = 7
 blocked_tags = ["blocked", "blocker"]
 untriaged_without_priority = true
 
+[sync]
+# Set enabled to true to synchronize the portable JSON export while Kan is open.
+enabled = false
+interval = "10m"
+object_key = "kan/sync.json"
+
+[sync.s3]
+bucket = ""
+region = ""
+# Leave empty for AWS S3, or set an S3-compatible endpoint such as https://s3.example.com.
+endpoint = ""
+# Keep this file private (mode 0600) and never commit real credentials.
+access_key_id = ""
+secret_access_key = ""
+force_path_style = false
+
 [theme]
 # primary = "#7D7AFF"
 # muted = "#909090"

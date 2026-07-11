@@ -53,6 +53,33 @@ func New(version, commit, date string) *cobra.Command {
 			defer res.Close()
 
 			workingDirectory, workingDirectoryErr := os.Getwd()
+			var syncer *syncEngine
+			syncActive := false
+			startupNotice := ""
+			if res.config.Sync.Enabled {
+				if workingDirectoryErr != nil {
+					return fmt.Errorf("get working directory for S3 sync backups: %w", workingDirectoryErr)
+				}
+				syncer, err = newSyncEngine(res.store, res.tasks, res.config.Database, res.config.Sync, workingDirectory, res.logger, realS3SyncClient{})
+				if err != nil {
+					return err
+				}
+				startupContext, cancelStartup := context.WithTimeout(cmd.Context(), syncAttemptTimeout)
+				err = syncer.reconcile(startupContext)
+				cancelStartup()
+				switch {
+				case err == nil:
+					syncActive = true
+					res.logger.Info("startup JSON sync complete")
+				case isTransientS3Error(err):
+					syncActive = true
+					startupNotice = "S3 sync unavailable; will retry"
+					res.logger.Error("startup JSON sync unavailable", "error", err)
+				default:
+					startupNotice = "S3 sync paused; resolve it with sync commands after closing Kan"
+					res.logger.Error("startup JSON sync paused", "error", err)
+				}
+			}
 
 			var cancelBackups context.CancelFunc
 			var backupsDone <-chan struct{}
@@ -65,7 +92,7 @@ func New(version, commit, date string) *cobra.Command {
 			}
 			res.logger.Info("TUI starting")
 			program := tea.NewProgram(
-				app.NewWithOptions(cmd.Context(), res.tasks, res.logger, app.Options{ShowCardTags: res.config.ShowCardTags, ShowSelectedCardDetails: res.config.ShowSelectedCardDetails, Theme: app.Theme{
+				app.NewWithOptions(cmd.Context(), res.tasks, res.logger, app.Options{ShowCardTags: res.config.ShowCardTags, ShowSelectedCardDetails: res.config.ShowSelectedCardDetails, StartupNotice: startupNotice, Theme: app.Theme{
 					Primary: res.config.Theme.Primary, Muted: res.config.Theme.Muted, Text: res.config.Theme.Text, Background: res.config.Theme.Background, SelectedForeground: res.config.Theme.SelectedForeground, SelectedBackground: res.config.Theme.SelectedBackground, Danger: res.config.Theme.Danger, Border: res.config.Theme.Border,
 					SelectedColumnForeground: res.config.Theme.SelectedColumnForeground, SelectedColumnBackground: res.config.Theme.SelectedColumnBackground, SelectedColumnBorder: res.config.Theme.SelectedColumnBorder,
 					SelectedCardForeground: res.config.Theme.SelectedCardForeground, SelectedCardBackground: res.config.Theme.SelectedCardBackground, PanelBorder: res.config.Theme.PanelBorder, FocusedPanelBorder: res.config.Theme.FocusedPanelBorder,
@@ -90,6 +117,15 @@ func New(version, commit, date string) *cobra.Command {
 				}
 				return startMCPErr
 			}
+			var cancelSync context.CancelFunc
+			var syncDone <-chan struct{}
+			if syncer != nil && syncActive {
+				syncContext, cancel := context.WithCancel(cmd.Context())
+				cancelSync = cancel
+				syncDone = startAutomaticSync(syncContext, syncer, res.logger, func(message string) {
+					program.Send(app.NoticeMsg{Text: message})
+				})
+			}
 
 			versionContext, cancelVersion := context.WithCancel(cmd.Context())
 			versionDone := startVersionCheck(versionContext, version, versionService, res.logger, func(message string) {
@@ -102,6 +138,19 @@ func New(version, commit, date string) *cobra.Command {
 			cancelShutdown()
 			cancelVersion()
 			<-versionDone
+			if cancelSync != nil {
+				cancelSync()
+				<-syncDone
+			}
+			if syncer != nil && syncActive {
+				shutdownSyncContext, cancelShutdownSync := context.WithTimeout(context.Background(), syncAttemptTimeout)
+				if syncErr := syncer.reconcile(shutdownSyncContext); syncErr != nil {
+					res.logger.Error("final JSON sync failed", "error", syncErr)
+				} else {
+					res.logger.Info("final JSON sync complete")
+				}
+				cancelShutdownSync()
+			}
 			if cancelBackups != nil {
 				cancelBackups()
 				<-backupsDone
@@ -161,6 +210,7 @@ func New(version, commit, date string) *cobra.Command {
 	root.AddCommand(newBackupCommand(&opts))
 	root.AddCommand(newExportCommand(&opts))
 	root.AddCommand(newImportCommand(&opts))
+	root.AddCommand(newSyncCommand(&opts))
 	root.AddCommand(newUpgradeCommand(version, versionService, versionServiceErr))
 	root.AddCommand(
 		newProjectCommand(&opts),

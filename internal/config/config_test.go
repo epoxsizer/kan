@@ -46,8 +46,10 @@ func TestDefaultLoadCreatesLocalConfigAndUsesLocalPaths(t *testing.T) {
 	require.NotContains(t, string(contents), `[backup]`)
 	require.NotContains(t, string(contents), `storage =`)
 	require.NotContains(t, string(contents), `[backup.s3]`)
-	require.NotContains(t, string(contents), `[sync]`)
-	require.NotContains(t, string(contents), `[sync.s3]`)
+	require.Contains(t, string(contents), `[sync]`)
+	require.Contains(t, string(contents), `enabled = false`)
+	require.Contains(t, string(contents), `interval = "10m"`)
+	require.Contains(t, string(contents), `[sync.s3]`)
 	require.Contains(t, string(contents), `[theme]`)
 	require.Contains(t, string(contents), `selected_card_background = "#4C8DFF"`)
 	require.Contains(t, string(contents), `focused_panel_border = "#4C8DFF"`)
@@ -188,7 +190,7 @@ func TestCardTagDisplayDefaultsOnAndCanBeDisabled(t *testing.T) {
 	require.True(t, cfg.ShowSelectedCardDetails)
 }
 
-func TestLegacySyncConfigCompatibility(t *testing.T) {
+func TestSyncConfiguration(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	contents := `[sync]
 enabled = false
@@ -204,12 +206,24 @@ secret_access_key = "secret"
 force_path_style = true
 `
 	require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
-	_, err := Load(Overrides{ConfigFile: path})
+	cfg, err := Load(Overrides{ConfigFile: path})
 	require.NoError(t, err)
+	require.False(t, cfg.Sync.Enabled)
+	require.Equal(t, "15m", cfg.Sync.Interval)
+	require.Equal(t, "kan-sync", cfg.Sync.S3.Bucket)
+	require.True(t, cfg.Sync.S3.ForcePathStyle)
+
+	require.NoError(t, os.WriteFile(path, []byte("[sync]\nenabled = true\ninterval = '30s'\n"), 0o600))
+	_, err = Load(Overrides{ConfigFile: path})
+	require.ErrorContains(t, err, "sync.interval must be at least 1m")
 
 	require.NoError(t, os.WriteFile(path, []byte("[sync]\nenabled = true\n"), 0o600))
 	_, err = Load(Overrides{ConfigFile: path})
-	require.ErrorContains(t, err, "S3 sync has been removed")
+	require.ErrorContains(t, err, "sync.s3.")
+
+	require.NoError(t, os.WriteFile(path, []byte("[sync]\nenabled = true\n\n[sync.s3]\nbucket = 'bucket'\nregion = 'region'\naccess_key_id = 'key'\nsecret_access_key = 'secret'\nendpoint = 'not-a-url'\n"), 0o600))
+	_, err = Load(Overrides{ConfigFile: path})
+	require.ErrorContains(t, err, "sync.s3.endpoint")
 }
 
 func TestThemeOverridesAndValidation(t *testing.T) {

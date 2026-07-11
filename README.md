@@ -14,10 +14,10 @@ Project -> Board -> Column -> Card
 ```
 
 The app includes full-text search, tags, priorities, due dates, Markdown card
-descriptions, checklists, custom fields, linked cards, JSON import/export, and
-automatic local backups. The database and backups stay on the local machine.
+descriptions, checklists, custom fields, linked cards, JSON import/export,
+automatic local backups, and optional S3 JSON synchronization.
 
-Current version: `0.1.16`.
+Current version: `0.1.17`.
 
 ## Interface
 
@@ -265,6 +265,55 @@ Manual and automatic backups are stored in `backup/` relative to the current
 working directory. While the TUI is running, an automatic backup is created about
 every six hours. Timestamped backups older than 14 days are removed from this
 directory. Backups are always local and their 14-day retention is fixed.
+
+## S3 JSON Sync
+
+Kan can synchronize its complete portable JSON export with one S3 or
+S3-compatible object. Synchronization runs only while the TUI is open: Kan
+reconciles at startup, every configured interval, and once during clean
+shutdown. Configure it beside the executable in `config.toml`:
+
+```toml
+[sync]
+enabled = true
+interval = "10m"
+object_key = "kan/sync.json"
+
+[sync.s3]
+bucket = "kan-sync"
+region = "us-east-1"
+endpoint = "https://s3.example.com" # optional for AWS S3
+access_key_id = "replace-me"
+secret_access_key = "replace-me"
+force_path_style = false
+```
+
+The configured object is a `kan export` document and can be restored after
+downloading it with `kan import`. Keep credentials in a private `config.toml`
+(Kan creates it with mode `0600`) and never commit them.
+
+Two Kan installations can safely share the object. Kan records the S3 ETag and
+a hash of the last synchronized export in `<database>.sync-state.json`, then
+uses conditional uploads to prevent silent overwrites. If only one side changed,
+Kan uploads or imports that change; before a non-empty local database is
+replaced it writes a local `kan-pre-sync-*` backup. If both sides changed,
+the remote object was deleted, or the remote export is invalid, synchronization
+pauses and the TUI continues locally. Temporary S3 outages are retried on the
+next interval.
+
+Close the TUI before using the manual recovery commands because Kan protects
+the database with an exclusive process lock:
+
+```sh
+kan sync status
+kan sync pull --yes
+kan sync push
+kan sync push --force --yes
+```
+
+`sync status`, `sync pull`, and `sync push` write JSON to standard output.
+`sync pull --yes` explicitly replaces local data; `sync push --force --yes` is
+the only command that intentionally overwrites a changed remote object.
 
 ## Data Paths
 

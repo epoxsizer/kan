@@ -134,6 +134,18 @@ func (coordinator *Coordinator) ImportDocument(ctx context.Context, document dom
 	return coordinator.mutate(func() error { return coordinator.Repository.ImportDocument(ctx, document, replace) })
 }
 
+func (coordinator *Coordinator) Backup(ctx context.Context, destination string) error {
+	return coordinator.mutate(func() error {
+		backupper, ok := coordinator.Repository.(interface {
+			Backup(context.Context, string) error
+		})
+		if !ok {
+			return fmt.Errorf("repository does not support backups")
+		}
+		return backupper.Backup(ctx, destination)
+	})
+}
+
 func (coordinator *Coordinator) CreateCardAtEnd(ctx context.Context, value *domain.Card) error {
 	return coordinator.mutate(func() error {
 		column, err := coordinator.Repository.GetColumn(ctx, value.ColumnID)

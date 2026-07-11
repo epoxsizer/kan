@@ -37,10 +37,13 @@ func TestMigrateSeedAndVersionCommands(t *testing.T) {
 	require.Contains(t, output.String(), "commit abc123")
 }
 
-func TestRemovedSyncCommandIsUnavailable(t *testing.T) {
+func TestSyncCommandIsAvailable(t *testing.T) {
 	root := New("test", "abc123", "today")
-	root.SetArgs([]string{"sync"})
-	require.ErrorContains(t, root.Execute(), `unknown command "sync"`)
+	var output bytes.Buffer
+	root.SetOut(&output)
+	root.SetArgs([]string{"sync", "--help"})
+	require.NoError(t, root.Execute())
+	require.Contains(t, output.String(), "Inspect or manually synchronize JSON data with S3")
 }
 
 func TestFirstRunCreatesConfigBesideBinary(t *testing.T) {
