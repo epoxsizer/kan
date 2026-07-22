@@ -106,20 +106,19 @@ kan upgrade check
 | `H`, `L` | Move the selected card to the previous/next column |
 | `Shift-Tab`, `Tab` | Move the selected card between columns |
 | `Shift-Left`, `Shift-Right` | Move the selected column left or right |
-| `:move-column-left`, `:move-column-right` | Reorder the selected column from the command bar |
+| `:column move-left`, `:column move-right` | Reorder the selected column from the command menu |
 | `J`, `K` | Reorder cards |
 | `M` | Choose a destination column |
 | `u` | Undo the last successful move or reorder |
 | `/` | Search within the current board |
-| `:` | Command bar and global fuzzy search |
-| `:archive` | Archive every active card in the selected column |
-| `:archived` | Show archived cards for the current board |
-| `:column-settings` | Configure the selected column |
-| `:filter` | Open ranked fuzzy filtering for cards on the current board |
-| `:today`, `:overdue`, `:blocked`, `:stale`, `:untriaged` | Show planning views for the current board |
-| `:new-template`, `:save-template`, `:template`, `:templates` | Create and use board-only card templates |
-| `:layout table` | Show projects and boards as tables |
-| `:layout cards` | Show projects and boards as card grids |
+| `:` | Open hierarchical action menus for cards, columns, boards, projects, settings, and views |
+| `:card archive` | Archive the selected card with confirmation |
+| `:column archive` | Archive every active card in the selected column |
+| `:view archived` | Show archived cards for the current board |
+| `:column settings` | Configure the selected column |
+| `:view today`, `:view overdue`, `:view blocked`, `:view stale`, `:view untriaged` | Show planning views for the current board |
+| `:card new-template`, `:card save-template`, `:card from-template`, `:card templates` | Create and use board-only card templates |
+| `:view table`, `:view cards` | Choose the project and board list layout |
 | `?` | Full help |
 | `Esc` | Back or cancel |
 | `q`, `Ctrl-C` | Quit |
@@ -147,10 +146,10 @@ wide show both panes. `Ctrl-F` searches, `Ctrl-Z`/`Ctrl-Y` undo and redo,
 the original description text, and `Tab`/`Shift-Tab` indent or outdent list
 items. Enter continues Markdown lists.
 
-Board-only card templates help create repeated work. Use `:new-template` to
-define one manually, `:save-template` to copy the selected card into a template,
-`:template` or `:new-from-template` to create a card from a template, and
-`:templates` to inspect available templates on the current board.
+Board-only card templates help create repeated work. Use `:card new-template`
+to define one manually, `:card save-template` to copy the selected card into a
+template, `:card from-template` to create a card from a template, and
+`:card templates` to inspect available templates on the current board.
 
 `Ctrl-G` opens the command configured by `$VISUAL` or `$EDITOR` (for example,
 `EDITOR="code --wait"`). External edits return to the description buffer and

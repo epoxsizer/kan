@@ -123,6 +123,14 @@ func fuzzyCardScore(query string, card domain.Card, columnName string) int {
 	return total
 }
 
+func checklistSearchText(items []domain.ChecklistItem) string {
+	values := make([]string, len(items))
+	for index, item := range items {
+		values[index] = item.Text
+	}
+	return strings.Join(values, " ")
+}
+
 func runeEditDistance(left, right string) int {
 	a, b := []rune(left), []rune(right)
 	previous := make([]int, len(b)+1)

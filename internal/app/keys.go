@@ -15,13 +15,13 @@ EDITING
   c/E/X columns · ⇧←/→ reorder
   H/L/Tab/J/K    move/reorder cards; M choose; u undo
 BOARD VIEW
-  /              fuzzy filter; :today/:blocked/:stale planning views
+  /              fuzzy filter; :view opens planning and layout actions
   s/v            cycle sort / grouping
 FORMS
   Tab fields · Ctrl-P preview · Ctrl-F find · Ctrl-T tasks · Ctrl-G editor
 GENERAL
   Mouse          click/open · wheel · right-click back
-  ? / :          help / search and settings
+  ? / :          help / hierarchical action menus
   q/Ctrl-C       quit`
 
 func (model *Model) renderHelpText() string {

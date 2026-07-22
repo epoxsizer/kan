@@ -121,8 +121,8 @@ func (model *Model) handleMouseClick(event tea.MouseEvent) (tea.Model, tea.Cmd) 
 			model.command = ""
 			model.commandCursor = 0
 			model.commandIndex = 0
-			model.paletteLoading = true
-			return model, loadPaletteIndex(model.ctx, model.repo)
+			model.commandMenu = ""
+			return model, nil
 		case event.X < 33:
 			return model, tea.Quit
 		}

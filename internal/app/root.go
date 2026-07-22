@@ -73,15 +73,13 @@ type Model struct {
 	groupMode      cardGroup
 	listLayout     listLayout
 
-	commandMode    bool
-	command        string
-	commandCursor  int
-	commandIndex   int
-	paletteItems   []paletteItem
-	paletteLoading bool
-	paletteErr     error
-	pendingColumn  string
-	pendingCard    string
+	commandMode   bool
+	command       string
+	commandCursor int
+	commandIndex  int
+	commandMenu   string
+	pendingColumn string
+	pendingCard   string
 
 	projects      []domain.Project
 	projectCounts map[string]int
@@ -237,14 +235,6 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		return model, nil
 	case cardTemplatesLoadedMsg:
 		return model.handleTemplatesLoaded(message)
-	case paletteLoadedMsg:
-		model.paletteLoading = false
-		model.paletteErr = message.err
-		if message.err == nil {
-			model.paletteItems = message.items
-			model.commandIndex = clampIndex(model.commandIndex, len(model.paletteMatches()))
-		}
-		return model, nil
 	case linkCandidatesLoadedMsg:
 		if model.form != nil {
 			model.form.linksLoading = false
@@ -426,10 +416,8 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		model.command = ""
 		model.commandCursor = 0
 		model.commandIndex = 0
-		model.paletteLoading = true
-		model.paletteErr = nil
-		model.paletteItems = nil
-		return model, loadPaletteIndex(model.ctx, model.repo)
+		model.commandMenu = ""
+		return model, nil
 	case "esc":
 		if model.help {
 			model.help = false
@@ -670,22 +658,37 @@ func (model *Model) openSelectedCardEdit() (tea.Model, tea.Cmd) {
 func (model *Model) handleCommandKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.String() {
 	case "esc":
+		if model.commandMenu != "" {
+			model.commandMenu = ""
+			model.command = ""
+			model.commandCursor = 0
+			model.commandIndex = 0
+			return model, nil
+		}
 		model.commandMode = false
 		model.command = ""
 		model.commandCursor = 0
 		model.commandIndex = 0
 	case "enter":
 		matches := model.paletteMatches()
-		model.commandMode = false
-		model.command = ""
-		model.commandCursor = 0
 		if len(matches) == 0 {
-			model.err = fmt.Errorf("no matching command or data")
+			model.err = fmt.Errorf("no matching menu action")
 			return model, nil
 		}
 		selected := matches[clampIndex(model.commandIndex, len(matches))]
+		if selected.menu != "" {
+			model.commandMenu = selected.menu
+			model.command = ""
+			model.commandCursor = 0
+			model.commandIndex = 0
+			return model, nil
+		}
+		model.commandMode = false
+		model.commandMenu = ""
+		model.command = ""
+		model.commandCursor = 0
 		model.commandIndex = 0
-		return model.executePaletteMatch(selected)
+		return model.executeCommand(selected.command)
 	case "up":
 		model.commandIndex = max(model.commandIndex-1, 0)
 	case "down", "tab":
@@ -700,44 +703,6 @@ func (model *Model) handleCommandKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return model, nil
-}
-
-func (model *Model) executePaletteMatch(match paletteMatch) (tea.Model, tea.Cmd) {
-	if match.command != "" {
-		return model.executeCommand(match.command)
-	}
-	if match.item == nil {
-		return model, nil
-	}
-	item := *match.item
-	model.help = false
-	model.err = nil
-	model.notice = ""
-	model.clearBoardFilter()
-	model.lastMove = nil
-	model.project = &item.project
-	switch item.kind {
-	case projectItem:
-		model.board = nil
-		model.screen = boardsScreen
-		model.loading = true
-		return model, loadBoards(model.ctx, model.repo, item.project.ID)
-	case boardItem:
-		model.board = &item.board
-		model.pendingColumn = ""
-		model.pendingCard = ""
-	case columnItem:
-		model.board = &item.board
-		model.pendingColumn = item.column.ID
-		model.pendingCard = ""
-	case cardItem:
-		model.board = &item.board
-		model.pendingColumn = item.card.ColumnID
-		model.pendingCard = item.card.ID
-	}
-	model.screen = boardScreen
-	model.loading = true
-	return model, loadBoard(model.ctx, model.repo, item.board.ID)
 }
 
 func (model *Model) applyPendingPaletteFocus() {
@@ -767,6 +732,60 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 	switch command {
 	case "q", "quit":
 		return model, tea.Quit
+	case "project-add":
+		if model.screen != projectsScreen {
+			model.err = fmt.Errorf("open the project list first")
+			return model, nil
+		}
+		model.startProjectForm(false)
+	case "project-edit":
+		if model.screen != projectsScreen || len(model.projects) == 0 {
+			model.err = fmt.Errorf("select a project in the project list first")
+			return model, nil
+		}
+		model.startProjectForm(true)
+	case "project-delete":
+		if model.screen != projectsScreen || len(model.projects) == 0 {
+			model.err = fmt.Errorf("select a project in the project list first")
+			return model, nil
+		}
+		return model.handleProjectsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
+	case "board-add":
+		if model.screen != boardsScreen || model.project == nil {
+			model.err = fmt.Errorf("open a project's board list first")
+			return model, nil
+		}
+		model.startBoardForm(false)
+	case "board-edit":
+		if model.screen != boardsScreen || len(model.boards) == 0 {
+			model.err = fmt.Errorf("select a board in the board list first")
+			return model, nil
+		}
+		model.startBoardForm(true)
+	case "board-delete":
+		if model.screen != boardsScreen || len(model.boards) == 0 {
+			model.err = fmt.Errorf("select a board in the board list first")
+			return model, nil
+		}
+		return model.handleBoardsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
+	case "card-add":
+		if model.screen != boardScreen || len(model.columns) == 0 {
+			model.err = fmt.Errorf("open a board with at least one column first")
+			return model, nil
+		}
+		return model, model.startCardForm(false)
+	case "card-edit":
+		if model.screen != boardScreen || len(model.columns) == 0 || model.selectedCard().ID == "" {
+			model.err = fmt.Errorf("select a card on a board first")
+			return model, nil
+		}
+		return model, model.startCardForm(true)
+	case "card-archive":
+		if model.screen != boardScreen || len(model.columns) == 0 || model.selectedCard().ID == "" {
+			model.err = fmt.Errorf("select a card on a board first")
+			return model, nil
+		}
+		return model.handleBoardKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
 	case "add", "new":
 		switch model.screen {
 		case projectsScreen:
@@ -890,6 +909,12 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		model.startColumnForm(true)
+	case "delete-column":
+		if model.screen != boardScreen || model.board == nil || len(model.columns) == 0 {
+			model.err = fmt.Errorf("open a board column first")
+			return model, nil
+		}
+		return model.handleBoardKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("X")})
 	case "move-column-left":
 		if model.screen != boardScreen || model.board == nil || len(model.columns) == 0 {
 			model.err = fmt.Errorf("open a board column first")

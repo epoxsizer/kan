@@ -6,6 +6,14 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.18] - 2026-07-22
+
+### Changed
+
+- Replaced the mixed global fuzzy-search command palette with hierarchical
+  `card`, `column`, `board`, `project`, `settings`, and `view` action menus.
+  Card search now stays in the current board's `/` filter.
+
 ## [0.1.17] - 2026-07-11
 
 ### Added
@@ -186,7 +194,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Theme configuration, inline shortcut help, and accessible empty states.
 - Scriptable CLI commands for projects, boards, columns, cards, and data exchange.
 
-[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.17...main
+[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.18...main
+[0.1.18]: https://github.com/epoxsizer/kan/compare/v0.1.17...v0.1.18
 [0.1.17]: https://github.com/epoxsizer/kan/compare/v0.1.16...v0.1.17
 [0.1.8]: https://github.com/epoxsizer/kan/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/epoxsizer/kan/compare/v0.1.6...v0.1.7

@@ -890,14 +890,21 @@ func TestHelpCommandBarAndResize(t *testing.T) {
 
 	model.Update(key(":"))
 	palette := model.View()
-	for _, command := range []string{"projects", "boards", "reload", "help", "quit", "add", "column-settings", "settings"} {
-		require.Contains(t, palette, command)
+	for _, menu := range []string{"card", "column", "board", "project", "settings", "view"} {
+		require.Contains(t, palette, menu)
 	}
-	require.NotContains(t, palette, "new")
+	for _, flatCommand := range []string{"reload", "help", "quit", "column-settings", "today"} {
+		require.NotContains(t, palette, flatCommand)
+	}
+	for _, character := range "settings" {
+		model.Update(key(string(character)))
+	}
+	model.Update(key("enter"))
+	require.Equal(t, "settings", model.commandMenu)
 	for _, character := range "help" {
 		model.Update(key(string(character)))
 	}
-	require.Contains(t, model.View(), ":help")
+	require.Contains(t, model.View(), ":settings help")
 	model.Update(key("enter"))
 	require.True(t, model.help)
 
@@ -912,9 +919,12 @@ func TestSettingsCommandAppliesBaseParameters(t *testing.T) {
 	model.sortMode = sortPosition
 	model.groupMode = groupNone
 
-	_, indexCommand := model.Update(key(":"))
-	model.Update(indexCommand())
+	model.Update(key(":"))
 	for _, character := range "settings" {
+		model.Update(key(string(character)))
+	}
+	model.Update(key("enter"))
+	for _, character := range "open" {
 		model.Update(key(string(character)))
 	}
 	model.Update(key("enter"))
@@ -939,41 +949,66 @@ func TestSettingsCommandAppliesBaseParameters(t *testing.T) {
 	require.Equal(t, "Settings applied", model.notice)
 }
 
-func TestCommandPaletteUsesFuzzyMatching(t *testing.T) {
+func TestCommandPaletteUsesFuzzyMatchingInsideMenus(t *testing.T) {
 	model := testModel(readRepository{})
 	model.loading = false
 	model.screen = boardScreen
 	model.project = &domain.Project{Name: "Project"}
 	model.board = &domain.Board{Name: "Board"}
-	_, indexCommand := model.Update(key(":"))
-	model.Update(indexCommand())
+	model.Update(key(":"))
 	for _, character := range "prj" {
 		model.Update(key(string(character)))
 	}
 	view := model.View()
-	require.Contains(t, view, "projects")
+	require.Contains(t, view, "project")
 	require.NotContains(t, view, "> [")
+	model.Update(key("enter"))
+	require.Equal(t, "project", model.commandMenu)
+	for _, character := range "list" {
+		model.Update(key(string(character)))
+	}
 	model.Update(key("enter"))
 	require.Equal(t, projectsScreen, model.screen)
 
-	_, indexCommand = model.Update(key(":"))
-	model.Update(indexCommand())
+	model.Update(key(":"))
 	for _, character := range "zzzz" {
 		model.Update(key(string(character)))
 	}
-	require.Contains(t, model.View(), "No matching commands")
+	require.Contains(t, model.View(), "No matching menu action")
 }
 
 func TestCommandPaletteArrowSelection(t *testing.T) {
 	model := testModel(readRepository{})
 	model.loading = false
 	model.project = &domain.Project{Name: "Project"}
-	_, indexCommand := model.Update(key(":"))
-	model.Update(indexCommand())
+	model.Update(key(":"))
 	model.Update(key("down"))
 	require.Equal(t, 1, model.commandIndex)
 	model.Update(key("enter"))
-	require.Equal(t, boardsScreen, model.screen)
+	require.Equal(t, "column", model.commandMenu)
+}
+
+func TestCommandPaletteRequiresNestedPathsAndEscReturnsToMenus(t *testing.T) {
+	model := testModel(readRepository{})
+	model.loading = false
+
+	model.Update(key(":"))
+	for _, character := range "today" {
+		model.Update(key(string(character)))
+	}
+	require.Contains(t, model.View(), "No matching menu action")
+
+	model.Update(key("esc"))
+	model.Update(key(":"))
+	for _, character := range "view" {
+		model.Update(key(string(character)))
+	}
+	model.Update(key("enter"))
+	require.Equal(t, "view", model.commandMenu)
+	model.Update(key("esc"))
+	require.True(t, model.commandMode)
+	require.Empty(t, model.commandMenu)
+	require.Contains(t, model.View(), "Command menus")
 }
 
 func TestLayoutCommandSwitchesProjectsAndBoardsBetweenTableAndCards(t *testing.T) {
@@ -1018,19 +1053,18 @@ func TestLayoutCommandSwitchesProjectsAndBoardsBetweenTableAndCards(t *testing.T
 	require.Contains(t, boardTableView, "Layout: table")
 }
 
-func TestCommandPaletteAcceptsLayoutCommandWithSpace(t *testing.T) {
+func TestCommandPaletteAcceptsNestedCommandPath(t *testing.T) {
 	model := testModel(readRepository{})
 	model.loading = false
-	_, indexCommand := model.Update(key(":"))
-	model.Update(indexCommand())
-	for _, character := range "layout" {
+	model.Update(key(":"))
+	for _, character := range "view" {
 		model.Update(key(string(character)))
 	}
 	model.Update(tea.KeyMsg{Type: tea.KeySpace})
 	for _, character := range "cards" {
 		model.Update(key(string(character)))
 	}
-	require.Contains(t, model.View(), ":layout cards")
+	require.Contains(t, model.View(), ":view cards")
 
 	model.Update(key("enter"))
 	require.Equal(t, cardsLayout, model.listLayout)
@@ -1088,62 +1122,45 @@ func TestCardLayoutNavigationUsesGridDirections(t *testing.T) {
 	require.Equal(t, "Gamma", model.board.Name)
 }
 
-func TestCommandPaletteSearchesAndOpensCards(t *testing.T) {
+func TestCommandPaletteDoesNotSearchRepositoryData(t *testing.T) {
 	repo := readRepository{
 		projects: []domain.Project{{ID: "project", Name: "Platform"}},
 		boards:   []domain.Board{{ID: "board", ProjectID: "project", Name: "Delivery"}},
-		columns: []domain.Column{
-			{ID: "backlog", BoardID: "board", Name: "Backlog"},
-			{ID: "doing", BoardID: "board", Name: "In Progress"},
-			{ID: "done", BoardID: "board", Name: "Done"},
-		},
-		cards: []domain.Card{
-			{ID: "other", BoardID: "board", ColumnID: "doing", Title: "Other task"},
-			{ID: "target", BoardID: "board", ColumnID: "doing", Title: "Review keyboard shortcuts", Description: "Discoverable help", Tags: []string{"ux"}, Fields: map[string]domain.FieldValue{"owner": {Type: domain.FieldText, Value: "Ada"}}},
-		},
+		cards:    []domain.Card{{ID: "target", BoardID: "board", Title: "Review keyboard shortcuts"}},
 	}
 	model := testModel(repo)
 	model.loading = false
-	_, indexCommand := model.Update(key(":"))
-	require.NotNil(t, indexCommand)
-	model.Update(indexCommand())
+	_, command := model.Update(key(":"))
+	require.Nil(t, command)
 	for _, character := range "keybrd" {
 		model.Update(key(string(character)))
 	}
 	view := model.View()
-	require.Contains(t, view, "[card]")
-	require.Contains(t, view, "Review keyboard")
-	for _, line := range strings.Split(view, "\n") {
-		require.LessOrEqual(t, lipgloss.Width(line), 80)
-	}
-
-	_, openCommand := model.Update(key("enter"))
-	require.NotNil(t, openCommand)
-	require.Equal(t, boardScreen, model.screen)
-	model.Update(openCommand())
-	require.Equal(t, 1, model.columnIndex)
-	require.Equal(t, 1, model.cardIndexes["doing"])
-	opened := model.View()
-	require.Contains(t, opened, "Review keyb")
-	require.Contains(t, opened, "[ux]")
+	require.Contains(t, view, "No matching menu action")
+	require.NotContains(t, view, "Review keyboard")
 }
 
-func TestCommandPaletteSearchesCardMetadata(t *testing.T) {
-	repo := readRepository{
-		projects: []domain.Project{{ID: "project", Name: "Platform"}},
-		boards:   []domain.Board{{ID: "board", ProjectID: "project", Name: "Delivery"}},
-		cards:    []domain.Card{{ID: "target", BoardID: "board", Title: "Metadata card", Tags: []string{"urgent"}, Fields: map[string]domain.FieldValue{"owner": {Type: domain.FieldText, Value: "Ada"}}}},
-	}
-	model := testModel(repo)
+func TestCommandPaletteRunsCardSubmenuAction(t *testing.T) {
+	model := testModel(readRepository{})
 	model.loading = false
-	_, indexCommand := model.Update(key(":"))
-	model.Update(indexCommand())
-	for _, character := range "urgent" {
+	model.screen = boardScreen
+	model.board = &domain.Board{ID: "board"}
+	model.columns = []domain.Column{{ID: "todo", BoardID: "board", Name: "Todo"}}
+	model.cards["todo"] = []domain.Card{{ID: "card", BoardID: "board", ColumnID: "todo", Title: "Selected card"}}
+
+	model.Update(key(":"))
+	for _, character := range "card" {
 		model.Update(key(string(character)))
 	}
-	require.Contains(t, model.View(), "Metadata card")
-	model.command = "Ada"
-	require.Contains(t, model.View(), "Metadata card")
+	model.Update(key("enter"))
+	require.Equal(t, "card", model.commandMenu)
+	require.Contains(t, model.View(), "Card actions")
+	for _, character := range "archive" {
+		model.Update(key(string(character)))
+	}
+	model.Update(key("enter"))
+	require.NotNil(t, model.confirm)
+	require.Equal(t, deleteCard, model.confirm.kind)
 }
 
 func TestProjectAndBoardTablesShowCommentsAndCounts(t *testing.T) {

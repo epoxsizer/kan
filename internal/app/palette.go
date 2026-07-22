@@ -10,6 +10,13 @@ import (
 type commandSpec struct {
 	name        string
 	description string
+	command     string
+}
+
+type commandMenuSpec struct {
+	name        string
+	description string
+	actions     []commandSpec
 }
 
 type paletteMatch struct {
@@ -18,77 +25,126 @@ type paletteMatch struct {
 	description string
 	score       int
 	command     string
-	item        *paletteItem
+	menu        string
 }
 
-var commandCatalog = []commandSpec{
-	{name: "projects", description: "Go to the project table"},
-	{name: "boards", description: "Go to the current project's boards"},
-	{name: "reload", description: "Reload the current screen"},
-	{name: "help", description: "Open keyboard help"},
-	{name: "quit", description: "Exit kan"},
-	{name: "add", description: "Add an object on the current screen"},
-	{name: "edit", description: "Edit the selected object"},
-	{name: "delete", description: "Delete the selected object with confirmation"},
-	{name: "archive", description: "Archive every active card in the selected column"},
-	{name: "archived", description: "Show archived cards for the current board"},
-	{name: "move", description: "Choose a destination column for the selected card"},
-	{name: "undo", description: "Undo the last card move or reorder"},
-	{name: "add-column", description: "Add a column on the current board"},
-	{name: "column-settings", description: "Configure the selected column name, WIP limit, and archiving"},
-	{name: "move-column-left", description: "Move the selected column one position left"},
-	{name: "move-column-right", description: "Move the selected column one position right"},
-	{name: "settings", description: "Open base kan settings"},
-	{name: "template", description: "Create a card from a board template"},
-	{name: "new-template", description: "Create a board-only card template"},
-	{name: "save-template", description: "Save the selected card as a board template"},
-	{name: "templates", description: "List card templates on the current board"},
-	{name: "filter", description: "Fuzzy-filter cards on the current board"},
-	{name: "today", description: "Show cards due today on the current board"},
-	{name: "overdue", description: "Show overdue cards on the current board"},
-	{name: "blocked", description: "Show blocked cards on the current board"},
-	{name: "stale", description: "Show stale cards on the current board"},
-	{name: "untriaged", description: "Show cards without priority and due date"},
-	{name: "clear-filter", description: "Clear the current board filter or planning view"},
-	{name: "sort", description: "Cycle card sorting on the current board"},
-	{name: "group", description: "Cycle card grouping on the current board"},
-	{name: "layout", description: "Toggle project and board list layout"},
-	{name: "layout table", description: "Show projects and boards as tables"},
-	{name: "layout cards", description: "Show projects and boards as card lists"},
+var commandMenus = []commandMenuSpec{
+	{name: "card", description: "Card actions and templates", actions: []commandSpec{
+		{name: "add", description: "Add a card to the selected column", command: "card-add"},
+		{name: "edit", description: "Edit the selected card", command: "card-edit"},
+		{name: "archive", description: "Archive the selected card with confirmation", command: "card-archive"},
+		{name: "move", description: "Choose a destination column", command: "move"},
+		{name: "undo", description: "Undo the last card move or reorder", command: "undo"},
+		{name: "from-template", description: "Create a card from a board template", command: "template"},
+		{name: "new-template", description: "Create a board-only card template", command: "new-template"},
+		{name: "save-template", description: "Save the selected card as a template", command: "save-template"},
+		{name: "templates", description: "List templates on the current board", command: "templates"},
+	}},
+	{name: "column", description: "Column actions and configuration", actions: []commandSpec{
+		{name: "add", description: "Add a column to the current board", command: "add-column"},
+		{name: "settings", description: "Configure name, WIP limit, and archiving", command: "column-settings"},
+		{name: "delete", description: "Delete the selected column with confirmation", command: "delete-column"},
+		{name: "archive", description: "Archive all active cards in the selected column", command: "archive"},
+		{name: "move-left", description: "Move the selected column left", command: "move-column-left"},
+		{name: "move-right", description: "Move the selected column right", command: "move-column-right"},
+	}},
+	{name: "board", description: "Board navigation and actions", actions: []commandSpec{
+		{name: "list", description: "Go to the current project's boards", command: "boards"},
+		{name: "add", description: "Add a board to the current project", command: "board-add"},
+		{name: "edit", description: "Edit the selected board", command: "board-edit"},
+		{name: "delete", description: "Delete the selected board with confirmation", command: "board-delete"},
+	}},
+	{name: "project", description: "Project navigation and actions", actions: []commandSpec{
+		{name: "list", description: "Go to the project list", command: "projects"},
+		{name: "add", description: "Add a project", command: "project-add"},
+		{name: "edit", description: "Edit the selected project", command: "project-edit"},
+		{name: "delete", description: "Delete the selected project with confirmation", command: "project-delete"},
+	}},
+	{name: "settings", description: "Application controls and settings", actions: []commandSpec{
+		{name: "open", description: "Open base Kan settings", command: "settings"},
+		{name: "reload", description: "Reload the current screen", command: "reload"},
+		{name: "help", description: "Open keyboard help", command: "help"},
+		{name: "quit", description: "Exit Kan", command: "quit"},
+	}},
+	{name: "view", description: "Filters, planning, sorting, and layout", actions: []commandSpec{
+		{name: "today", description: "Show cards due today", command: "today"},
+		{name: "overdue", description: "Show overdue cards", command: "overdue"},
+		{name: "blocked", description: "Show blocked cards", command: "blocked"},
+		{name: "stale", description: "Show stale cards", command: "stale"},
+		{name: "untriaged", description: "Show cards without priority and due date", command: "untriaged"},
+		{name: "archived", description: "Show archived cards on the current board", command: "archived"},
+		{name: "clear", description: "Clear the current filter or planning view", command: "clear-filter"},
+		{name: "sort", description: "Cycle card sorting", command: "sort"},
+		{name: "group", description: "Cycle card grouping", command: "group"},
+		{name: "table", description: "Show projects and boards as tables", command: "layout table"},
+		{name: "cards", description: "Show projects and boards as card grids", command: "layout cards"},
+	}},
+}
+
+func commandMenu(name string) *commandMenuSpec {
+	for index := range commandMenus {
+		if commandMenus[index].name == name {
+			return &commandMenus[index]
+		}
+	}
+	return nil
+}
+
+func (model *Model) paletteContext() (*commandMenuSpec, string) {
+	if menu := commandMenu(model.commandMenu); menu != nil {
+		return menu, strings.ToLower(strings.TrimSpace(model.command))
+	}
+	input := strings.TrimLeft(model.command, " ")
+	if separator := strings.IndexRune(input, ' '); separator >= 0 {
+		name := strings.ToLower(strings.TrimSpace(input[:separator]))
+		if menu := commandMenu(name); menu != nil {
+			return menu, strings.ToLower(strings.TrimSpace(input[separator+1:]))
+		}
+	}
+	return nil, strings.ToLower(strings.TrimSpace(model.command))
 }
 
 func (model *Model) paletteMatches() []paletteMatch {
-	query := strings.ToLower(strings.TrimSpace(model.command))
-	matches := make([]paletteMatch, 0, len(commandCatalog)+len(model.paletteItems))
-	for _, command := range commandCatalog {
-		score := fuzzyScore(query, strings.ToLower(command.name+" "+command.description))
-		if score < 0 {
-			continue
-		}
-		if query == strings.ToLower(command.name) {
-			score += 200
-		} else if strings.HasPrefix(strings.ToLower(command.name), query) {
-			score += 100
-		}
-		matches = append(matches, paletteMatch{kind: "command", label: command.name, description: command.description, score: score, command: command.name})
-	}
-	if query != "" {
-		for index := range model.paletteItems {
-			item := &model.paletteItems[index]
-			score := fuzzyScore(query, strings.ToLower(item.searchText))
+	menu, query := model.paletteContext()
+	if menu == nil {
+		matches := make([]paletteMatch, 0, len(commandMenus))
+		for _, candidate := range commandMenus {
+			score := fuzzyScore(query, candidate.name)
 			if score < 0 {
 				continue
 			}
-			if strings.HasPrefix(strings.ToLower(item.label), query) {
-				score += 80
+			if query == candidate.name {
+				score += 200
+			} else if strings.HasPrefix(candidate.name, query) {
+				score += 100
 			}
-			matches = append(matches, paletteMatch{kind: string(item.kind), label: item.label, description: item.description, score: score, item: item})
+			matches = append(matches, paletteMatch{kind: "menu", label: candidate.name, description: candidate.description, score: score, menu: candidate.name})
 		}
+		sortPaletteMatches(matches)
+		return matches
 	}
+
+	matches := make([]paletteMatch, 0, len(menu.actions))
+	for _, action := range menu.actions {
+		score := fuzzyScore(query, action.name)
+		if score < 0 {
+			continue
+		}
+		if query == action.name {
+			score += 200
+		} else if strings.HasPrefix(action.name, query) {
+			score += 100
+		}
+		matches = append(matches, paletteMatch{kind: "action", label: action.name, description: action.description, score: score, command: action.command})
+	}
+	sortPaletteMatches(matches)
+	return matches
+}
+
+func sortPaletteMatches(matches []paletteMatch) {
 	sort.SliceStable(matches, func(left, right int) bool {
 		return matches[left].score > matches[right].score
 	})
-	return matches
 }
 
 func fuzzyScore(query, candidate string) int {
@@ -114,25 +170,33 @@ func fuzzyScore(query, candidate string) int {
 	return score
 }
 
+func (model *Model) commandPrompt() string {
+	if model.commandMenu == "" {
+		return ":" + model.command
+	}
+	return ":" + model.commandMenu + " " + model.command
+}
+
 func (model *Model) renderCommandPalette(width, height int) string {
 	boxWidth := min(76, max(width-4, 24))
 	innerWidth := max(boxWidth-6, 18)
 	contentWidth := max(innerWidth-4, 14)
+	menu, _ := model.paletteContext()
+	title := "Command menus"
+	hint := "type to filter menus · Enter open · Esc close"
+	if menu != nil {
+		title = strings.ToUpper(menu.name[:1]) + menu.name[1:] + " actions"
+		hint = "type to filter actions · Enter run · Esc back"
+	}
 	lines := []string{
-		model.styles.header.Render("Search & Commands"),
-		model.styles.command.Render(":" + textViewport(model.command, model.commandCursor, max(contentWidth-1, 1))),
-		model.styles.subtle.Render(truncate("fuzzy search commands and data · ↑/↓ select · Enter open · Esc close", contentWidth)),
+		model.styles.header.Render(title),
+		model.styles.command.Render(textViewport(model.commandPrompt(), model.commandCursor+len([]rune(model.commandPrompt()))-len([]rune(model.command)), max(contentWidth-1, 1))),
+		model.styles.subtle.Render(truncate(hint, contentWidth)),
 		"",
 	}
 	matches := model.paletteMatches()
-	if model.paletteLoading {
-		lines = append(lines, model.styles.subtle.Render(truncate("Indexing projects, boards, columns, and cards...", contentWidth)))
-	}
-	if model.paletteErr != nil {
-		lines = append(lines, model.styles.error.Render("Search index: "+model.paletteErr.Error()))
-	}
-	if len(matches) == 0 && !model.paletteLoading {
-		lines = append(lines, model.styles.error.Render("No matching commands or data"))
+	if len(matches) == 0 {
+		lines = append(lines, model.styles.error.Render("No matching menu action"))
 	} else {
 		selected := clampIndex(model.commandIndex, len(matches))
 		maxRows := max(1, height-10)

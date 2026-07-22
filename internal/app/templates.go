@@ -81,7 +81,7 @@ func (model *Model) saveSelectedCardAsTemplate() tea.Cmd {
 func templatesDetail(templates []domain.CardTemplate) *detailPopup {
 	lines := []string{}
 	if len(templates) == 0 {
-		lines = append(lines, "No templates. Use :new-template or :save-template.")
+		lines = append(lines, "No templates. Use :card new-template or :card save-template.")
 	}
 	for _, template := range templates {
 		priority := "none"
@@ -114,7 +114,7 @@ func (model *Model) handleTemplatesLoaded(message cardTemplatesLoadedMsg) (tea.M
 	switch message.purpose {
 	case templateLoadChoose:
 		if len(message.templates) == 0 {
-			model.err = fmt.Errorf("no templates on this board; use :new-template or :save-template")
+			model.err = fmt.Errorf("no templates on this board; use :card new-template or :card save-template")
 			return model, nil
 		}
 		model.startCardFromTemplateForm(message.templates)
