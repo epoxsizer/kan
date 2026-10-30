@@ -6,6 +6,30 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `kan mcp`, a local stdio MCP server that model clients start themselves. It
+  holds the database only during each tool call and sends calls through the
+  running TUI when its HTTP MCP server is enabled.
+- MCP tools to create, rename, configure, and reorder boards and columns, add
+  and update checklist items, list card templates, and create cards from
+  templates.
+- Optional `expected_updated_at` for `kan_update_card` to reject stale updates.
+- Full-screen card editor on terminals of at least 100×24 with a live Markdown
+  description preview and in-place checklist editing.
+- Mouse drag-and-drop of board cards between columns and positions, with `Esc`
+  to cancel and `u` to undo.
+- Test-driven development guidelines, `CLAUDE.md` agent rules, race-detector and coverage
+  gate targets, and CI checks for both.
+
+### Fixed
+
+- MCP tool errors such as `not_found` and `conflict` are now returned as
+  structured results instead of failing output-schema validation.
+- MCP clients can create and replace checklists without inventing item IDs and
+  positions.
+- `make build`, `go install`, and the README now report version 0.1.18.
+
 ## [0.1.18] - 2026-07-22
 
 ### Changed

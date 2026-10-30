@@ -10,6 +10,16 @@ import (
 
 func (model *Model) handleMouse(message tea.MouseMsg) (tea.Model, tea.Cmd) {
 	event := tea.MouseEvent(message)
+	if model.drag != nil && event.Action != tea.MouseActionPress {
+		switch {
+		case event.Action == tea.MouseActionRelease:
+			return model.finishCardDrag()
+		case event.Action == tea.MouseActionMotion && event.Button == tea.MouseButtonLeft:
+			return model.handleCardDragMotion(event)
+		}
+		return model, nil
+	}
+	model.drag = nil
 	if event.Shift || event.Alt || event.Ctrl || event.Action != tea.MouseActionPress {
 		return model, nil
 	}
@@ -72,6 +82,7 @@ func (model *Model) handleMouseWheel(event tea.MouseEvent) (tea.Model, tea.Cmd) 
 func (model *Model) handleFormMouseWheel(delta int) (tea.Model, tea.Cmd) {
 	if model.form.control == nil {
 		model.form.focus = clampIndex(model.form.focus+delta, len(model.form.fields))
+		model.syncCardEditorChecklist()
 		return model, nil
 	}
 	control := model.form.control
@@ -226,37 +237,19 @@ func (model *Model) clickBoard(event tea.MouseEvent) (tea.Model, tea.Cmd) {
 	wasSelected := columnIndex == model.columnIndex && model.cardIndexes[column.ID] == cardIndex
 	model.columnIndex = columnIndex
 	model.cardIndexes[column.ID] = cardIndex
+	model.startCardDrag(columnIndex, cardIndex)
 	if wasSelected {
 		model.openSelectedDetail()
+		if model.drag != nil {
+			model.drag.openedDetail = model.detail != nil
+		}
 	}
 	return model, nil
 }
 
 func (model *Model) mouseCardAt(columnIndex, screenY int) (int, bool) {
-	column := model.columns[columnIndex]
-	cards := model.visibleCards(column.ID)
-	if len(cards) == 0 {
-		return 0, false
-	}
-	_, height := model.dimensions()
-	maxRows := max(max(height-4, 1)-5, 1)
-	selected := clampIndex(model.cardIndexes[column.ID], len(cards))
-	rows, selectedRow := model.cardDisplayRows(cards, selected)
-	heights := make([]int, len(rows))
-	cardWidth := max(model.mouseColumnWidth(columnIndex)-6, 1)
-	for index, row := range rows {
-		rendered := model.renderCardDisplayRow(row, columnIndex == model.columnIndex && index == selectedRow, cardWidth, maxRows)
-		heights[index] = lipgloss.Height(rendered)
-	}
-	start, end := visibleCardRowRange(heights, selectedRow, maxRows)
-	y := 3
-	for index := start; index < end; index++ {
-		if screenY >= y && screenY < y+heights[index] && rows[index].group == "" {
-			return rows[index].cardIndex, true
-		}
-		y += heights[index]
-	}
-	return 0, false
+	cardIndex, _, _, ok := model.mouseCardBounds(columnIndex, screenY)
+	return cardIndex, ok
 }
 
 func (model *Model) mouseColumnWidth(target int) int {
@@ -279,6 +272,9 @@ func (model *Model) mouseColumnWidth(target int) int {
 }
 
 func (model *Model) clickForm(event tea.MouseEvent, width, height int) (tea.Model, tea.Cmd) {
+	if model.cardEditorActive(width, height) && (model.form.control == nil || model.form.control.inline) {
+		return model.clickCardEditor(event, width, height)
+	}
 	if model.form.control != nil {
 		return model.clickFormControl(event, width, height)
 	}

@@ -7,7 +7,8 @@ log_level = "info"
 # show_selected_card_details = false
 
 [mcp]
-# Disabled by default. When enabled, Kan serves Streamable HTTP on /mcp.
+# Disabled by default. When enabled, the TUI serves Streamable HTTP on /mcp,
+# and `kan mcp` (stdio) sends tool calls through it while the TUI is running.
 enabled = false
 address = "127.0.0.1:7337"
 # Prefer setting KAN_MCP_TOKEN instead of storing the token here.

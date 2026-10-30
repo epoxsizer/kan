@@ -56,6 +56,7 @@ type Model struct {
 	discard      *discardModal
 	movePicker   *movePicker
 	lastMove     *cardMoveRecord
+	drag         *cardDrag
 	showCardTags bool
 
 	showSelectedCardDetails bool
@@ -355,6 +356,13 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if key.String() == "ctrl+c" {
 		return model, tea.Quit
+	}
+	if model.drag != nil {
+		if key.String() == "esc" {
+			model.cancelCardDrag()
+			return model, nil
+		}
+		model.cancelCardDrag()
 	}
 	if model.discard != nil {
 		return model.handleDiscardKey(key)

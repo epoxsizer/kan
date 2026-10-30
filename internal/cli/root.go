@@ -211,6 +211,7 @@ func New(version, commit, date string) *cobra.Command {
 	root.AddCommand(newExportCommand(&opts))
 	root.AddCommand(newImportCommand(&opts))
 	root.AddCommand(newSyncCommand(&opts))
+	root.AddCommand(newMCPCommand(version, &opts))
 	root.AddCommand(newUpgradeCommand(version, versionService, versionServiceErr))
 	root.AddCommand(
 		newProjectCommand(&opts),

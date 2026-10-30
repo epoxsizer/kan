@@ -17,6 +17,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+const serverInstructions = "Kan is the user's local task tracker. Discover project, board, column, and card IDs before mutations. Update tools use patch semantics; pass expected_updated_at from your last read to avoid overwriting the user's edits. Respect WIP limits. Boards and columns can be created, renamed, configured, and reordered; projects are read-only. Archive is reversible; permanent deletion is unavailable."
+
 type Change struct {
 	Action   string
 	BoardID  string
@@ -75,13 +77,18 @@ func newMCPServer(version string, coordinator *tasks.Coordinator, logger *slog.L
 	server := mcp.NewServer(
 		&mcp.Implementation{Name: "kan", Version: version},
 		&mcp.ServerOptions{
-			Instructions: "Kan is the user's local task tracker. Discover project, board, column, and card IDs before mutations. Update tools use patch semantics. Respect WIP limits. Archive is reversible; permanent deletion and hierarchy mutation are unavailable.",
+			Instructions: serverInstructions,
 			Logger:       logger,
 			KeepAlive:    30 * time.Second,
 		},
 	)
-	registerTools(server, coordinator, logger, notify)
+	registerTools(server, func(context.Context) *tasks.Coordinator { return coordinator }, logger, notify)
 	return server
+}
+
+// Address returns the address the server listens on.
+func (server *Server) Address() string {
+	return server.listener.Addr().String()
 }
 
 func (server *Server) Shutdown(ctx context.Context) error {

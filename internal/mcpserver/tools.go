@@ -20,11 +20,15 @@ type toolError struct {
 }
 
 type result[T any] struct {
-	Data  T          `json:"data"`
+	// Data is omitted on failure so typed output schemas accept error results.
+	Data  *T         `json:"data,omitempty"`
 	Error *toolError `json:"error,omitempty"`
 }
 
 type emptyInput struct{}
+
+// coordinatorFunc returns the coordinator that serves one tool call.
+type coordinatorFunc func(context.Context) *tasks.Coordinator
 
 type projectsData struct {
 	Projects []domain.Project `json:"projects"`
@@ -92,7 +96,7 @@ type createCardInput struct {
 	DueDate        *string                      `json:"due_date,omitempty" jsonschema:"due date in YYYY-MM-DD format"`
 	Tags           []string                     `json:"tags,omitempty"`
 	RelatedCardIDs []string                     `json:"related_card_ids,omitempty"`
-	Checklist      []domain.ChecklistItem       `json:"checklist,omitempty"`
+	Checklist      []checklistItemInput         `json:"checklist,omitempty"`
 	Fields         map[string]domain.FieldValue `json:"fields,omitempty"`
 }
 
@@ -106,8 +110,10 @@ type updateCardInput struct {
 	ClearDueDate   bool                          `json:"clear_due_date,omitempty"`
 	Tags           *[]string                     `json:"tags,omitempty"`
 	RelatedCardIDs *[]string                     `json:"related_card_ids,omitempty"`
-	Checklist      *[]domain.ChecklistItem       `json:"checklist,omitempty"`
+	Checklist      *[]checklistItemInput         `json:"checklist,omitempty" jsonschema:"replaces the whole checklist; keep item IDs to preserve existing items"`
 	Fields         *map[string]domain.FieldValue `json:"fields,omitempty"`
+	// ExpectedUpdatedAt is the updated_at value the model last read.
+	ExpectedUpdatedAt *string `json:"expected_updated_at,omitempty" jsonschema:"updated_at from the card you read (RFC 3339); the update fails with a conflict if the card changed since"`
 }
 
 type moveCardInput struct {
@@ -120,44 +126,44 @@ type cardIDInput struct {
 	CardID string `json:"card_id" jsonschema:"required,ID of the card"`
 }
 
-func registerTools(server *mcp.Server, coordinator *tasks.Coordinator, logger *slog.Logger, notify func(Change)) {
+func registerTools(server *mcp.Server, use coordinatorFunc, logger *slog.Logger, notify func(Change)) {
 	readAnnotations := annotations(true, false, true)
 	writeAnnotations := annotations(false, false, false)
 	archiveAnnotations := annotations(false, true, false)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_list_projects", Description: "List Kan projects and their IDs.", Annotations: readAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ emptyInput) (*mcp.CallToolResult, result[projectsData], error) {
-			values, err := coordinator.ListProjects(ctx)
+			values, err := use(ctx).ListProjects(ctx)
 			if err != nil {
 				return failure[projectsData](err)
 			}
-			return nil, result[projectsData]{Data: projectsData{Projects: values}}, nil
+			return nil, result[projectsData]{Data: &projectsData{Projects: values}}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_list_boards", Description: "List boards in a Kan project.", Annotations: readAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input projectInput) (*mcp.CallToolResult, result[boardsData], error) {
-			values, err := coordinator.ListBoards(ctx, input.ProjectID)
+			values, err := use(ctx).ListBoards(ctx, input.ProjectID)
 			if err != nil {
 				return failure[boardsData](err)
 			}
-			return nil, result[boardsData]{Data: boardsData{Boards: values}}, nil
+			return nil, result[boardsData]{Data: &boardsData{Boards: values}}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_get_board", Description: "Get a board, its columns, field definitions, and active/archived card counts.", Annotations: readAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input boardInput) (*mcp.CallToolResult, result[boardData], error) {
-			board, err := coordinator.GetBoard(ctx, input.BoardID)
+			board, err := use(ctx).GetBoard(ctx, input.BoardID)
 			if err != nil {
 				return failure[boardData](err)
 			}
-			columns, err := coordinator.ListColumns(ctx, input.BoardID)
+			columns, err := use(ctx).ListColumns(ctx, input.BoardID)
 			if err != nil {
 				return failure[boardData](err)
 			}
-			fields, err := coordinator.ListFieldDefs(ctx, input.BoardID)
+			fields, err := use(ctx).ListFieldDefs(ctx, input.BoardID)
 			if err != nil {
 				return failure[boardData](err)
 			}
-			cards, err := coordinator.ListCardsIncludingDeleted(ctx, input.BoardID)
+			cards, err := use(ctx).ListCardsIncludingDeleted(ctx, input.BoardID)
 			if err != nil {
 				return failure[boardData](err)
 			}
@@ -175,7 +181,7 @@ func registerTools(server *mcp.Server, coordinator *tasks.Coordinator, logger *s
 					}
 				}
 			}
-			return nil, result[boardData]{Data: boardData{Board: board, Columns: summaries, FieldDefs: fields}}, nil
+			return nil, result[boardData]{Data: &boardData{Board: board, Columns: summaries, FieldDefs: fields}}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_list_cards", Description: "List active, archived, or all cards in a board with optional column filtering and pagination.", Annotations: readAnnotations},
@@ -187,7 +193,7 @@ func registerTools(server *mcp.Server, coordinator *tasks.Coordinator, logger *s
 			if state != "active" && state != "archived" && state != "all" {
 				return failure[cardsData](fmt.Errorf("%w: state must be active, archived, or all", domain.ErrValidation))
 			}
-			values, err := coordinator.ListCardsIncludingDeleted(ctx, input.BoardID)
+			values, err := use(ctx).ListCardsIncludingDeleted(ctx, input.BoardID)
 			if err != nil {
 				return failure[cardsData](err)
 			}
@@ -202,7 +208,7 @@ func registerTools(server *mcp.Server, coordinator *tasks.Coordinator, logger *s
 				filtered = append(filtered, card)
 			}
 			page, next := paginate(filtered, input.Offset, boundedLimit(input.Limit, 100, 200))
-			return nil, result[cardsData]{Data: cardsData{Cards: page, NextOffset: next}}, nil
+			return nil, result[cardsData]{Data: &cardsData{Cards: page, NextOffset: next}}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_get_card", Description: "Get one Kan card by ID.", Annotations: readAnnotations},
@@ -210,24 +216,24 @@ func registerTools(server *mcp.Server, coordinator *tasks.Coordinator, logger *s
 			var card domain.Card
 			var err error
 			if input.IncludeArchived {
-				card, err = coordinator.GetCardIncludingArchived(ctx, input.CardID)
+				card, err = use(ctx).GetCardIncludingArchived(ctx, input.CardID)
 			} else {
-				card, err = coordinator.GetCard(ctx, input.CardID)
+				card, err = use(ctx).GetCard(ctx, input.CardID)
 			}
 			if err != nil {
 				return failure[cardData](err)
 			}
-			return nil, result[cardData]{Data: cardData{Card: card}}, nil
+			return nil, result[cardData]{Data: &cardData{Card: card}}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_search_cards", Description: "Search active cards in a board using Kan full-text search.", Annotations: readAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input searchCardsInput) (*mcp.CallToolResult, result[cardsData], error) {
-			values, err := coordinator.SearchCards(ctx, input.BoardID, input.Query)
+			values, err := use(ctx).SearchCards(ctx, input.BoardID, input.Query)
 			if err != nil {
 				return failure[cardsData](err)
 			}
 			page, next := paginate(values, input.Offset, boundedLimit(input.Limit, 50, 100))
-			return nil, result[cardsData]{Data: cardsData{Cards: page, NextOffset: next}}, nil
+			return nil, result[cardsData]{Data: &cardsData{Cards: page, NextOffset: next}}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_create_card", Description: "Create a card at the end of a column while enforcing board and WIP constraints.", Annotations: writeAnnotations},
@@ -243,13 +249,13 @@ func registerTools(server *mcp.Server, coordinator *tasks.Coordinator, logger *s
 			card := domain.Card{
 				BoardID: input.BoardID, ColumnID: input.ColumnID, Title: input.Title, Description: input.Description,
 				Priority: &priority, DueDate: due, Tags: nonNilSlice(input.Tags), RelatedCardIDs: nonNilSlice(input.RelatedCardIDs),
-				Checklist: nonNilSlice(input.Checklist), Fields: nonNilMap(input.Fields),
+				Checklist: normalizeChecklist(input.Checklist), Fields: nonNilMap(input.Fields),
 			}
-			if err = coordinator.CreateCardAtEnd(ctx, &card); err != nil {
+			if err = use(ctx).CreateCardAtEnd(ctx, &card); err != nil {
 				return failure[cardData](err)
 			}
 			changed(logger, notify, Change{Action: "card created", BoardID: card.BoardID, ColumnID: card.ColumnID, CardID: card.ID})
-			return nil, result[cardData]{Data: cardData{Card: card}}, nil
+			return nil, result[cardData]{Data: &cardData{Card: card}}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_update_card", Description: "Patch a card. Omitted fields stay unchanged; use clear flags for priority or due date.", Annotations: writeAnnotations},
@@ -264,16 +270,29 @@ func registerTools(server *mcp.Server, coordinator *tasks.Coordinator, logger *s
 			if err != nil {
 				return failure[cardData](err)
 			}
-			card, err := coordinator.PatchCard(ctx, input.CardID, tasks.CardPatch{
+			var expected *time.Time
+			if input.ExpectedUpdatedAt != nil {
+				parsed, parseErr := time.Parse(time.RFC3339Nano, strings.TrimSpace(*input.ExpectedUpdatedAt))
+				if parseErr != nil {
+					return failure[cardData](fmt.Errorf("%w: expected_updated_at must use RFC 3339", domain.ErrValidation))
+				}
+				expected = &parsed
+			}
+			var checklist *[]domain.ChecklistItem
+			if input.Checklist != nil {
+				normalized := normalizeChecklist(*input.Checklist)
+				checklist = &normalized
+			}
+			card, err := use(ctx).PatchCard(ctx, input.CardID, tasks.CardPatch{
 				Title: input.Title, Description: input.Description, Priority: input.Priority, ClearPriority: input.ClearPriority,
 				DueDate: due, ClearDueDate: input.ClearDueDate, Tags: input.Tags, RelatedCardIDs: input.RelatedCardIDs,
-				Checklist: input.Checklist, Fields: input.Fields,
+				Checklist: checklist, Fields: input.Fields, ExpectedUpdatedAt: expected,
 			})
 			if err != nil {
 				return failure[cardData](err)
 			}
 			changed(logger, notify, Change{Action: "card updated", BoardID: card.BoardID, ColumnID: card.ColumnID, CardID: card.ID})
-			return nil, result[cardData]{Data: cardData{Card: card}}, nil
+			return nil, result[cardData]{Data: &cardData{Card: card}}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_move_card", Description: "Move or reorder a card within its board. Omit target_index to append.", Annotations: writeAnnotations},
@@ -281,33 +300,35 @@ func registerTools(server *mcp.Server, coordinator *tasks.Coordinator, logger *s
 			if input.TargetIndex != nil && *input.TargetIndex < 0 {
 				return failure[cardData](fmt.Errorf("%w: target_index must not be negative", domain.ErrValidation))
 			}
-			card, err := coordinator.MoveCardTo(ctx, input.CardID, input.TargetColumnID, input.TargetIndex)
+			card, err := use(ctx).MoveCardTo(ctx, input.CardID, input.TargetColumnID, input.TargetIndex)
 			if err != nil {
 				return failure[cardData](err)
 			}
 			changed(logger, notify, Change{Action: "card moved", BoardID: card.BoardID, ColumnID: card.ColumnID, CardID: card.ID})
-			return nil, result[cardData]{Data: cardData{Card: card}}, nil
+			return nil, result[cardData]{Data: &cardData{Card: card}}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_archive_card", Description: "Archive a card. This removes it from active views but can be reversed with kan_restore_card.", Annotations: archiveAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input cardIDInput) (*mcp.CallToolResult, result[cardData], error) {
-			card, err := coordinator.ArchiveCard(ctx, input.CardID)
+			card, err := use(ctx).ArchiveCard(ctx, input.CardID)
 			if err != nil {
 				return failure[cardData](err)
 			}
 			changed(logger, notify, Change{Action: "card archived", BoardID: card.BoardID, ColumnID: card.ColumnID, CardID: card.ID})
-			return nil, result[cardData]{Data: cardData{Card: card}}, nil
+			return nil, result[cardData]{Data: &cardData{Card: card}}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_restore_card", Description: "Restore an archived card to active views.", Annotations: writeAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input cardIDInput) (*mcp.CallToolResult, result[cardData], error) {
-			card, err := coordinator.RestoreArchivedCard(ctx, input.CardID)
+			card, err := use(ctx).RestoreArchivedCard(ctx, input.CardID)
 			if err != nil {
 				return failure[cardData](err)
 			}
 			changed(logger, notify, Change{Action: "card restored", BoardID: card.BoardID, ColumnID: card.ColumnID, CardID: card.ID})
-			return nil, result[cardData]{Data: cardData{Card: card}}, nil
+			return nil, result[cardData]{Data: &cardData{Card: card}}, nil
 		})
+
+	registerStructureTools(server, use, logger, notify)
 }
 
 func annotations(readOnly, destructive, idempotent bool) *mcp.ToolAnnotations {

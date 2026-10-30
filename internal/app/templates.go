@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/epoxsizer/kan/internal/domain"
@@ -34,23 +33,6 @@ func nextTemplatePosition(templates []domain.CardTemplate) float64 {
 		}
 	}
 	return maximum + 1024
-}
-
-func cardFromTemplate(template domain.CardTemplate, boardID, columnID string, position float64) domain.Card {
-	card := domain.Card{
-		BoardID: boardID, ColumnID: columnID, Title: template.Title, Description: template.Description, Position: position,
-		Tags: append([]string(nil), template.Tags...), Checklist: append([]domain.ChecklistItem(nil), template.Checklist...), Fields: map[string]domain.FieldValue{},
-	}
-	if template.Priority != nil {
-		priority := *template.Priority
-		card.Priority = &priority
-	}
-	if template.DueOffsetDays != nil {
-		now := time.Now().In(time.Local)
-		due := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local).AddDate(0, 0, *template.DueOffsetDays).UTC()
-		card.DueDate = &due
-	}
-	return card
 }
 
 func (model *Model) saveSelectedCardAsTemplate() tea.Cmd {

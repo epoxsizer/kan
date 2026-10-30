@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/epoxsizer/kan/internal/domain"
+	"github.com/epoxsizer/kan/internal/tasks"
 )
 
 type formKind uint8
@@ -68,6 +69,11 @@ type formModal struct {
 	linksLoading   bool
 	initialValues  []string
 	templates      []domain.CardTemplate
+	// Rendered description cache for the full-screen card editor.
+	previewSource string
+	previewWidth  int
+	previewLines  []string
+	previewErr    error
 }
 
 type deleteKind uint8
@@ -255,10 +261,20 @@ func (model *Model) handleFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+s":
 		return model.submitForm()
 	case "tab", "down":
-		form.focus = min(form.focus+1, len(form.fields)-1)
+		if key.String() == "tab" && form.focus == len(form.fields)-1 && model.cardEditorActiveNow() {
+			form.focus = 0
+		} else {
+			form.focus = min(form.focus+1, len(form.fields)-1)
+		}
+		model.syncCardEditorChecklist()
 		return model, nil
 	case "shift+tab", "up":
-		form.focus = max(form.focus-1, 0)
+		if key.String() == "shift+tab" && form.focus == 0 && model.cardEditorActiveNow() {
+			form.focus = len(form.fields) - 1
+		} else {
+			form.focus = max(form.focus-1, 0)
+		}
+		model.syncCardEditorChecklist()
 		return model, nil
 	case "enter":
 		if form.fields[form.focus].kind == checkboxField {
@@ -273,6 +289,7 @@ func (model *Model) handleFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return model.submitForm()
 		}
 		form.focus++
+		model.syncCardEditorChecklist()
 		return model, nil
 	}
 	field := &form.fields[form.focus]
@@ -493,7 +510,7 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		if column.WIPLimit != nil && len(model.cards[column.ID]) >= *column.WIPLimit {
 			return invalid(fmt.Errorf("%w: target column WIP limit reached", domain.ErrConflict))
 		}
-		card := cardFromTemplate(template, model.board.ID, column.ID, nextCardPosition(model.cards[column.ID]))
+		card := tasks.CardFromTemplate(template, model.board.ID, column.ID, nextCardPosition(model.cards[column.ID]), time.Now())
 		if value(2) != "" {
 			card.Title = value(2)
 		}
@@ -574,6 +591,9 @@ func (model *Model) handleDiscardKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (model *Model) renderForm(width, height int) string {
+	if model.cardEditorActive(width, height) && (model.form.control == nil || model.form.control.inline) {
+		return model.renderCardEditor(width, height)
+	}
 	if model.form.control != nil {
 		return model.renderFormControl(width, height)
 	}

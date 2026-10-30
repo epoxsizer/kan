@@ -26,17 +26,20 @@ const (
 )
 
 type formControl struct {
-	kind          controlKind
-	field         int
-	value         string
-	original      string
-	cursor        int
-	selection     int
-	date          time.Time
-	query         string
-	queryCursor   int
-	selected      map[string]bool
-	standalone    bool
+	kind        controlKind
+	field       int
+	value       string
+	original    string
+	cursor      int
+	selection   int
+	date        time.Time
+	query       string
+	queryCursor int
+	selected    map[string]bool
+	standalone  bool
+	// inline marks a checklist edited inside the full-screen card editor
+	// instead of a popup.
+	inline        bool
 	checklist     []domain.ChecklistItem
 	inputMode     bool
 	input         string
@@ -136,6 +139,9 @@ func (model *Model) handleFormControlKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case linksControl:
 		return model.handleLinksKey(key)
 	case checklistControl:
+		if control.inline {
+			return model.handleInlineChecklistKey(key)
+		}
 		return model.handleChecklistKey(key)
 	}
 	return model, nil
@@ -648,7 +654,11 @@ func (model *Model) renderLinks(width, height int) string {
 
 func centeredControl(model *Model, width, height, maximum int, content string) string {
 	boxWidth := min(maximum, max(width-4, 24))
-	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, model.styles.help.Width(max(boxWidth-6, 18)).Render(content))
+	box := model.styles.help.Width(max(boxWidth-6, 18)).Render(content)
+	if model.cardEditorActive(width, height) {
+		return overlayCentered(model.renderCardEditor(width, height), box, width, height)
+	}
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, box)
 }
 
 func verticalCursor(value []rune, cursor, direction int) int {

@@ -28,6 +28,9 @@ type CardPatch struct {
 	RelatedCardIDs *[]string
 	Checklist      *[]domain.ChecklistItem
 	Fields         *map[string]domain.FieldValue
+	// ExpectedUpdatedAt rejects the patch with ErrConflict when the card has
+	// changed since the caller loaded it.
+	ExpectedUpdatedAt *time.Time
 }
 
 func New(repo domain.Repository) *Coordinator {
@@ -182,6 +185,9 @@ func (coordinator *Coordinator) PatchCard(ctx context.Context, id string, patch 
 		card, err := coordinator.Repository.GetCard(ctx, id)
 		if err != nil {
 			return err
+		}
+		if patch.ExpectedUpdatedAt != nil && !patch.ExpectedUpdatedAt.Equal(card.UpdatedAt) {
+			return fmt.Errorf("%w: card changed since it was loaded (updated_at %s)", domain.ErrConflict, card.UpdatedAt.Format(time.RFC3339Nano))
 		}
 		if patch.Title != nil {
 			card.Title = *patch.Title

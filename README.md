@@ -17,7 +17,7 @@ The app includes full-text search, tags, priorities, due dates, Markdown card
 descriptions, checklists, custom fields, linked cards, JSON import/export,
 automatic local backups, and optional S3 JSON synchronization.
 
-Current version: `0.1.17`.
+Current version: `0.1.18`.
 
 ## Interface
 
@@ -95,6 +95,7 @@ kan upgrade check
 | Key | Action |
 |---|---|
 | Left click | Select an item; click the selected item again to open it |
+| Left drag | Drag a board card to another column or position; `Esc` cancels, `u` undoes the drop |
 | Mouse wheel | Navigate lists/cards or scroll the active detail/control |
 | Right click | Back, close, or cancel like `Esc` |
 | `h j k l`, arrows | Navigate |
@@ -123,8 +124,11 @@ kan upgrade check
 | `Esc` | Back or cancel |
 | `q`, `Ctrl-C` | Quit |
 
-Mouse support is enabled automatically. Hold `Shift` while dragging when you
-need to select terminal text. Card drag-and-drop is not enabled.
+Mouse support is enabled automatically. Drag a card with the left button to
+move it to another column or position; the target column is highlighted and the
+status line shows the drop position. Dropping is disabled while a filter, sort,
+or grouping is active, because the visible order then differs from the stored
+order. Hold `Shift` while dragging when you need to select terminal text.
 
 New cards have no due date by default. Open the due-date field to choose a date,
 or press `x` in the calendar to remove the due date.
@@ -132,6 +136,15 @@ or press `x` in the calendar to remove the due date.
 Columns can enable automatic archiving and set how many days cards remain in
 that column before archival; new columns default to 14 days with automation
 disabled. The retention timer resets whenever a card enters a different column.
+
+On terminals at least 100 columns wide and 24 rows tall, adding or editing a
+card opens a full-screen editor: fields on the left, the rendered Markdown
+description on the right, and the checklist edited in place. Press `Tab` to move
+between fields (it wraps around), `Enter` on the description to open the
+Markdown editor, and, while the checklist is focused, `a` to add, `e` to rename,
+`Space` to toggle, `D` to delete, and `J`/`K` to reorder items. Mouse clicks
+focus fields, open the description editor, and toggle checklist items. Smaller
+terminals keep the compact centered form.
 
 In forms, use `Tab` to move between fields and `Ctrl-S` to save. Text inputs
 support cursor editing with arrows and `Home`/`End`; `Ctrl-W`, `Ctrl-U`, and
@@ -190,11 +203,46 @@ the TUI is running.
 
 ## Pair With A Model Over MCP
 
-Kan includes an optional local
-[Model Context Protocol](https://modelcontextprotocol.io/) server so a model can
-inspect and update the same task board while you work in the TUI. It uses
-Streamable HTTP at `http://127.0.0.1:7337/mcp`, requires bearer authentication,
-and only accepts a literal loopback bind address.
+Kan includes local [Model Context Protocol](https://modelcontextprotocol.io/)
+servers so a model can inspect and update your task board. There are two ways to
+connect, and they can be combined.
+
+### Local stdio server
+
+`kan mcp` serves the tools over standard input and output. The model client
+starts it itself, so there is no port, token, or running TUI to manage:
+
+```sh
+claude mcp add kan -- kan mcp
+codex mcp add kan -- kan mcp
+```
+
+Or, for Claude Code, in a project `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "kan": {
+      "command": "kan",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Pass `--db`, `--config`, or the `KAN_DB` and `KAN_CONFIG` environment variables
+the same way as for other commands. `kan mcp` opens the database only for the
+duration of each tool call, so you can start and close the TUI at any time.
+While the TUI is running it holds the database; if the HTTP server below is
+enabled, `kan mcp` sends each call through the TUI, which then refreshes
+immediately. Without it, calls fail with a retryable `locked` error until the
+TUI closes.
+
+### HTTP server inside the TUI
+
+The TUI can also run a server using Streamable HTTP at
+`http://127.0.0.1:7337/mcp`. It requires bearer authentication and only accepts
+a literal loopback bind address.
 
 Generate a token, export it, and enable MCP in the `config.toml` beside the Kan
 executable:
@@ -238,12 +286,25 @@ environment:
 }
 ```
 
-The server exposes discovery, listing, search, create, patch, move, archive,
-and restore tools for cards. It deliberately does not expose permanent deletion
-or project, board, column, and custom-field mutation. MCP writes are serialized
-with TUI writes, and the active TUI reloads immediately after a successful
-model change. If both sides edit the same card, stale updates are rejected
-instead of overwriting newer data.
+### Tools
+
+Both servers expose the same tools:
+
+- discovery: `kan_list_projects`, `kan_list_boards`, `kan_get_board`;
+- cards: `kan_list_cards`, `kan_get_card`, `kan_search_cards`,
+  `kan_create_card`, `kan_update_card`, `kan_move_card`, `kan_archive_card`,
+  `kan_restore_card`;
+- board structure: `kan_create_board`, `kan_update_board`,
+  `kan_create_column`, `kan_update_column`, `kan_move_column`;
+- checklists: `kan_add_checklist_item`, `kan_update_checklist_item`;
+- templates: `kan_list_card_templates`, `kan_create_card_from_template`.
+
+They deliberately do not expose permanent deletion or project and custom-field
+mutation. Checklist items sent without `id` or `position` get them assigned.
+MCP writes are serialized with TUI writes, and the active TUI reloads
+immediately after a successful model change. Pass `expected_updated_at` from the
+card you read to `kan_update_card` so a stale update fails with a `conflict`
+error instead of overwriting the user's newer edits.
 
 Configuration references:
 
@@ -344,10 +405,16 @@ priority and due date.
 
 ## Development
 
+Kan is developed test-first (red → green → refactor); see
+[CONTRIBUTING.md](CONTRIBUTING.md). Coding agents follow the same rules in
+[CLAUDE.md](CLAUDE.md).
+
 ```sh
 make fmt         # format code
 make test        # run tests
-make check       # format check, go vet, tests, and build
+make test-race   # run tests with the race detector (requires CGO)
+make cover-check # fail when coverage drops below COVERAGE_MIN
+make check       # format check, go vet, tests with coverage gate, and build
 make build       # build bin/kan
 make cross-build # build Linux, macOS, and Windows binaries for amd64/arm64
 ```
