@@ -41,6 +41,39 @@ func createCard(t *testing.T, coordinator *Coordinator, board domain.Board, colu
 	return card
 }
 
+func TestDirectCardWritesEnforceTheSameWIPRulesAsAgentWrites(t *testing.T) {
+	ctx := context.Background()
+	coordinator := openTestCoordinator(t)
+	board, first, target := createHierarchy(t, coordinator)
+	limit := 1
+	target.WIPLimit = &limit
+	require.NoError(t, coordinator.UpdateColumn(ctx, &target))
+	createCard(t, coordinator, board, target, "Existing")
+	card := domain.Card{BoardID: board.ID, ColumnID: target.ID, Title: "TUI create", Position: 2048}
+	require.ErrorIs(t, coordinator.CreateCard(ctx, &card), domain.ErrConflict)
+	card = createCard(t, coordinator, board, first, "TUI move by editing")
+	card.ColumnID = target.ID
+	require.ErrorIs(t, coordinator.UpdateCard(ctx, &card), domain.ErrConflict)
+	stored, err := coordinator.GetCard(ctx, card.ID)
+	require.NoError(t, err)
+	require.Equal(t, first.ID, stored.ColumnID)
+}
+
+func TestTUIStructureEditsRejectStaleSnapshots(t *testing.T) {
+	ctx := context.Background()
+	coordinator := openTestCoordinator(t)
+	board, column, _ := createHierarchy(t, coordinator)
+	name := "Changed by agent"
+	_, err := coordinator.PatchBoard(ctx, board.ID, BoardPatch{Name: &name})
+	require.NoError(t, err)
+	board.Name = "Stale human edit"
+	require.ErrorIs(t, coordinator.UpdateBoard(ctx, &board), domain.ErrConflict)
+	_, err = coordinator.PatchColumn(ctx, column.ID, ColumnPatch{Name: &name})
+	require.NoError(t, err)
+	column.Name = "Stale human edit"
+	require.ErrorIs(t, coordinator.UpdateColumn(ctx, &column), domain.ErrConflict)
+}
+
 func TestCreateCardAtEndAppendsAndEnforcesConstraints(t *testing.T) {
 	ctx := context.Background()
 	coordinator := openTestCoordinator(t)

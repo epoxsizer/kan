@@ -37,12 +37,28 @@ func New(repo domain.Repository) *Coordinator {
 	return &Coordinator{Repository: repo}
 }
 
+func (coordinator *Coordinator) DatabaseIdentity() string {
+	if provider, ok := coordinator.Repository.(interface{ DatabaseIdentity() string }); ok {
+		return provider.DatabaseIdentity()
+	}
+	return ""
+}
+
 func (coordinator *Coordinator) CreateProject(ctx context.Context, value *domain.Project) error {
 	return coordinator.mutate(func() error { return coordinator.Repository.CreateProject(ctx, value) })
 }
 
 func (coordinator *Coordinator) UpdateProject(ctx context.Context, value *domain.Project) error {
-	return coordinator.mutate(func() error { return coordinator.Repository.UpdateProject(ctx, value) })
+	return coordinator.mutate(func() error {
+		current, err := coordinator.Repository.GetProject(ctx, value.ID)
+		if err != nil {
+			return err
+		}
+		if err = checkRevision("project", current.UpdatedAt, &value.UpdatedAt); err != nil {
+			return err
+		}
+		return coordinator.Repository.UpdateProject(ctx, value)
+	})
 }
 
 func (coordinator *Coordinator) DeleteProject(ctx context.Context, id string) error {
@@ -54,7 +70,16 @@ func (coordinator *Coordinator) CreateBoard(ctx context.Context, value *domain.B
 }
 
 func (coordinator *Coordinator) UpdateBoard(ctx context.Context, value *domain.Board) error {
-	return coordinator.mutate(func() error { return coordinator.Repository.UpdateBoard(ctx, value) })
+	return coordinator.mutate(func() error {
+		current, err := coordinator.Repository.GetBoard(ctx, value.ID)
+		if err != nil {
+			return err
+		}
+		if err = checkRevision("board", current.UpdatedAt, &value.UpdatedAt); err != nil {
+			return err
+		}
+		return coordinator.Repository.UpdateBoard(ctx, value)
+	})
 }
 
 func (coordinator *Coordinator) DeleteBoard(ctx context.Context, id string) error {
@@ -66,7 +91,16 @@ func (coordinator *Coordinator) CreateColumn(ctx context.Context, value *domain.
 }
 
 func (coordinator *Coordinator) UpdateColumn(ctx context.Context, value *domain.Column) error {
-	return coordinator.mutate(func() error { return coordinator.Repository.UpdateColumn(ctx, value) })
+	return coordinator.mutate(func() error {
+		current, err := coordinator.Repository.GetColumn(ctx, value.ID)
+		if err != nil {
+			return err
+		}
+		if err = checkRevision("column", current.UpdatedAt, &value.UpdatedAt); err != nil {
+			return err
+		}
+		return coordinator.Repository.UpdateColumn(ctx, value)
+	})
 }
 
 func (coordinator *Coordinator) MoveColumn(ctx context.Context, id string, target int) error {
@@ -78,11 +112,55 @@ func (coordinator *Coordinator) DeleteColumn(ctx context.Context, id string) err
 }
 
 func (coordinator *Coordinator) CreateCard(ctx context.Context, value *domain.Card) error {
-	return coordinator.mutate(func() error { return coordinator.Repository.CreateCard(ctx, value) })
+	return coordinator.mutate(func() error {
+		if err := coordinator.checkCardDestination(ctx, value.BoardID, value.ColumnID, ""); err != nil {
+			return err
+		}
+		return coordinator.Repository.CreateCard(ctx, value)
+	})
 }
 
 func (coordinator *Coordinator) UpdateCard(ctx context.Context, value *domain.Card) error {
-	return coordinator.mutate(func() error { return coordinator.Repository.UpdateCard(ctx, value) })
+	return coordinator.mutate(func() error {
+		previous, err := coordinator.Repository.GetCard(ctx, value.ID)
+		if err != nil {
+			return err
+		}
+		if previous.ColumnID != value.ColumnID || previous.BoardID != value.BoardID {
+			if err := coordinator.checkCardDestination(ctx, value.BoardID, value.ColumnID, value.ID); err != nil {
+				return err
+			}
+		}
+		return coordinator.Repository.UpdateCard(ctx, value)
+	})
+}
+
+// Call while holding mu so a TUI write cannot race an agent filling the column.
+func (coordinator *Coordinator) checkCardDestination(ctx context.Context, boardID, columnID, excludeID string) error {
+	column, err := coordinator.Repository.GetColumn(ctx, columnID)
+	if err != nil {
+		return err
+	}
+	if column.BoardID != boardID {
+		return fmt.Errorf("%w: column belongs to another board", domain.ErrConflict)
+	}
+	if column.WIPLimit == nil {
+		return nil
+	}
+	cards, err := coordinator.Repository.ListCards(ctx, boardID)
+	if err != nil {
+		return err
+	}
+	count := 0
+	for _, card := range cards {
+		if card.ColumnID == columnID && card.ID != excludeID {
+			count++
+		}
+	}
+	if count >= *column.WIPLimit {
+		return fmt.Errorf("%w: target column WIP limit %d reached", domain.ErrConflict, *column.WIPLimit)
+	}
+	return nil
 }
 
 func (coordinator *Coordinator) MoveCard(ctx context.Context, id, columnID string, target int) error {
@@ -229,9 +307,16 @@ func (coordinator *Coordinator) PatchCard(ctx context.Context, id string, patch 
 	return result, err
 }
 
-func (coordinator *Coordinator) MoveCardTo(ctx context.Context, id, columnID string, targetIndex *int) (domain.Card, error) {
+func (coordinator *Coordinator) MoveCardTo(ctx context.Context, id, columnID string, targetIndex *int, expected ...*time.Time) (domain.Card, error) {
 	var result domain.Card
 	err := coordinator.mutate(func() error {
+		current, err := coordinator.Repository.GetCard(ctx, id)
+		if err != nil {
+			return err
+		}
+		if err = checkRevision("card", current.UpdatedAt, expected...); err != nil {
+			return err
+		}
 		index := 0
 		if targetIndex == nil {
 			card, err := coordinator.Repository.GetCard(ctx, id)
@@ -267,11 +352,14 @@ func (coordinator *Coordinator) GetCardIncludingArchived(ctx context.Context, id
 	return coordinator.getCardIncludingArchived(ctx, id)
 }
 
-func (coordinator *Coordinator) ArchiveCard(ctx context.Context, id string) (domain.Card, error) {
+func (coordinator *Coordinator) ArchiveCard(ctx context.Context, id string, expected ...*time.Time) (domain.Card, error) {
 	var result domain.Card
 	err := coordinator.mutate(func() error {
-		_, err := coordinator.Repository.GetCard(ctx, id)
+		card, err := coordinator.Repository.GetCard(ctx, id)
 		if err != nil {
+			return err
+		}
+		if err = checkRevision("card", card.UpdatedAt, expected...); err != nil {
 			return err
 		}
 		if err = coordinator.Repository.DeleteCard(ctx, id); err != nil {
@@ -283,7 +371,7 @@ func (coordinator *Coordinator) ArchiveCard(ctx context.Context, id string) (dom
 	return result, err
 }
 
-func (coordinator *Coordinator) RestoreArchivedCard(ctx context.Context, id string) (domain.Card, error) {
+func (coordinator *Coordinator) RestoreArchivedCard(ctx context.Context, id string, expected ...*time.Time) (domain.Card, error) {
 	var result domain.Card
 	err := coordinator.mutate(func() error {
 		card, err := coordinator.getCardIncludingArchived(ctx, id)
@@ -292,6 +380,9 @@ func (coordinator *Coordinator) RestoreArchivedCard(ctx context.Context, id stri
 		}
 		if card.DeletedAt == nil {
 			return fmt.Errorf("%w: card is not archived", domain.ErrConflict)
+		}
+		if err = checkRevision("card", card.UpdatedAt, expected...); err != nil {
+			return err
 		}
 		if err = coordinator.Repository.RestoreCard(ctx, id); err != nil {
 			return err
@@ -339,4 +430,11 @@ func cloneFields(source map[string]domain.FieldValue) map[string]domain.FieldVal
 		result[key] = value
 	}
 	return result
+}
+
+func checkRevision(kind string, actual time.Time, expected ...*time.Time) error {
+	if len(expected) > 0 && expected[0] != nil && !expected[0].Equal(actual) {
+		return fmt.Errorf("%w: %s changed since it was loaded (updated_at %s)", domain.ErrConflict, kind, actual.Format(time.RFC3339Nano))
+	}
+	return nil
 }

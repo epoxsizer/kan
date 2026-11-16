@@ -187,7 +187,7 @@ func (model *Model) nextMoveTarget(delta int) int {
 func (model *Model) renderMovePicker(width, height int) string {
 	card := model.selectedCard()
 	boxWidth := min(70, max(width-4, 30))
-	contentWidth := max(boxWidth-6, 24)
+	contentWidth := max(boxWidth-10, 20)
 	lines := []string{
 		model.styles.header.Render("Move card"),
 		truncate(card.Title, contentWidth),
@@ -198,7 +198,7 @@ func (model *Model) renderMovePicker(width, height int) string {
 	start := max(model.movePicker.targetColumnIndex-maxRows+1, 0)
 	start = min(start, max(len(model.columns)-maxRows, 0))
 	end := min(start+maxRows, len(model.columns))
-	nameWidth := max(contentWidth-17, 6)
+	nameWidth := max(contentWidth-19, 6)
 	for index := start; index < end; index++ {
 		column := model.columns[index]
 		count := len(model.cards[column.ID])
@@ -214,6 +214,7 @@ func (model *Model) renderMovePicker(width, height int) string {
 			state = " CURRENT"
 		}
 		line := fmt.Sprintf("%-*s %7s%s", nameWidth, truncate(column.Name, nameWidth), capacity, state)
+		line = truncate(selectionText(line, index == model.movePicker.targetColumnIndex), contentWidth)
 		if index == model.movePicker.targetColumnIndex {
 			line = model.styles.selected.Copy().Padding(0).Render(line)
 		}

@@ -11,7 +11,14 @@ type commandSpec struct {
 	name        string
 	description string
 	command     string
+	key         string
+	label       string
 }
+
+var inspectorAction = commandSpec{name: "inspector", description: "Show or hide the card inspector", command: "toggle-inspector", key: "i", label: "Inspector"}
+var navigationAction = commandSpec{name: "navigation", description: "Show or hide board navigation", command: "toggle-navigation", key: "b", label: "Boards"}
+var activityAction = commandSpec{name: "activity", description: "Show agent changes in this session", command: "activity", key: "A", label: "Activity"}
+var workspaceActions = []commandSpec{inspectorAction, navigationAction, activityAction}
 
 type commandMenuSpec struct {
 	name        string
@@ -67,6 +74,7 @@ var commandMenus = []commandMenuSpec{
 		{name: "quit", description: "Exit Kan", command: "quit"},
 	}},
 	{name: "view", description: "Filters, planning, sorting, and layout", actions: []commandSpec{
+		inspectorAction, navigationAction, activityAction,
 		{name: "today", description: "Show cards due today", command: "today"},
 		{name: "overdue", description: "Show overdue cards", command: "overdue"},
 		{name: "blocked", description: "Show blocked cards", command: "blocked"},
@@ -208,6 +216,7 @@ func (model *Model) renderCommandPalette(width, height int) string {
 			prefix := padRight("["+match.kind+"]", kindWidth)
 			rowWidth := max(contentWidth, 1)
 			row := prefix + " " + padRight(truncate(match.label, nameWidth), nameWidth) + "  " + truncate(match.description, max(rowWidth-kindWidth-nameWidth-3, 1))
+			row = truncate(selectionText(row, index == selected), contentWidth)
 			if index == selected {
 				lines = append(lines, model.styles.selected.Copy().Padding(0).Width(contentWidth).Render(row))
 			} else {

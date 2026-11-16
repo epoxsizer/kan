@@ -31,6 +31,18 @@ aligned second line with priority, due information, checklist progress, tags,
 and related-card count. Markdown descriptions remain in the scrollable detail
 window. Board lists summarize overdue or nearest-due work.
 
+The header keeps the project and board visible. At 110 columns the board can
+show a scrollable card inspector; at 140×18 it also shows board navigation.
+Use `i` and `b` to toggle those panes, and `Tab` / `Shift-Tab` to change focus.
+On smaller terminals, `i` opens full-screen details and `b` returns to the board
+list. Projects, boards, form fields, dropdowns, and related-card lists scroll to
+keep the selected item visible after resizing. Terminals smaller than 32×12
+show a resize message and keep the current draft in memory.
+
+Kan honors `NO_COLOR`; selection then uses a `>` marker. Refreshes keep existing
+content visible, and recoverable failures appear in the status line. `A` opens
+the agent activity recorded during the current TUI session.
+
 ## Quick Start From Source
 
 Go 1.25 or newer is required.
@@ -105,7 +117,9 @@ kan upgrade check
 | `a` | Add a card or object on the current screen |
 | `D` | Delete with confirmation |
 | `H`, `L` | Move the selected card to the previous/next column |
-| `Shift-Tab`, `Tab` | Move the selected card between columns |
+| `Tab`, `Shift-Tab` | Change focus between the board, inspector, and navigation |
+| `i`, `b` | Toggle the inspector / board navigation; open details / board list on smaller terminals |
+| `A`, `:view activity` | Show agent changes recorded in this TUI session |
 | `Shift-Left`, `Shift-Right` | Move the selected column left or right |
 | `:column move-left`, `:column move-right` | Reorder the selected column from the command menu |
 | `J`, `K` | Reorder cards |
@@ -123,6 +137,10 @@ kan upgrade check
 | `?` | Full help |
 | `Esc` | Back or cancel |
 | `q`, `Ctrl-C` | Quit |
+
+Set `legacy_keymap = true` at the top of `config.toml` to keep the previous
+`Tab` / `Shift-Tab` card-movement bindings. `H`, `L`, and `M` remain available in
+both keymaps. Help supports `j` / `k`, arrows, and `PgUp` / `PgDn` for scrolling.
 
 Mouse support is enabled automatically. Drag a card with the left button to
 move it to another column or position; the target column is highlighted and the
@@ -150,6 +168,11 @@ In forms, use `Tab` to move between fields and `Ctrl-S` to save. Text inputs
 support cursor editing with arrows and `Home`/`End`; `Ctrl-W`, `Ctrl-U`, and
 `Ctrl-K` delete the previous word, text before the cursor, and text after the
 cursor.
+
+Forms remain open until a save succeeds. Agent changes keep the current
+selection and unsaved draft; saving an outdated draft reports a conflict.
+In a card editor, `Ctrl-R` reloads the latest saved card and asks before
+discarding unsaved changes. `Ctrl-C` also asks before discarding a draft.
 
 Card descriptions support Markdown with rendered headings, emphasis, lists,
 task lists, links, tables, and code blocks. In the description editor,
@@ -290,6 +313,7 @@ environment:
 
 Both servers expose the same tools:
 
+- connection: `kan_get_status` returns the database identity;
 - discovery: `kan_list_projects`, `kan_list_boards`, `kan_get_board`;
 - cards: `kan_list_cards`, `kan_get_card`, `kan_search_cards`,
   `kan_create_card`, `kan_update_card`, `kan_move_card`, `kan_archive_card`,
@@ -303,8 +327,39 @@ They deliberately do not expose permanent deletion or project and custom-field
 mutation. Checklist items sent without `id` or `position` get them assigned.
 MCP writes are serialized with TUI writes, and the active TUI reloads
 immediately after a successful model change. Pass `expected_updated_at` from the
-card you read to `kan_update_card` so a stale update fails with a `conflict`
-error instead of overwriting the user's newer edits.
+entity you read to update, move, archive, restore, and checklist-mutation tools
+so a stale change fails with a `conflict` error. Existing clients may omit it,
+but agents working alongside a human or another agent should always supply it.
+
+Give the TUI and agent the same absolute database and configuration paths. A
+client that starts Kan from another working directory can use:
+
+```json
+{
+  "mcpServers": {
+    "kan": {
+      "command": "/absolute/path/to/kan/bin/kan",
+      "args": [
+        "--config", "/absolute/path/to/kan/bin/config.toml",
+        "--db", "/absolute/path/to/kan/kan.db",
+        "--log", "/absolute/path/to/kan/kan.log",
+        "mcp"
+      ]
+    }
+  }
+}
+```
+
+For simultaneous TUI and agent use, enable the HTTP server above and give both
+processes the same `KAN_MCP_TOKEN`. The stdio bridge checks database identity
+before forwarding calls and returns `wrong_database` if the running TUI uses a
+different database. Database symlinks share the same identity and process lock.
+
+If a connection fails after a write was sent, Kan returns `outcome_unknown`
+with `retryable: false` and does not replay the write. Read the affected board
+or card before deciding whether to retry. Read-only calls can reconnect and
+retry automatically. Connected agent sessions close when the TUI exits; the
+same stdio client can then continue against the database directly.
 
 Configuration references:
 

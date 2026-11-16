@@ -28,6 +28,8 @@ type Change struct {
 
 type Server struct {
 	httpServer *http.Server
+	mcpServer  *mcp.Server
+	cancel     context.CancelFunc
 	listener   net.Listener
 	done       chan error
 }
@@ -60,7 +62,9 @@ func Start(cfg config.MCP, version string, coordinator *tasks.Coordinator, logge
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 	}
-	server := &Server{httpServer: httpServer, listener: listener, done: make(chan error, 1)}
+	requestContext, cancel := context.WithCancel(context.Background())
+	httpServer.BaseContext = func(net.Listener) context.Context { return requestContext }
+	server := &Server{httpServer: httpServer, mcpServer: mcpServer, cancel: cancel, listener: listener, done: make(chan error, 1)}
 	go func() {
 		err := httpServer.Serve(listener)
 		if errors.Is(err, http.ErrServerClosed) {
@@ -95,7 +99,16 @@ func (server *Server) Shutdown(ctx context.Context) error {
 	if server == nil {
 		return nil
 	}
+	// Cancel long-lived SSE requests and close protocol sessions before waiting
+	// for HTTP handlers. Otherwise connected agents keep graceful shutdown open.
+	server.cancel()
+	for session := range server.mcpServer.Sessions() {
+		_ = session.Close()
+	}
 	err := server.httpServer.Shutdown(ctx)
+	if err != nil {
+		_ = server.httpServer.Close()
+	}
 	serveErr := <-server.done
 	if err != nil {
 		return err

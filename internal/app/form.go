@@ -69,6 +69,11 @@ type formModal struct {
 	linksLoading   bool
 	initialValues  []string
 	templates      []domain.CardTemplate
+	saving         bool
+	baseProject    domain.Project
+	baseBoard      domain.Board
+	baseColumn     domain.Column
+	baseCard       domain.Card
 	// Rendered description cache for the full-screen card editor.
 	previewSource string
 	previewWidth  int
@@ -99,6 +104,8 @@ const (
 	discardForm discardKind = iota
 	discardControl
 	discardChecklistInput
+	discardReloadCard
+	discardQuit
 )
 
 type discardModal struct {
@@ -113,6 +120,7 @@ func (model *Model) startProjectForm(edit bool) {
 		project := model.projects[model.projectIndex]
 		form.kind, form.title = editProjectForm, "Edit project"
 		form.entityID = project.ID
+		form.baseProject = project
 		form.fields[0].value, form.fields[1].value = project.Name, project.Description
 	}
 	model.activateForm(form)
@@ -124,6 +132,7 @@ func (model *Model) startBoardForm(edit bool) {
 		board := model.boards[model.boardIndex]
 		form.kind, form.title = editBoardForm, "Edit board"
 		form.entityID = board.ID
+		form.baseBoard = board
 		form.fields[0].value, form.fields[1].value = board.Name, board.Description
 	}
 	model.activateForm(form)
@@ -141,6 +150,7 @@ func (model *Model) startColumnForm(edit bool) {
 		column := model.columns[model.columnIndex]
 		form.kind, form.title = editColumnForm, "Column settings"
 		form.entityID = column.ID
+		form.baseColumn = column
 		form.fields[0].value = column.Name
 		if column.WIPLimit != nil {
 			form.fields[1].value = strconv.Itoa(*column.WIPLimit)
@@ -167,30 +177,37 @@ func (model *Model) startCardForm(edit bool) tea.Cmd {
 		{label: "Title"}, {label: "Description", kind: commentField, markdown: true}, {label: "Status", value: column.Name, kind: dropdownField, options: columnNames(model.columns)}, {label: "Priority", value: "Medium", kind: dropdownField, options: priorities}, {label: "Due date", kind: calendarField}, {label: "Tags comma-separated"}, {label: "Related cards", kind: linksField}, {label: "Checklist", value: "[]", kind: checklistField},
 	}}
 	if edit {
-		card := model.selectedCard()
-		form.kind, form.title = editCardForm, "Edit card"
-		form.entityID = card.ID
-		form.fields[0].value, form.fields[1].value = card.Title, card.Description
-		form.fields[2].value = column.Name
-		if card.Priority != nil {
-			form.fields[3].value = *card.Priority
-			form.fields[3].options = withLegacyOption(priorities, *card.Priority)
-		} else {
-			form.fields[3].value = ""
-		}
-		if card.DueDate != nil {
-			form.fields[4].value = card.DueDate.Format("2006-01-02")
-		} else {
-			form.fields[4].value = ""
-		}
-		form.fields[5].value = strings.Join(card.Tags, ", ")
-		form.fields[6].value = strings.Join(card.RelatedCardIDs, ",")
-		checklist, _ := json.Marshal(card.Checklist)
-		form.fields[7].value = string(checklist)
+		populateCardDraft(form, model.selectedCard(), column.Name)
 	}
 	form.linksLoading = true
 	model.activateForm(form)
-	return loadLinkCandidates(model.ctx, model.repo, model.project.ID, selectedCardID(form, model))
+	return forForm(form, loadLinkCandidates(model.ctx, model.repo, model.project.ID, selectedCardID(form, model)))
+}
+
+func populateCardDraft(form *formModal, card domain.Card, columnName string) {
+
+	form.kind, form.title = editCardForm, "Edit card"
+	form.entityID = card.ID
+	form.baseCard = card
+	form.fields[0].value, form.fields[1].value = card.Title, card.Description
+	form.fields[2].value = columnName
+	if card.Priority != nil {
+		form.fields[3].value = *card.Priority
+		form.fields[3].options = withLegacyOption(priorities, *card.Priority)
+	} else {
+		form.fields[3].value = ""
+	}
+	if card.DueDate != nil {
+		form.fields[4].value = card.DueDate.Format("2006-01-02")
+	} else {
+		form.fields[4].value = ""
+	}
+	form.fields[5].value = strings.Join(card.Tags, ", ")
+	form.fields[6].value = strings.Join(card.RelatedCardIDs, ",")
+	checklist, _ := json.Marshal(card.Checklist)
+	form.fields[7].value = string(checklist)
+	form.err = ""
+	form.control = nil
 }
 
 func (model *Model) startTemplateForm() {
@@ -245,6 +262,16 @@ func (model *Model) activateForm(form *formModal) {
 
 func (model *Model) handleFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	form := model.form
+	if form.saving {
+		return model, nil
+	}
+	if key.String() == "ctrl+r" && form.kind == editCardForm {
+		if model.draftDirty() {
+			model.discard = &discardModal{kind: discardReloadCard, title: "Reload and discard this draft?", message: "Load the latest saved card. Choose n to keep your changes."}
+			return model, nil
+		}
+		return model, model.reloadCardDraft()
+	}
 	if form.control != nil {
 		return model.handleFormControlKey(key)
 	}
@@ -314,6 +341,9 @@ func (model *Model) formDirty() bool {
 
 func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 	form := model.form
+	if form.saving {
+		return model, nil
+	}
 	value := func(index int) string { return strings.TrimSpace(form.fields[index].value) }
 	raw := func(index int) string { return form.fields[index].value }
 	invalid := func(err error) (tea.Model, tea.Cmd) {
@@ -356,39 +386,31 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		if err := domain.ValidateProject(project); err != nil {
 			return invalid(err)
 		}
-		model.form = nil
-		model.loading = true
-		return model, mutationCommand(projectsScreen, "Project added", func() error { return model.repo.CreateProject(model.ctx, &project) })
+		return model, model.saveFormCommand(projectsScreen, "Project added", func() error { return model.repo.CreateProject(model.ctx, &project) })
 	case editProjectForm:
-		project := model.projects[model.projectIndex]
+		project := form.baseProject
 		project.Name, project.Description = value(0), raw(1)
 		if err := domain.ValidateProject(project); err != nil {
 			return invalid(err)
 		}
-		model.form = nil
-		model.loading = true
-		return model, mutationCommand(projectsScreen, "Project updated", func() error { return model.repo.UpdateProject(model.ctx, &project) })
+		return model, model.saveFormCommand(projectsScreen, "Project updated", func() error { return model.repo.UpdateProject(model.ctx, &project) })
 	case createBoardForm:
 		board := domain.Board{ProjectID: model.project.ID, Name: value(0), Description: raw(1), Position: nextBoardPosition(model.boards)}
 		if err := domain.ValidateBoard(board); err != nil {
 			return invalid(err)
 		}
-		model.form = nil
-		model.loading = true
-		return model, mutationCommand(boardsScreen, "Board added", func() error { return model.repo.CreateBoard(model.ctx, &board) })
+		return model, model.saveFormCommand(boardsScreen, "Board added", func() error { return model.repo.CreateBoard(model.ctx, &board) })
 	case editBoardForm:
-		board := model.boards[model.boardIndex]
+		board := form.baseBoard
 		board.Name, board.Description = value(0), raw(1)
 		if err := domain.ValidateBoard(board); err != nil {
 			return invalid(err)
 		}
-		model.form = nil
-		model.loading = true
-		return model, mutationCommand(boardsScreen, "Board updated", func() error { return model.repo.UpdateBoard(model.ctx, &board) })
+		return model, model.saveFormCommand(boardsScreen, "Board updated", func() error { return model.repo.UpdateBoard(model.ctx, &board) })
 	case createColumnForm, editColumnForm:
 		column := domain.Column{BoardID: model.board.ID, Position: nextColumnPosition(model.columns)}
 		if form.kind == editColumnForm {
-			column = model.columns[model.columnIndex]
+			column = form.baseColumn
 		}
 		column.Name = value(0)
 		if value(1) == "" {
@@ -415,12 +437,10 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		if err := domain.ValidateColumn(column); err != nil {
 			return invalid(err)
 		}
-		model.form = nil
-		model.loading = true
 		if form.kind == createColumnForm {
-			return model, mutationCommand(boardScreen, "Column added", func() error { return model.repo.CreateColumn(model.ctx, &column) })
+			return model, model.saveFormCommand(boardScreen, "Column added", func() error { return model.repo.CreateColumn(model.ctx, &column) })
 		}
-		return model, mutationCommand(boardScreen, "Column updated", func() error { return model.repo.UpdateColumn(model.ctx, &column) })
+		return model, model.saveFormCommand(boardScreen, "Column updated", func() error { return model.repo.UpdateColumn(model.ctx, &column) })
 	case createCardForm, editCardForm:
 		column, ok := model.columnByNameOrID(value(2))
 		if !ok {
@@ -429,7 +449,7 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		card := domain.Card{BoardID: model.board.ID, ColumnID: column.ID, Position: nextCardPosition(model.cards[column.ID]), Tags: []string{}, Checklist: []domain.ChecklistItem{}, Fields: map[string]domain.FieldValue{}}
 		originalColumnID := ""
 		if form.kind == editCardForm {
-			card = model.selectedCard()
+			card = form.baseCard
 			originalColumnID = card.ColumnID
 		}
 		if column.ID != originalColumnID && column.WIPLimit != nil && len(model.cards[column.ID]) >= *column.WIPLimit {
@@ -463,12 +483,10 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		if err := domain.ValidateCard(card); err != nil {
 			return invalid(err)
 		}
-		model.form = nil
-		model.loading = true
 		if form.kind == createCardForm {
-			return model, mutationCommand(boardScreen, "Card added", func() error { return model.repo.CreateCard(model.ctx, &card) })
+			return model, model.saveFormCommand(boardScreen, "Card added", func() error { return model.repo.CreateCardAtEnd(model.ctx, &card) })
 		}
-		return model, mutationCommand(boardScreen, "Card updated", func() error { return model.repo.UpdateCard(model.ctx, &card) })
+		return model, model.saveFormCommand(boardScreen, "Card updated", func() error { return model.repo.UpdateCard(model.ctx, &card) })
 	case createTemplateForm:
 		template := domain.CardTemplate{BoardID: model.board.ID, Name: value(0), Title: value(1), Description: raw(2), Position: 1024, Tags: splitTags(value(5)), Checklist: []domain.ChecklistItem{}}
 		if value(3) != "" {
@@ -488,9 +506,7 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		if err := domain.ValidateCardTemplate(template); err != nil {
 			return invalid(err)
 		}
-		model.form = nil
-		model.loading = true
-		return model, mutationCommand(boardScreen, "Template added", func() error {
+		return model, model.saveFormCommand(boardScreen, "Template added", func() error {
 			templates, err := model.repo.ListCardTemplates(model.ctx, model.board.ID)
 			if err != nil {
 				return err
@@ -517,9 +533,7 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		if err := domain.ValidateCard(card); err != nil {
 			return invalid(err)
 		}
-		model.form = nil
-		model.loading = true
-		return model, mutationCommand(boardScreen, "Card added from template", func() error { return model.repo.CreateCard(model.ctx, &card) })
+		return model, model.saveFormCommand(boardScreen, "Card added from template", func() error { return model.repo.CreateCardAtEnd(model.ctx, &card) })
 	}
 	return model, nil
 }
@@ -572,6 +586,10 @@ func (model *Model) handleDiscardKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	discard := model.discard
 	model.discard = nil
 	switch discard.kind {
+	case discardQuit:
+		return model, tea.Quit
+	case discardReloadCard:
+		return model, model.reloadCardDraft()
 	case discardForm:
 		model.form = nil
 	case discardControl:
@@ -604,8 +622,17 @@ func (model *Model) renderForm(width, height int) string {
 	if model.form.fields[model.form.focus].kind != textField {
 		hint = "Tab fields · Enter open · Ctrl-S save · Esc cancel"
 	}
-	lines := []string{model.styles.header.Render(model.form.title), model.styles.subtle.Render(truncate(hint, contentWidth)), ""}
-	for index, field := range model.form.fields {
+	if model.form.saving {
+		hint = "Saving…"
+	}
+	window := model.compactFormWindow(height)
+	title := model.form.title
+	if window.start > 0 || window.end < len(model.form.fields) {
+		title += fmt.Sprintf(" %d–%d/%d", window.start+1, window.end, len(model.form.fields))
+	}
+	lines := []string{model.styles.header.Render(truncate(title, contentWidth)), model.styles.subtle.Render(truncate(hint, contentWidth)), ""}
+	for index := window.start; index < window.end; index++ {
+		field := model.form.fields[index]
 		label := field.label + ": "
 		if index == model.form.focus {
 			inputWidth := max(contentWidth-lipgloss.Width(label), 1)

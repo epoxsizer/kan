@@ -189,6 +189,9 @@ func (model *Model) handleInlineChecklistKey(key tea.KeyMsg) (tea.Model, tea.Cmd
 
 func (model *Model) cardEditorHint() string {
 	form := model.form
+	if form.saving {
+		return "Saving…"
+	}
 	switch form.focus {
 	case cardEditorChecklistIndex(form):
 		return cardEditorChecklistHint

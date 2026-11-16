@@ -23,10 +23,11 @@ func AcquireLockTimeout(databasePath string, timeout time.Duration) (*Lock, erro
 }
 
 func acquireLock(databasePath string, timeout time.Duration) (*Lock, error) {
-	path := databasePath + ".lock"
+	path := canonicalDatabasePath(databasePath) + ".lock"
 	if err := config.EnsureParent(path); err != nil {
 		return nil, err
 	}
+	path = canonicalDatabasePath(databasePath) + ".lock"
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("open lock file: %w", err)

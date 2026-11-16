@@ -92,7 +92,7 @@ func New(version, commit, date string) *cobra.Command {
 			}
 			res.logger.Info("TUI starting")
 			program := tea.NewProgram(
-				app.NewWithOptions(cmd.Context(), res.tasks, res.logger, app.Options{ShowCardTags: res.config.ShowCardTags, ShowSelectedCardDetails: res.config.ShowSelectedCardDetails, StartupNotice: startupNotice, Theme: app.Theme{
+				app.NewWithOptions(cmd.Context(), res.tasks, res.logger, app.Options{LegacyKeymap: res.config.LegacyKeymap, MCPEnabled: res.config.MCP.Enabled, ShowCardTags: res.config.ShowCardTags, ShowSelectedCardDetails: res.config.ShowSelectedCardDetails, StartupNotice: startupNotice, Theme: app.Theme{
 					Primary: res.config.Theme.Primary, Muted: res.config.Theme.Muted, Text: res.config.Theme.Text, Background: res.config.Theme.Background, SelectedForeground: res.config.Theme.SelectedForeground, SelectedBackground: res.config.Theme.SelectedBackground, Danger: res.config.Theme.Danger, Border: res.config.Theme.Border,
 					SelectedColumnForeground: res.config.Theme.SelectedColumnForeground, SelectedColumnBackground: res.config.Theme.SelectedColumnBackground, SelectedColumnBorder: res.config.Theme.SelectedColumnBorder,
 					SelectedCardForeground: res.config.Theme.SelectedCardForeground, SelectedCardBackground: res.config.Theme.SelectedCardBackground, PanelBorder: res.config.Theme.PanelBorder, FocusedPanelBorder: res.config.Theme.FocusedPanelBorder,

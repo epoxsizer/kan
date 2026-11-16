@@ -46,6 +46,15 @@ func (repo readRepository) ListBoards(context.Context, string) ([]domain.Board, 
 	return repo.boards, nil
 }
 
+func (repo readRepository) GetBoard(_ context.Context, id string) (domain.Board, error) {
+	for _, board := range repo.boards {
+		if board.ID == id {
+			return board, nil
+		}
+	}
+	return domain.Board{ID: id}, nil
+}
+
 func (repo readRepository) ListColumns(context.Context, string) ([]domain.Column, error) {
 	return repo.columns, nil
 }
@@ -142,7 +151,7 @@ func lineContainsAll(value string, parts ...string) bool {
 	return false
 }
 
-func TestExternalCardChangeReloadsBoardAndClosesStaleEditor(t *testing.T) {
+func TestExternalCardChangeReloadsBoardAndPreservesStaleEditor(t *testing.T) {
 	board := domain.Board{ID: "board-1", Name: "Board"}
 	column := domain.Column{ID: "column-1", BoardID: board.ID, Name: "Backlog"}
 	card := domain.Card{ID: "card-1", BoardID: board.ID, ColumnID: column.ID, Title: "Changed by model"}
@@ -155,9 +164,8 @@ func TestExternalCardChangeReloadsBoardAndClosesStaleEditor(t *testing.T) {
 	model.form = &formModal{kind: editCardForm, entityID: card.ID}
 
 	_, command := model.Update(ExternalChangeMsg{Action: "card updated", BoardID: board.ID, ColumnID: column.ID, CardID: card.ID})
-	require.Nil(t, model.form)
-	require.True(t, model.loading)
-	require.Contains(t, model.notice, "editor closed")
+	require.NotNil(t, model.form)
+	require.Contains(t, model.form.err, "changed externally")
 	runCommands(model, command)
 	require.False(t, model.loading)
 	require.Equal(t, card.ID, model.selectedCard().ID)
@@ -321,18 +329,18 @@ func TestPhaseTwoTUIFormsMovementAndPersistence(t *testing.T) {
 	require.Equal(t, "Medium", *cards[0].Priority)
 	require.Nil(t, cards[0].DueDate)
 
-	_, command = model.Update(key("tab"))
+	_, command = model.Update(key("L"))
 	runCommands(model, command)
 	moved, err := repo.GetCard(ctx, cards[0].ID)
 	require.NoError(t, err)
 	require.Equal(t, model.columns[1].ID, moved.ColumnID)
 	require.Equal(t, 1, model.columnIndex)
-	_, command = model.Update(key("shift+tab"))
+	_, command = model.Update(key("H"))
 	runCommands(model, command)
 	moved, err = repo.GetCard(ctx, cards[0].ID)
 	require.NoError(t, err)
 	require.Equal(t, model.columns[0].ID, moved.ColumnID)
-	_, command = model.Update(key("tab"))
+	_, command = model.Update(key("L"))
 	runCommands(model, command)
 
 	model.Update(key("a"))
@@ -455,6 +463,7 @@ func TestDiscardChangedFormAndCommentEditorRequiresConfirmation(t *testing.T) {
 }
 
 func TestTypedFormDefaultsSelectorsCalendarAndCommentEditor(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
 	model := testModel(readRepository{})
 	model.loading = false
 	model.project = &domain.Project{ID: "project"}
@@ -561,6 +570,7 @@ func TestCardTagPrefixesCanBeDisabled(t *testing.T) {
 }
 
 func TestSelectionUsesPrototypeBlueWithContainerAndItemHierarchy(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
 	color := "Red"
 	model := testModel(readRepository{})
 	model.loading = false
@@ -581,6 +591,7 @@ func TestSelectionUsesPrototypeBlueWithContainerAndItemHierarchy(t *testing.T) {
 }
 
 func TestSelectedCardChangesOnlyBackgroundByDefault(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
 	model := testModel(readRepository{})
 	priority := "High"
 	row := cardDisplayRow{card: domain.Card{ID: "card", Title: "Stable title", Priority: &priority, Tags: []string{"ui"}}}
@@ -592,6 +603,7 @@ func TestSelectedCardChangesOnlyBackgroundByDefault(t *testing.T) {
 }
 
 func TestSelectedCardDetailsAlignWithTitleWhenEnabled(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
 	model := testModel(readRepository{})
 	model.showSelectedCardDetails = true
 	priority := "High"
@@ -950,6 +962,7 @@ func TestSettingsCommandAppliesBaseParameters(t *testing.T) {
 }
 
 func TestCommandPaletteUsesFuzzyMatchingInsideMenus(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
 	model := testModel(readRepository{})
 	model.loading = false
 	model.screen = boardScreen

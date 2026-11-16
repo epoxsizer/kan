@@ -6,11 +6,10 @@ import (
 	"log/slog"
 	"os"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/epoxsizer/kan/internal/domain"
+	"github.com/epoxsizer/kan/internal/tasks"
 )
 
 type screen uint8
@@ -38,26 +37,32 @@ func (layout listLayout) String() string {
 }
 
 type Model struct {
-	ctx    context.Context
-	repo   domain.Repository
-	logger *slog.Logger
-	styles styles
+	ctx          context.Context
+	repo         *tasks.Coordinator
+	logger       *slog.Logger
+	styles       styles
+	workspace    workspaceState
+	legacyKeymap bool
+	mcpEnabled   bool
 
-	screen       screen
-	width        int
-	height       int
-	loading      bool
-	err          error
-	help         bool
-	notice       string
-	detail       *detailPopup
-	form         *formModal
-	confirm      *confirmModal
-	discard      *discardModal
-	movePicker   *movePicker
-	lastMove     *cardMoveRecord
-	drag         *cardDrag
-	showCardTags bool
+	screen           screen
+	width            int
+	height           int
+	loading          bool
+	loadGeneration   uint64
+	searchGeneration uint64
+	err              error
+	help             bool
+	helpOffset       int
+	notice           string
+	detail           *detailPopup
+	form             *formModal
+	confirm          *confirmModal
+	discard          *discardModal
+	movePicker       *movePicker
+	lastMove         *cardMoveRecord
+	drag             *cardDrag
+	showCardTags     bool
 
 	showSelectedCardDetails bool
 	planning                PlanningOptions
@@ -107,9 +112,15 @@ type Options struct {
 	StartupNotice           string
 	Theme                   Theme
 	Planning                PlanningOptions
+	LegacyKeymap            bool
+	MCPEnabled              bool
 }
 
 func NewWithOptions(ctx context.Context, repo domain.Repository, logger *slog.Logger, options Options) *Model {
+	coordinator, ok := repo.(*tasks.Coordinator)
+	if !ok {
+		coordinator = tasks.New(repo)
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -118,10 +129,13 @@ func NewWithOptions(ctx context.Context, repo domain.Repository, logger *slog.Lo
 	}
 	return &Model{
 		ctx:           ctx,
-		repo:          repo,
+		repo:          coordinator,
 		logger:        logger,
 		styles:        stylesForTheme(themeOrDefault(options.Theme)),
 		planning:      planningOrDefault(options.Planning),
+		workspace:     workspaceState{navigation: true, inspector: true},
+		legacyKeymap:  options.LegacyKeymap,
+		mcpEnabled:    options.MCPEnabled,
 		screen:        projectsScreen,
 		loading:       true,
 		cards:         make(map[string][]domain.Card),
@@ -144,75 +158,136 @@ func themeOrDefault(theme Theme) Theme {
 }
 
 func (model *Model) Init() tea.Cmd {
-	return loadProjects(model.ctx, model.repo)
+	return model.loadProjects()
 }
 
 func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
+	_, previousCard := model.selectedIDs()
+	defer func() {
+		_, currentCard := model.selectedIDs()
+		if previousCard != currentCard {
+			model.workspace.inspectorOffset = 0
+		}
+	}()
 	switch message := message.(type) {
+	case formLoadedMsg:
+		if model.form != message.form {
+			return model, nil
+		}
+		return model.Update(message.message)
+	case searchLoadedMsg:
+		if model.board == nil || model.screen != boardScreen || model.board.ID != message.boardID || model.searchGeneration != message.generation {
+			return model, nil
+		}
+		return model.Update(message.message)
+	case cardDraftReloadedMsg:
+		if model.form != message.form {
+			return model, nil
+		}
+		model.form.saving = false
+		if message.err != nil {
+			model.form.err = message.err.Error()
+			return model, nil
+		}
+		populateCardDraft(model.form, message.card, message.column.Name)
+		model.form.fields[2].options = withLegacyOption(columnNames(model.columns), message.column.Name)
+		model.activateForm(model.form)
+		return model, nil
+	case workspaceLoadedMsg:
+		if message.generation != model.loadGeneration || message.screen != model.screen {
+			return model, nil
+		}
+		return model.Update(message.message)
 	case NoticeMsg:
 		model.notice = message.Text
 		return model, nil
 	case ExternalChangeMsg:
+		model.recordActivity(message)
+		model.drag = nil
 		model.notice = "MCP: " + message.Action
 		model.err = nil
 		model.lastMove = nil
 		if model.form != nil && model.form.kind == editCardForm && model.form.entityID == message.CardID {
-			model.form = nil
-			model.discard = nil
-			model.notice += "; editor closed because the card changed"
+			model.form.err = "Card changed externally. Draft kept; Ctrl-R reloads, Esc cancels."
 		}
 		switch model.screen {
 		case projectsScreen:
 			model.loading = true
-			return model, loadProjects(model.ctx, model.repo)
+			return model, model.loadProjects()
 		case boardsScreen:
 			if model.project != nil {
 				model.loading = true
-				return model, loadBoards(model.ctx, model.repo, model.project.ID)
+				return model, model.loadBoards(model.project.ID)
 			}
 		case boardScreen:
 			if model.board != nil && model.board.ID == message.BoardID {
-				model.pendingColumn = message.ColumnID
-				model.pendingCard = message.CardID
-				model.loading = true
-				return model, loadBoard(model.ctx, model.repo, model.board.ID)
+				return model, model.loadBoard(model.board.ID)
 			}
 		}
 		return model, nil
 	case tea.WindowSizeMsg:
 		model.width = message.Width
 		model.height = message.Height
+		model.normalizePaneFocus()
 		return model, nil
 	case projectsLoadedMsg:
 		model.loading = false
 		model.err = message.err
 		if message.err == nil {
+			selectedID := ""
+			if len(model.projects) > 0 {
+				selectedID = model.projects[clampIndex(model.projectIndex, len(model.projects))].ID
+			}
 			model.projects = message.projects
 			model.projectCounts = message.counts
 			model.projectIndex = clampIndex(model.projectIndex, len(model.projects))
+			for index, project := range model.projects {
+				if project.ID == selectedID {
+					model.projectIndex = index
+				}
+			}
 		}
 		return model, nil
 	case boardsLoadedMsg:
 		model.loading = false
 		model.err = message.err
 		if message.err == nil {
+			selectedID := ""
+			if len(model.boards) > 0 {
+				selectedID = model.boards[clampIndex(model.boardIndex, len(model.boards))].ID
+			}
 			model.boards = message.boards
 			model.boardCounts = message.counts
 			model.boardHealth = message.health
-			model.boardIndex = 0
+			model.boardIndex = clampIndex(model.boardIndex, len(model.boards))
+			for index, board := range model.boards {
+				if board.ID == selectedID {
+					model.boardIndex = index
+				}
+			}
 		}
 		return model, nil
 	case boardLoadedMsg:
 		model.loading = false
 		model.err = message.err
 		if message.err == nil {
+			if model.board != nil && message.board.ID == model.board.ID && message.board.Name != "" {
+				board := message.board
+				model.board = &board
+				for index := range model.boards {
+					if model.boards[index].ID == board.ID {
+						model.boards[index] = board
+					}
+				}
+			}
+			columnID, cardID := model.selectedIDs()
 			model.columns = message.columns
 			model.cards = make(map[string][]domain.Card, len(model.columns))
-			model.cardIndexes = make(map[string]int, len(model.columns))
 			for _, card := range message.cards {
 				model.cards[card.ColumnID] = append(model.cards[card.ColumnID], card)
 			}
 			model.columnIndex = clampIndex(model.columnIndex, len(model.columns))
+			model.restoreSelection(columnID, cardID)
 			model.applyPendingPaletteFocus()
 			if model.planningFilter != planningNone {
 				model.applyPlanningFilter(model.planningFilter)
@@ -223,7 +298,7 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if message.err == nil && strings.TrimSpace(model.filterText) != "" {
 			model.filterLoading = true
-			return model, searchBoardCards(model.ctx, model.repo, model.board.ID, model.filterText)
+			return model, model.searchBoardCards(model.filterText)
 		}
 		return model, nil
 	case archivedCardsLoadedMsg:
@@ -292,6 +367,17 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return model, nil
 	case mutationDoneMsg:
+		if message.form != nil {
+			message.form.saving = false
+			if model.form != message.form {
+				return model, nil
+			}
+			if message.err != nil {
+				model.form.err = message.err.Error()
+				return model, nil
+			}
+			model.form = nil
+		}
 		model.loading = false
 		if message.err != nil {
 			model.err = message.err
@@ -306,13 +392,13 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		switch message.scope {
 		case projectsScreen:
 			model.screen = projectsScreen
-			return model, loadProjects(model.ctx, model.repo)
+			return model, model.loadProjects()
 		case boardsScreen:
 			model.screen = boardsScreen
-			return model, loadBoards(model.ctx, model.repo, model.project.ID)
+			return model, model.loadBoards(model.project.ID)
 		case boardScreen:
 			model.screen = boardScreen
-			return model, loadBoard(model.ctx, model.repo, model.board.ID)
+			return model, model.loadBoard(model.board.ID)
 		}
 		return model, nil
 	case columnMoveDoneMsg:
@@ -325,7 +411,7 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.pendingColumn = message.columnID
 		model.pendingCard = ""
 		model.loading = true
-		return model, loadBoard(model.ctx, model.repo, model.board.ID)
+		return model, model.loadBoard(model.board.ID)
 	case cardMoveDoneMsg:
 		model.loading = false
 		if message.err != nil {
@@ -344,7 +430,7 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		model.err = nil
 		model.loading = true
-		return model, loadBoard(model.ctx, model.repo, model.board.ID)
+		return model, model.loadBoard(model.board.ID)
 	case tea.MouseMsg:
 		return model.handleMouse(message)
 	case tea.KeyMsg:
@@ -355,7 +441,7 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 
 func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if key.String() == "ctrl+c" {
-		return model, tea.Quit
+		return model.requestQuit()
 	}
 	if model.drag != nil {
 		if key.String() == "esc" {
@@ -417,6 +503,7 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return model, tea.Quit
 	case "?":
 		model.help = !model.help
+		model.helpOffset = 0
 		return model, nil
 	case ":":
 		model.help = false
@@ -431,9 +518,16 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			model.help = false
 			return model, nil
 		}
+		if model.screen == boardScreen && model.workspace.focus != boardFocus {
+			model.workspace.focus = boardFocus
+			return model, nil
+		}
 		return model.goBack()
 	}
-	if model.help || model.loading {
+	if model.help {
+		return model.handleHelpKey(key)
+	}
+	if model.loading {
 		return model, nil
 	}
 	if key.String() == "/" && model.screen == boardScreen {
@@ -544,11 +638,15 @@ func (model *Model) openSelectedProject() (tea.Model, tea.Cmd) {
 		return model, nil
 	}
 	selected := model.projects[model.projectIndex]
+	if model.project == nil || model.project.ID != selected.ID {
+		model.boards = nil
+		model.boardIndex = 0
+	}
 	model.project = &selected
 	model.screen = boardsScreen
 	model.loading = true
 	model.err = nil
-	return model, loadBoards(model.ctx, model.repo, selected.ID)
+	return model, model.loadBoards(selected.ID)
 }
 
 func (model *Model) openSelectedBoard() (tea.Model, tea.Cmd) {
@@ -556,13 +654,21 @@ func (model *Model) openSelectedBoard() (tea.Model, tea.Cmd) {
 		return model, nil
 	}
 	selected := model.boards[model.boardIndex]
+	if model.board == nil || model.board.ID != selected.ID {
+		model.columns = nil
+		model.cards = make(map[string][]domain.Card)
+		model.cardIndexes = make(map[string]int)
+	}
 	model.board = &selected
+	model.workspace.focus = boardFocus
+	model.workspace.inspectorOffset = 0
+	model.workspace.navigationIndex = model.boardIndex
 	model.lastMove = nil
 	model.clearBoardFilter()
 	model.screen = boardScreen
 	model.loading = true
 	model.err = nil
-	return model, loadBoard(model.ctx, model.repo, selected.ID)
+	return model, model.loadBoard(selected.ID)
 }
 
 func (model *Model) moveListSelection(index, total, rowDelta, columnDelta int) int {
@@ -580,6 +686,22 @@ func (model *Model) moveListSelection(index, total, rowDelta, columnDelta int) i
 }
 
 func (model *Model) handleBoardKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch key.String() {
+	case "tab", "shift+tab":
+		if !model.legacyKeymap {
+			model.cyclePaneFocus(key.String() == "shift+tab")
+			return model, nil
+		}
+
+	}
+	for _, action := range workspaceActions {
+		if key.String() == action.key {
+			return model.executeCommand(action.command)
+		}
+	}
+	if model.workspace.focus != boardFocus {
+		return model.handlePaneKey(key)
+	}
 	switch key.String() {
 	case "s":
 		model.cycleSort()
@@ -738,6 +860,32 @@ func (model *Model) applyPendingPaletteFocus() {
 
 func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 	switch command {
+	case "toggle-inspector", "toggle-navigation", "activity":
+		if model.screen != boardScreen {
+			model.err = fmt.Errorf("open a board first")
+			return model, nil
+		}
+		switch command {
+		case "toggle-inspector":
+			if model.width < 110 {
+				model.openSelectedDetail()
+				if model.detail != nil {
+					model.detail.expanded = true
+				}
+				return model, nil
+			}
+			model.workspace.inspector = !model.workspace.inspector
+		case "toggle-navigation":
+			if model.width < 140 {
+				return model.goBack()
+			}
+			model.workspace.navigation = !model.workspace.navigation
+		case "activity":
+			model.openActivity()
+		}
+		model.normalizePaneFocus()
+		return model, nil
+
 	case "q", "quit":
 		return model, tea.Quit
 	case "project-add":
@@ -981,11 +1129,11 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 		model.err = nil
 		switch model.screen {
 		case projectsScreen:
-			return model, loadProjects(model.ctx, model.repo)
+			return model, model.loadProjects()
 		case boardsScreen:
-			return model, loadBoards(model.ctx, model.repo, model.project.ID)
+			return model, model.loadBoards(model.project.ID)
 		case boardScreen:
-			return model, loadBoard(model.ctx, model.repo, model.board.ID)
+			return model, model.loadBoard(model.board.ID)
 		}
 	case "":
 	default:
@@ -995,6 +1143,8 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 }
 
 func (model *Model) goBack() (tea.Model, tea.Cmd) {
+	model.loadGeneration++
+	model.loading = false
 	switch model.screen {
 	case boardScreen:
 		model.clearBoardFilter()
@@ -1005,428 +1155,4 @@ func (model *Model) goBack() (tea.Model, tea.Cmd) {
 	}
 	model.err = nil
 	return model, nil
-}
-
-func (model *Model) View() string {
-	width, height := model.dimensions()
-	if model.discard != nil {
-		return model.renderDiscard(width, height)
-	}
-	if model.movePicker != nil {
-		return model.renderMovePicker(width, height)
-	}
-	if model.form != nil {
-		return model.renderForm(width, height)
-	}
-	if model.confirm != nil {
-		return model.renderConfirm(width, height)
-	}
-	if model.commandMode {
-		return model.renderCommandPalette(width, height)
-	}
-	if model.detail != nil {
-		return model.renderDetailPopup(width, height)
-	}
-	if model.help {
-		boxWidth := min(64, max(width-4, 20))
-		help := model.styles.help.Width(max(boxWidth-6, 10)).Render(model.renderHelpText())
-		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, help)
-	}
-	return model.renderWorkspace(width, height)
-}
-
-func (model *Model) renderWorkspace(width, height int) string {
-	header := model.renderHeader(width)
-	contentHeight := max(height-4, 1)
-	var content string
-	if model.loading {
-		content = model.styles.subtle.Render("Loading...")
-	} else if model.err != nil {
-		content = model.styles.error.Render("Error: " + model.err.Error())
-	} else {
-		switch model.screen {
-		case projectsScreen:
-			content = model.renderProjects(width)
-		case boardsScreen:
-			content = model.renderBoards(width)
-		case boardScreen:
-			content = model.renderBoard(width, contentHeight)
-		}
-	}
-	content = model.styles.body.Copy().Width(width).Height(contentHeight).MaxHeight(contentHeight).Render(content)
-	return header + "\n" + content + "\n" + model.renderStatus(width)
-}
-
-func (model *Model) dimensions() (int, int) {
-	width, height := model.width, model.height
-	if width <= 0 {
-		width = 80
-	}
-	if height <= 0 {
-		height = 24
-	}
-	return width, height
-}
-
-func (model *Model) renderHeader(width int) string {
-	title := model.styles.header.Render("kan")
-	subtitle := model.styles.subtle.Render("  local kanban")
-	return lipgloss.NewStyle().Width(width).Render(title + subtitle)
-}
-
-func (model *Model) renderProjects(width int) string {
-	if len(model.projects) == 0 {
-		return model.styles.subtle.Render("No projects. Press a to add one.")
-	}
-	rows := make([]tableRow, 0, len(model.projects))
-	for index, project := range model.projects {
-		rows = append(rows, tableRow{name: project.Name, comments: project.Description, items: model.projectCounts[project.ID], selected: index == model.projectIndex})
-	}
-	if model.listLayout == cardsLayout {
-		return model.renderListCards("Projects", "Boards", rows, width)
-	}
-	return model.renderTable("Projects", "BOARDS", rows, width)
-}
-
-func (model *Model) renderBoards(width int) string {
-	if len(model.boards) == 0 {
-		return model.styles.subtle.Render("No boards in this project. Press a to add one.")
-	}
-	rows := make([]tableRow, 0, len(model.boards))
-	for index, board := range model.boards {
-		rows = append(rows, tableRow{
-			name:     board.Name,
-			comments: board.Description,
-			status:   boardHealthLabel(model.boardHealth[board.ID], time.Now()),
-			items:    model.boardCounts[board.ID],
-			selected: index == model.boardIndex,
-		})
-	}
-	if model.listLayout == cardsLayout {
-		return model.renderListCards("Boards", "Cards", rows, width)
-	}
-	return model.renderTable("Boards", "CARDS", rows, width)
-}
-
-func (model *Model) renderBoard(width, contentHeight int) string {
-	if len(model.columns) == 0 {
-		return model.styles.subtle.Render("This board has no columns. Press c to add one.")
-	}
-	const minimumColumnWidth = 22
-	visible := min(len(model.columns), max(1, width/minimumColumnWidth))
-	start := max(0, model.columnIndex-visible+1)
-	start = min(start, len(model.columns)-visible)
-	panels := make([]string, 0, visible)
-	baseWidth := width / visible
-	remainder := width % visible
-	for offset, index := 0, start; index < start+visible; offset, index = offset+1, index+1 {
-		columnWidth := baseWidth
-		if offset < remainder {
-			columnWidth++
-		}
-		panels = append(panels, model.renderColumn(index, columnWidth, contentHeight))
-	}
-	return lipgloss.JoinHorizontal(lipgloss.Top, panels...)
-}
-
-func (model *Model) renderColumn(index, width, height int) string {
-	column := model.columns[index]
-	cards := model.visibleCards(column.ID)
-	count := fmt.Sprintf("%d", len(cards))
-	if model.filterActive() {
-		count = fmt.Sprintf("%d/%d", len(cards), len(model.cards[column.ID]))
-	}
-	title := fmt.Sprintf("%s  %s", column.Name, count)
-	if column.WIPLimit != nil {
-		title += fmt.Sprintf("/%d", *column.WIPLimit)
-	}
-	innerWidth := max(width-4, 10)
-	columnColor := model.styles.columnDefault
-	if column.Color != nil {
-		columnColor = colorForName(*column.Color)
-	}
-	headerStyle := model.styles.header.Copy().Foreground(columnColor)
-	borderColor := columnColor
-	if index == model.columnIndex {
-		headerStyle = headerStyle.Foreground(model.styles.selectedColumnForeground).Background(model.styles.selectedColumnBackground).Padding(0, 1)
-		borderColor = model.styles.selectedColumnBorder
-	}
-	lines := []string{headerStyle.Render(truncate(title, innerWidth))}
-	if len(cards) == 0 {
-		empty := "No cards"
-		if model.filterActive() {
-			empty = "No matches"
-		}
-		lines = append(lines, model.styles.subtle.Render(empty))
-	} else {
-		selected := clampIndex(model.cardIndexes[column.ID], len(cards))
-		maxRows := max(height-5, 1)
-		cardContentWidth := max(innerWidth-2, 1)
-		rows, selectedRow := model.cardDisplayRows(cards, selected)
-		renderedRows := make([]string, len(rows))
-		rowHeights := make([]int, len(rows))
-		for rowIndex, row := range rows {
-			renderedRows[rowIndex] = model.renderCardDisplayRow(row, index == model.columnIndex && rowIndex == selectedRow, cardContentWidth, maxRows)
-			rowHeights[rowIndex] = lipgloss.Height(renderedRows[rowIndex])
-		}
-		start, end := visibleCardRowRange(rowHeights, selectedRow, maxRows)
-		lines = append(lines, renderedRows[start:end]...)
-	}
-	style := model.styles.panel
-	if index == model.columnIndex {
-		style = model.styles.focusedPanel.Copy().Border(lipgloss.DoubleBorder())
-	}
-	style = style.BorderForeground(borderColor)
-	return style.Width(innerWidth).Height(max(height-2, 1)).Render(strings.Join(lines, "\n"))
-}
-
-func (model *Model) renderCardDisplayRow(row cardDisplayRow, selected bool, width, maxLines int) string {
-	if row.group != "" {
-		return model.styles.subtle.Copy().Bold(true).Render("─ " + truncate(row.group, max(width-2, 1)))
-	}
-	label := model.cardLabel(row.card, max(width-4, 1), true)
-	content := "  " + label
-	if selected {
-		background := model.styles.selectedCard.GetBackground()
-		label = model.cardLabelWithBackground(row.card, max(width-4, 1), true, background)
-		content = "  " + label
-		if model.showSelectedCardDetails {
-			block := model.selectedCardBlock(row.card, max(width-4, 1), min(maxLines, 2))
-			content = "  " + strings.ReplaceAll(block, "\n", "\n  ")
-		}
-		return model.styles.card.Copy().
-			Background(background).
-			Width(width).
-			Render(content)
-	}
-	return model.styles.card.Width(width).Render(content)
-}
-
-func visibleCardRowRange(heights []int, selected, available int) (int, int) {
-	if len(heights) == 0 || available <= 0 {
-		return 0, 0
-	}
-	selected = clampIndex(selected, len(heights))
-	start := selected
-	used := min(max(heights[selected], 1), available)
-	for start > 0 {
-		height := max(heights[start-1], 1)
-		if used+height > available {
-			break
-		}
-		start--
-		used += height
-	}
-	end := selected + 1
-	for end < len(heights) {
-		height := max(heights[end], 1)
-		if used+height > available {
-			break
-		}
-		end++
-		used += height
-	}
-	return start, end
-}
-
-type cardDisplayRow struct {
-	card      domain.Card
-	cardIndex int
-	group     string
-}
-
-func (model *Model) cardDisplayRows(cards []domain.Card, selected int) ([]cardDisplayRow, int) {
-	rows := []cardDisplayRow{}
-	selectedRow := 0
-	lastGroup := ""
-	for index, card := range cards {
-		if model.groupMode != groupNone {
-			group := model.cardGroupLabel(card)
-			if group != lastGroup {
-				rows = append(rows, cardDisplayRow{group: group})
-				lastGroup = group
-			}
-		}
-		if index == selected {
-			selectedRow = len(rows)
-		}
-		rows = append(rows, cardDisplayRow{card: card, cardIndex: index})
-	}
-	return rows, selectedRow
-}
-
-func (model *Model) cardLabel(card domain.Card, width int, colorPriority bool) string {
-	return model.cardLabelWithBackground(card, width, colorPriority, nil)
-}
-
-func (model *Model) cardLabelWithBackground(card domain.Card, width int, colorPriority bool, background lipgloss.TerminalColor) string {
-	prefix := ""
-	if model.showCardTags {
-		for _, tag := range card.Tags {
-			prefix += "[" + tag + "]"
-		}
-		if prefix != "" {
-			prefix += " "
-		}
-	}
-	suffix := ""
-	if len(card.Checklist) > 0 {
-		done := 0
-		for _, item := range card.Checklist {
-			if item.Done {
-				done++
-			}
-		}
-		suffix = fmt.Sprintf(" [%d/%d]", done, len(card.Checklist))
-	}
-	duePrefix := ""
-	if card.DueDate != nil {
-		marker := "@"
-		if isOverdueDate(card.DueDate) {
-			marker = "!@"
-		}
-		duePrefix = marker + card.DueDate.Format("2006-01-02") + " "
-	}
-	content := duePrefix + prefix + card.Title + suffix
-	label := truncate(content, width)
-	if card.Priority == nil || *card.Priority == "" || width < 3 {
-		return label
-	}
-	priority := strings.ToUpper((*card.Priority)[:1])
-	if !colorPriority {
-		return priority + " " + truncate(content, max(width-2, 1))
-	}
-	markerStyle := lipgloss.NewStyle().Bold(true).Foreground(priorityColor(*card.Priority))
-	textStyle := lipgloss.NewStyle()
-	if background != nil {
-		markerStyle = markerStyle.Background(background)
-		textStyle = textStyle.Background(background)
-	}
-	marker := markerStyle.Render(priority)
-	return marker + textStyle.Render(" "+truncate(content, max(width-2, 1)))
-}
-
-func isOverdueDate(value *time.Time) bool {
-	if value == nil {
-		return false
-	}
-	return calendarDayDelta(*value, time.Now()) < 0
-}
-
-func (model *Model) renderStatus(width int) string {
-	if model.filterMode {
-		hint := "  fuzzy card filter · Enter/Esc close · Ctrl-U delete left"
-		if model.filterLoading {
-			hint = "  searching…"
-		} else if model.filterErr != nil {
-			hint = "  error: " + model.filterErr.Error()
-		}
-		inputWidth := max(width-lipgloss.Width(hint)-1, 4)
-		info := lipgloss.NewStyle().Width(width).Render(model.styles.command.Render("/"+textViewport(model.filterText, model.filterCursor, inputWidth)) + model.styles.subtle.Render(hint))
-		return info + "\n" + model.renderShortcutBar(width)
-	}
-	if model.commandMode {
-		line := model.styles.command.Render(":" + textViewport(model.command, model.commandCursor, max(width-1, 1)))
-		return lipgloss.NewStyle().Width(width).Render(line)
-	}
-	breadcrumb := "Projects"
-	count := fmt.Sprintf("%d projects", len(model.projects))
-	if model.screen >= boardsScreen && model.project != nil {
-		breadcrumb += " › " + model.project.Name
-		count = fmt.Sprintf("%d boards · layout:%s", len(model.boards), model.listLayout.String())
-	} else {
-		count += " · layout:" + model.listLayout.String()
-	}
-	if model.screen == boardScreen && model.board != nil {
-		breadcrumb += " › " + model.board.Name
-		count = fmt.Sprintf("%d columns · %d cards", len(model.columns), model.cardCount())
-		if model.filterActive() {
-			if model.planningFilter != planningNone {
-				count = fmt.Sprintf("%d matches · planning:%s", model.visibleCardCount(), model.planningFilter)
-			} else {
-				count = fmt.Sprintf("%d matches · /%s", model.visibleCardCount(), model.filterText)
-			}
-			if model.filterErr != nil {
-				count = "filter error: " + model.filterErr.Error()
-			}
-		}
-		if health := model.boardPlanningHealth().Summary(); health != "" && model.notice == "" {
-			count += " · " + health
-		}
-		count += " · sort:" + model.sortMode.String() + " · group:" + model.groupMode.String()
-	}
-	left := model.styles.statusAccent.Render(breadcrumb)
-	if lipgloss.Width(left) > width/2 {
-		breadcrumb = truncate(breadcrumb, max(width/2-2, 1))
-		left = model.styles.statusAccent.Render(breadcrumb)
-	}
-	if model.notice != "" {
-		count = model.notice
-	}
-	right := model.styles.status.Render(truncate(count, max(width-lipgloss.Width(left)-2, 1)))
-	gap := max(width-lipgloss.Width(left)-lipgloss.Width(right), 0)
-	info := left + strings.Repeat(" ", gap) + right
-	return info + "\n" + model.renderShortcutBar(width) + "\n"
-}
-
-type shortcut struct {
-	key   string
-	label string
-}
-
-func (model *Model) renderShortcutBar(width int) string {
-	shortcuts := []shortcut{{"?", "Help"}, {":", "Cmd"}, {"q", "Quit"}}
-	switch model.screen {
-	case projectsScreen:
-		shortcuts = append(shortcuts, shortcut{"j/k", "Navigate"}, shortcut{"Enter", "Open"}, shortcut{"a", "Add"}, shortcut{"e", "Edit"}, shortcut{"D", "Delete"}, shortcut{"d", "Describe"}, shortcut{"m", "Comment"})
-	case boardsScreen:
-		shortcuts = append(shortcuts, shortcut{"j/k", "Navigate"}, shortcut{"Enter", "Open"}, shortcut{"a", "Add"}, shortcut{"e", "Edit"}, shortcut{"D", "Delete"}, shortcut{"d", "Describe"})
-	case boardScreen:
-		shortcuts = append(shortcuts, shortcut{"j/k", "Card"}, shortcut{"h/l", "Column"}, shortcut{"⇧←/→", "Reorder"})
-		if model.lastMove != nil {
-			shortcuts = append(shortcuts, shortcut{"u", "Undo"})
-		}
-		shortcuts = append(shortcuts, shortcut{"a", "Add"}, shortcut{"e", "Edit"}, shortcut{"M", "Move"}, shortcut{"/", "Filter"})
-	}
-	if model.filterMode {
-		shortcuts = []shortcut{{"Enter", "Keep"}, {"Esc", "Close"}, {"Ctrl-U", "Clear"}, {"Ctrl-C", "Quit"}}
-	}
-	line := ""
-	for _, item := range shortcuts {
-		token := model.styles.shortcutKey.Render("<"+item.key+">") + model.styles.shortcutText.Render(" "+item.label) + "   "
-		if lipgloss.Width(line)+lipgloss.Width(token) > width {
-			break
-		}
-		line += token
-	}
-	return model.styles.shortcutText.Copy().Width(width).MaxWidth(width).Render(line)
-}
-
-func (model *Model) cardCount() int {
-	count := 0
-	for _, cards := range model.cards {
-		count += len(cards)
-	}
-	return count
-}
-
-func clampIndex(index, length int) int {
-	if length <= 0 {
-		return 0
-	}
-	return min(max(index, 0), length-1)
-}
-
-func truncate(value string, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	runes := []rune(value)
-	if len(runes) <= width {
-		return value
-	}
-	if width == 1 {
-		return "…"
-	}
-	return string(runes[:width-1]) + "…"
 }

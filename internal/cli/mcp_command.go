@@ -38,7 +38,7 @@ refreshes immediately.`,
 				return err
 			}
 			defer closer.Close()
-			forward, closeForward := mcpserver.NewForwarder(cfg.MCP, version)
+			forward, closeForward := mcpserver.NewForwarder(cfg.MCP, version, storage.DatabaseIdentity(cfg.Database))
 			defer closeForward()
 			open := func(ctx context.Context, wait time.Duration) (*tasks.Coordinator, func() error, error) {
 				lock, lockErr := storage.AcquireLockTimeout(cfg.Database, wait)

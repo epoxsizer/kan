@@ -244,6 +244,7 @@ func (repo *moveRepository) MoveCard(_ context.Context, cardID, columnID string,
 }
 
 func TestMovePickerSkipsFullColumnsAndUndoRestoresSource(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
 	limit := 1
 	columns := []domain.Column{
 		{ID: "todo", BoardID: "board", Name: "Todo"},

@@ -55,12 +55,16 @@ func loadBoard(ctx context.Context, repo domain.Repository, boardID string) tea.
 		if _, err := repo.ArchiveExpiredCards(ctx, boardID); err != nil {
 			return boardLoadedMsg{err: err}
 		}
+		board, err := repo.GetBoard(ctx, boardID)
+		if err != nil {
+			return boardLoadedMsg{err: err}
+		}
 		columns, err := repo.ListColumns(ctx, boardID)
 		if err != nil {
 			return boardLoadedMsg{err: err}
 		}
 		cards, err := repo.ListCards(ctx, boardID)
-		return boardLoadedMsg{columns: columns, cards: cards, err: err}
+		return boardLoadedMsg{board: board, columns: columns, cards: cards, err: err}
 	}
 }
 

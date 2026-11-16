@@ -16,11 +16,116 @@ import (
 
 	"github.com/epoxsizer/kan/internal/config"
 	"github.com/epoxsizer/kan/internal/domain"
+	"github.com/epoxsizer/kan/internal/seed"
 	storage "github.com/epoxsizer/kan/internal/storage/sqlite"
 	"github.com/epoxsizer/kan/internal/tasks"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )
+
+func TestBoardDiscoveryIncludesSeededSelectOptions(t *testing.T) {
+	coordinator, _ := openTestCoordinator(t)
+	require.NoError(t, seed.Demo(context.Background(), coordinator))
+	session := connectTestSession(t, coordinator, nil)
+	response := session.call("kan_get_board", map[string]any{"board_id": seed.BoardID}, nil)
+	require.False(t, response.IsError)
+	var payload struct {
+		Data struct {
+			FieldDefs []struct {
+				Key     string   `json:"key"`
+				Options []string `json:"options"`
+			} `json:"field_defs"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(contentText(response)), &payload))
+	require.Len(t, payload.Data.FieldDefs, 2)
+	require.Equal(t, []string{"CLI", "TUI", "Storage"}, payload.Data.FieldDefs[1].Options)
+}
+
+func TestAgentStatusIdentifiesTheDatabase(t *testing.T) {
+	coordinator, _ := openTestCoordinator(t)
+	session := connectTestSession(t, coordinator, nil)
+	response := session.call("kan_get_status", map[string]any{}, nil)
+	require.False(t, response.IsError)
+	var payload struct {
+		Data struct {
+			DatabaseID string `json:"database_id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(contentText(response)), &payload))
+	require.NotEmpty(t, payload.Data.DatabaseID)
+}
+
+func TestToolAnnotationsDescribeReplacementWrites(t *testing.T) {
+	coordinator, _ := openTestCoordinator(t)
+	session := connectTestSession(t, coordinator, nil)
+	listed, err := session.session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	for _, tool := range listed.Tools {
+		if strings.HasPrefix(tool.Name, "kan_update_") || strings.HasPrefix(tool.Name, "kan_move_") {
+			require.NotNil(t, tool.Annotations)
+			require.NotNil(t, tool.Annotations.DestructiveHint)
+			require.True(t, *tool.Annotations.DestructiveHint, tool.Name)
+		}
+	}
+}
+
+func TestAgentCardMutationsRejectStaleRevisions(t *testing.T) {
+	ctx := context.Background()
+	coordinator, project := openTestCoordinator(t)
+	board := domain.Board{ProjectID: project.ID, Name: "Board"}
+	require.NoError(t, coordinator.CreateBoardAtEnd(ctx, &board))
+	column := domain.Column{BoardID: board.ID, Name: "Todo"}
+	require.NoError(t, coordinator.CreateColumnAtEnd(ctx, &column))
+	card := domain.Card{BoardID: board.ID, ColumnID: column.ID, Title: "Original", Checklist: []domain.ChecklistItem{{ID: "item", Text: "Item", Position: 1024}}}
+	require.NoError(t, coordinator.CreateCardAtEnd(ctx, &card))
+	session := connectTestSession(t, coordinator, nil)
+	for _, test := range []struct {
+		name string
+		args map[string]any
+	}{
+		{"kan_move_card", map[string]any{"target_column_id": column.ID}},
+		{"kan_archive_card", map[string]any{}},
+		{"kan_add_checklist_item", map[string]any{"text": "Stale item"}},
+		{"kan_update_checklist_item", map[string]any{"item_id": "item", "done": true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			test.args["card_id"] = card.ID
+			test.args["expected_updated_at"] = card.UpdatedAt.Add(-time.Second).Format(time.RFC3339Nano)
+			response := session.call(test.name, test.args, nil)
+			require.True(t, response.IsError)
+			require.Contains(t, contentText(response), `"code":"conflict"`)
+		})
+	}
+	stored, err := coordinator.GetCard(ctx, card.ID)
+	require.NoError(t, err)
+	require.Equal(t, card.UpdatedAt, stored.UpdatedAt)
+	require.Len(t, stored.Checklist, 1)
+	require.False(t, stored.Checklist[0].Done)
+}
+
+func TestShutdownClosesConnectedAgentSessions(t *testing.T) {
+	coordinator, _ := openTestCoordinator(t)
+	server, err := Start(config.MCP{Enabled: true, Address: "127.0.0.1:0", Token: testToken}, "test", coordinator, nil, nil)
+	require.NoError(t, err)
+	client := mcp.NewClient(&mcp.Implementation{Name: "shutdown-test", Version: "test"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{
+		Endpoint:   "http://" + server.Address() + "/mcp",
+		HTTPClient: &http.Client{Transport: bearerTransport{token: testToken, next: http.DefaultTransport}},
+		MaxRetries: -1,
+	}, nil)
+	require.NoError(t, err)
+	defer session.Close()
+	_, err = session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	err = server.Shutdown(ctx)
+	if err != nil {
+		_ = server.httpServer.Close()
+	}
+	require.NoError(t, err, "connected agent streams must not keep TUI shutdown waiting")
+}
 
 func TestAuthenticationAndOriginProtection(t *testing.T) {
 	handler := authenticate("12345678901234567890123456789012", protectOrigin(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -114,6 +219,7 @@ func TestMCPToolsExposeSafeCardWorkflow(t *testing.T) {
 }
 
 var expectedToolNames = []string{
+	"kan_get_status",
 	"kan_list_projects", "kan_list_boards", "kan_get_board", "kan_list_cards", "kan_get_card", "kan_search_cards",
 	"kan_create_card", "kan_update_card", "kan_move_card", "kan_archive_card", "kan_restore_card",
 	"kan_create_board", "kan_update_board", "kan_create_column", "kan_update_column", "kan_move_column",

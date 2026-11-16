@@ -12,23 +12,26 @@ import (
 )
 
 type BoardPatch struct {
-	Name        *string
-	Description *string
+	ExpectedUpdatedAt *time.Time
+	Name              *string
+	Description       *string
 }
 
 type ColumnPatch struct {
-	Name             *string
-	WIPLimit         *int
-	ClearWIPLimit    bool
-	Color            *string
-	ClearColor       bool
-	AutoArchive      *bool
-	ArchiveAfterDays *int
+	ExpectedUpdatedAt *time.Time
+	Name              *string
+	WIPLimit          *int
+	ClearWIPLimit     bool
+	Color             *string
+	ClearColor        bool
+	AutoArchive       *bool
+	ArchiveAfterDays  *int
 }
 
 type ChecklistItemPatch struct {
-	Text *string
-	Done *bool
+	ExpectedUpdatedAt *time.Time
+	Text              *string
+	Done              *bool
 }
 
 func (coordinator *Coordinator) CreateBoardAtEnd(ctx context.Context, value *domain.Board) error {
@@ -54,6 +57,9 @@ func (coordinator *Coordinator) PatchBoard(ctx context.Context, id string, patch
 	err := coordinator.mutate(func() error {
 		board, err := coordinator.Repository.GetBoard(ctx, id)
 		if err != nil {
+			return err
+		}
+		if err = checkRevision("board", board.UpdatedAt, patch.ExpectedUpdatedAt); err != nil {
 			return err
 		}
 		if patch.Name != nil {
@@ -96,6 +102,9 @@ func (coordinator *Coordinator) PatchColumn(ctx context.Context, id string, patc
 		if err != nil {
 			return err
 		}
+		if err = checkRevision("column", column.UpdatedAt, patch.ExpectedUpdatedAt); err != nil {
+			return err
+		}
 		if patch.Name != nil {
 			column.Name = strings.TrimSpace(*patch.Name)
 		}
@@ -128,25 +137,34 @@ func (coordinator *Coordinator) PatchColumn(ctx context.Context, id string, patc
 	return result, err
 }
 
-func (coordinator *Coordinator) MoveColumnTo(ctx context.Context, id string, targetIndex int) (domain.Column, error) {
+func (coordinator *Coordinator) MoveColumnTo(ctx context.Context, id string, targetIndex int, expected ...*time.Time) (domain.Column, error) {
 	var result domain.Column
 	err := coordinator.mutate(func() error {
+		column, err := coordinator.Repository.GetColumn(ctx, id)
+		if err != nil {
+			return err
+		}
+		if err = checkRevision("column", column.UpdatedAt, expected...); err != nil {
+			return err
+		}
 		if err := coordinator.Repository.MoveColumn(ctx, id, targetIndex); err != nil {
 			return err
 		}
-		var err error
 		result, err = coordinator.Repository.GetColumn(ctx, id)
 		return err
 	})
 	return result, err
 }
 
-func (coordinator *Coordinator) AddChecklistItem(ctx context.Context, cardID, text string, done bool) (domain.Card, domain.ChecklistItem, error) {
+func (coordinator *Coordinator) AddChecklistItem(ctx context.Context, cardID, text string, done bool, expected ...*time.Time) (domain.Card, domain.ChecklistItem, error) {
 	var result domain.Card
 	var item domain.ChecklistItem
 	err := coordinator.mutate(func() error {
 		card, err := coordinator.Repository.GetCard(ctx, cardID)
 		if err != nil {
+			return err
+		}
+		if err = checkRevision("card", card.UpdatedAt, expected...); err != nil {
 			return err
 		}
 		maximum := 0.0
@@ -169,6 +187,9 @@ func (coordinator *Coordinator) PatchChecklistItem(ctx context.Context, cardID, 
 	err := coordinator.mutate(func() error {
 		card, err := coordinator.Repository.GetCard(ctx, cardID)
 		if err != nil {
+			return err
+		}
+		if err = checkRevision("card", card.UpdatedAt, patch.ExpectedUpdatedAt); err != nil {
 			return err
 		}
 		checklist := append([]domain.ChecklistItem(nil), card.Checklist...)

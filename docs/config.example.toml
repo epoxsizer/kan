@@ -5,6 +5,8 @@ log_file = "kan.log"
 log_level = "info"
 # show_card_tags = true
 # show_selected_card_details = false
+# Tab focuses panes by default. Enable to keep Tab/Shift-Tab moving cards.
+# legacy_keymap = false
 
 [mcp]
 # Disabled by default. When enabled, the TUI serves Streamable HTTP on /mcp,

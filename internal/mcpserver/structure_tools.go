@@ -46,9 +46,10 @@ type createBoardInput struct {
 }
 
 type updateBoardInput struct {
-	BoardID     string  `json:"board_id" jsonschema:"required,ID of the board"`
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
+	ExpectedUpdatedAt *string `json:"expected_updated_at,omitempty" jsonschema:"updated_at from the entity you read; reject stale changes"`
+	BoardID           string  `json:"board_id" jsonschema:"required,ID of the board"`
+	Name              *string `json:"name,omitempty"`
+	Description       *string `json:"description,omitempty"`
 }
 
 type createColumnInput struct {
@@ -61,32 +62,36 @@ type createColumnInput struct {
 }
 
 type updateColumnInput struct {
-	ColumnID         string  `json:"column_id" jsonschema:"required,ID of the column"`
-	Name             *string `json:"name,omitempty"`
-	WIPLimit         *int    `json:"wip_limit,omitempty" jsonschema:"positive work-in-progress limit"`
-	ClearWIPLimit    bool    `json:"clear_wip_limit,omitempty"`
-	Color            *string `json:"color,omitempty" jsonschema:"column color: Blue, Green, Yellow, Orange, Red, Purple, or Gray"`
-	ClearColor       bool    `json:"clear_color,omitempty"`
-	AutoArchive      *bool   `json:"auto_archive,omitempty"`
-	ArchiveAfterDays *int    `json:"archive_after_days,omitempty"`
+	ExpectedUpdatedAt *string `json:"expected_updated_at,omitempty" jsonschema:"updated_at from the entity you read; reject stale changes"`
+	ColumnID          string  `json:"column_id" jsonschema:"required,ID of the column"`
+	Name              *string `json:"name,omitempty"`
+	WIPLimit          *int    `json:"wip_limit,omitempty" jsonschema:"positive work-in-progress limit"`
+	ClearWIPLimit     bool    `json:"clear_wip_limit,omitempty"`
+	Color             *string `json:"color,omitempty" jsonschema:"column color: Blue, Green, Yellow, Orange, Red, Purple, or Gray"`
+	ClearColor        bool    `json:"clear_color,omitempty"`
+	AutoArchive       *bool   `json:"auto_archive,omitempty"`
+	ArchiveAfterDays  *int    `json:"archive_after_days,omitempty"`
 }
 
 type moveColumnInput struct {
-	ColumnID    string `json:"column_id" jsonschema:"required,ID of the column"`
-	TargetIndex int    `json:"target_index" jsonschema:"required,zero-based destination index within the board"`
+	ExpectedUpdatedAt *string `json:"expected_updated_at,omitempty" jsonschema:"updated_at from the entity you read; reject stale changes"`
+	ColumnID          string  `json:"column_id" jsonschema:"required,ID of the column"`
+	TargetIndex       int     `json:"target_index" jsonschema:"required,zero-based destination index within the board"`
 }
 
 type addChecklistItemInput struct {
-	CardID string `json:"card_id" jsonschema:"required,ID of the card"`
-	Text   string `json:"text" jsonschema:"required,checklist item text"`
-	Done   bool   `json:"done,omitempty"`
+	ExpectedUpdatedAt *string `json:"expected_updated_at,omitempty" jsonschema:"updated_at from the entity you read; reject stale changes"`
+	CardID            string  `json:"card_id" jsonschema:"required,ID of the card"`
+	Text              string  `json:"text" jsonschema:"required,checklist item text"`
+	Done              bool    `json:"done,omitempty"`
 }
 
 type updateChecklistItemInput struct {
-	CardID string  `json:"card_id" jsonschema:"required,ID of the card"`
-	ItemID string  `json:"item_id" jsonschema:"required,ID of the checklist item"`
-	Text   *string `json:"text,omitempty"`
-	Done   *bool   `json:"done,omitempty"`
+	ExpectedUpdatedAt *string `json:"expected_updated_at,omitempty" jsonschema:"updated_at from the entity you read; reject stale changes"`
+	CardID            string  `json:"card_id" jsonschema:"required,ID of the card"`
+	ItemID            string  `json:"item_id" jsonschema:"required,ID of the checklist item"`
+	Text              *string `json:"text,omitempty"`
+	Done              *bool   `json:"done,omitempty"`
 }
 
 type createCardFromTemplateInput struct {
@@ -97,6 +102,7 @@ type createCardFromTemplateInput struct {
 func registerStructureTools(server *mcp.Server, use coordinatorFunc, logger *slog.Logger, notify func(Change)) {
 	readAnnotations := annotations(true, false, true)
 	writeAnnotations := annotations(false, false, false)
+	replacementAnnotations := annotations(false, true, false)
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_create_board", Description: "Create a board at the end of a project. Add columns with kan_create_column.", Annotations: writeAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input createBoardInput) (*mcp.CallToolResult, result[singleBoardData], error) {
@@ -108,9 +114,13 @@ func registerStructureTools(server *mcp.Server, use coordinatorFunc, logger *slo
 			return nil, result[singleBoardData]{Data: &singleBoardData{Board: board}}, nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "kan_update_board", Description: "Rename a board or change its description. Omitted fields stay unchanged.", Annotations: writeAnnotations},
+	mcp.AddTool(server, &mcp.Tool{Name: "kan_update_board", Description: "Rename a board or change its description. Omitted fields stay unchanged.", Annotations: replacementAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input updateBoardInput) (*mcp.CallToolResult, result[singleBoardData], error) {
-			board, err := use(ctx).PatchBoard(ctx, input.BoardID, tasks.BoardPatch{Name: input.Name, Description: input.Description})
+			expected, err := parseExpectedRevision(input.ExpectedUpdatedAt)
+			if err != nil {
+				return failure[singleBoardData](err)
+			}
+			board, err := use(ctx).PatchBoard(ctx, input.BoardID, tasks.BoardPatch{Name: input.Name, Description: input.Description, ExpectedUpdatedAt: expected})
 			if err != nil {
 				return failure[singleBoardData](err)
 			}
@@ -134,7 +144,7 @@ func registerStructureTools(server *mcp.Server, use coordinatorFunc, logger *slo
 			return nil, result[columnData]{Data: &columnData{Column: column}}, nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "kan_update_column", Description: "Patch a column's name, WIP limit, color (" + columnColorHint + "), or automatic archiving. Use clear flags to remove the WIP limit or color.", Annotations: writeAnnotations},
+	mcp.AddTool(server, &mcp.Tool{Name: "kan_update_column", Description: "Patch a column's name, WIP limit, color (" + columnColorHint + "), or automatic archiving. Use clear flags to remove the WIP limit or color.", Annotations: replacementAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input updateColumnInput) (*mcp.CallToolResult, result[columnData], error) {
 			if input.WIPLimit != nil && input.ClearWIPLimit {
 				return failure[columnData](fmt.Errorf("%w: wip_limit and clear_wip_limit are mutually exclusive", domain.ErrValidation))
@@ -142,7 +152,11 @@ func registerStructureTools(server *mcp.Server, use coordinatorFunc, logger *slo
 			if input.Color != nil && input.ClearColor {
 				return failure[columnData](fmt.Errorf("%w: color and clear_color are mutually exclusive", domain.ErrValidation))
 			}
-			column, err := use(ctx).PatchColumn(ctx, input.ColumnID, tasks.ColumnPatch{
+			expected, err := parseExpectedRevision(input.ExpectedUpdatedAt)
+			if err != nil {
+				return failure[columnData](err)
+			}
+			column, err := use(ctx).PatchColumn(ctx, input.ColumnID, tasks.ColumnPatch{ExpectedUpdatedAt: expected,
 				Name: input.Name, WIPLimit: input.WIPLimit, ClearWIPLimit: input.ClearWIPLimit, Color: input.Color, ClearColor: input.ClearColor,
 				AutoArchive: input.AutoArchive, ArchiveAfterDays: input.ArchiveAfterDays,
 			})
@@ -153,12 +167,16 @@ func registerStructureTools(server *mcp.Server, use coordinatorFunc, logger *slo
 			return nil, result[columnData]{Data: &columnData{Column: column}}, nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "kan_move_column", Description: "Reorder a column within its board.", Annotations: writeAnnotations},
+	mcp.AddTool(server, &mcp.Tool{Name: "kan_move_column", Description: "Reorder a column within its board.", Annotations: replacementAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input moveColumnInput) (*mcp.CallToolResult, result[columnData], error) {
 			if input.TargetIndex < 0 {
 				return failure[columnData](fmt.Errorf("%w: target_index must not be negative", domain.ErrValidation))
 			}
-			column, err := use(ctx).MoveColumnTo(ctx, input.ColumnID, input.TargetIndex)
+			expected, err := parseExpectedRevision(input.ExpectedUpdatedAt)
+			if err != nil {
+				return failure[columnData](err)
+			}
+			column, err := use(ctx).MoveColumnTo(ctx, input.ColumnID, input.TargetIndex, expected)
 			if err != nil {
 				return failure[columnData](err)
 			}
@@ -168,7 +186,11 @@ func registerStructureTools(server *mcp.Server, use coordinatorFunc, logger *slo
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_add_checklist_item", Description: "Append one checklist item to a card.", Annotations: writeAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input addChecklistItemInput) (*mcp.CallToolResult, result[checklistItemData], error) {
-			card, item, err := use(ctx).AddChecklistItem(ctx, input.CardID, input.Text, input.Done)
+			expected, err := parseExpectedRevision(input.ExpectedUpdatedAt)
+			if err != nil {
+				return failure[checklistItemData](err)
+			}
+			card, item, err := use(ctx).AddChecklistItem(ctx, input.CardID, input.Text, input.Done, expected)
 			if err != nil {
 				return failure[checklistItemData](err)
 			}
@@ -176,9 +198,13 @@ func registerStructureTools(server *mcp.Server, use coordinatorFunc, logger *slo
 			return nil, result[checklistItemData]{Data: &checklistItemData{Card: card, Item: item}}, nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "kan_update_checklist_item", Description: "Check, uncheck, or rename one checklist item on a card.", Annotations: writeAnnotations},
+	mcp.AddTool(server, &mcp.Tool{Name: "kan_update_checklist_item", Description: "Check, uncheck, or rename one checklist item on a card.", Annotations: replacementAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input updateChecklistItemInput) (*mcp.CallToolResult, result[cardData], error) {
-			card, err := use(ctx).PatchChecklistItem(ctx, input.CardID, input.ItemID, tasks.ChecklistItemPatch{Text: input.Text, Done: input.Done})
+			expected, err := parseExpectedRevision(input.ExpectedUpdatedAt)
+			if err != nil {
+				return failure[cardData](err)
+			}
+			card, err := use(ctx).PatchChecklistItem(ctx, input.CardID, input.ItemID, tasks.ChecklistItemPatch{Text: input.Text, Done: input.Done, ExpectedUpdatedAt: expected})
 			if err != nil {
 				return failure[cardData](err)
 			}

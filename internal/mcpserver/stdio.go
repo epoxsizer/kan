@@ -59,6 +59,9 @@ func NewStdioServer(version string, open OpenFunc, forward ForwardFunc, logger *
 					return forwarded, nil
 				}
 				logger.Warn("forwarding MCP call to the running TUI failed", "tool", call.Params.Name, "error", forwardErr)
+				if !readOnlyTool(call.Params.Name) {
+					return outcomeUnknownResult(), nil
+				}
 			}
 			if errors.Is(err, domain.ErrLocked) {
 				coordinator, closeDatabase, err = open(ctx, lockWait)
@@ -91,22 +94,40 @@ func lockedResult(err error) *mcp.CallToolResult {
 	}
 }
 
+func readOnlyTool(name string) bool {
+	switch name {
+	case "kan_list_projects", "kan_list_boards", "kan_get_board", "kan_list_cards", "kan_get_card", "kan_search_cards", "kan_list_card_templates", "kan_get_status":
+		return true
+	}
+	return false
+}
+
+func outcomeUnknownResult() *mcp.CallToolResult {
+	payload := result[struct{}]{Error: &toolError{Code: "outcome_unknown", Message: "The connection ended before the write could be confirmed. Read the affected board or card before retrying; the write may already have completed.", Retryable: false}}
+	encoded, _ := json.Marshal(payload)
+	return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: string(encoded)}}, StructuredContent: payload}
+}
+
 // NewForwarder returns a ForwardFunc for the TUI MCP server described by cfg,
 // or nil when that server is disabled. The returned close function ends the
 // forwarding session.
-func NewForwarder(cfg config.MCP, version string) (ForwardFunc, func() error) {
+func NewForwarder(cfg config.MCP, version string, databaseID ...string) (ForwardFunc, func() error) {
 	if !cfg.Enabled {
 		return nil, func() error { return nil }
 	}
 	forwarder := &forwarder{cfg: cfg, version: version}
+	if len(databaseID) > 0 {
+		forwarder.databaseID = databaseID[0]
+	}
 	return forwarder.call, forwarder.close
 }
 
 type forwarder struct {
-	cfg     config.MCP
-	version string
-	mu      sync.Mutex
-	session *mcp.ClientSession
+	cfg        config.MCP
+	version    string
+	databaseID string
+	mu         sync.Mutex
+	session    *mcp.ClientSession
 }
 
 func (forwarder *forwarder) call(ctx context.Context, params *mcp.CallToolParamsRaw) (*mcp.CallToolResult, error) {
@@ -119,6 +140,11 @@ func (forwarder *forwarder) call(ctx context.Context, params *mcp.CallToolParams
 		if forwarder.session == nil {
 			session, err := forwarder.connect(ctx)
 			if err != nil {
+				if errors.Is(err, errDifferentDatabase) {
+					payload := result[struct{}]{Error: &toolError{Code: "wrong_database", Message: "The running TUI uses another database. Use the same absolute --db and --config paths for the TUI and MCP client."}}
+					encoded, _ := json.Marshal(payload)
+					return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: string(encoded)}}, StructuredContent: payload}, nil
+				}
 				return nil, err
 			}
 			forwarder.session = session
@@ -130,6 +156,9 @@ func (forwarder *forwarder) call(ctx context.Context, params *mcp.CallToolParams
 		lastErr = err
 		_ = forwarder.session.Close()
 		forwarder.session = nil
+		if !readOnlyTool(params.Name) {
+			return outcomeUnknownResult(), nil
+		}
 	}
 	return nil, lastErr
 }
@@ -147,8 +176,26 @@ func (forwarder *forwarder) connect(ctx context.Context) (*mcp.ClientSession, er
 	if err != nil {
 		return nil, fmt.Errorf("connect to TUI MCP server at %s: %w", forwarder.cfg.Address, err)
 	}
+	if forwarder.databaseID != "" {
+		response, err := session.CallTool(connectContext, &mcp.CallToolParams{Name: "kan_get_status", Arguments: map[string]any{}})
+		if err != nil {
+			_ = session.Close()
+			return nil, err
+		}
+		encoded, err := json.Marshal(response.StructuredContent)
+		var status result[statusData]
+		if err == nil {
+			err = json.Unmarshal(encoded, &status)
+		}
+		if err != nil || response.IsError || status.Data == nil || status.Data.DatabaseID != forwarder.databaseID {
+			_ = session.Close()
+			return nil, errDifferentDatabase
+		}
+	}
 	return session, nil
 }
+
+var errDifferentDatabase = errors.New("the TUI database identity does not match")
 
 func (forwarder *forwarder) close() error {
 	forwarder.mu.Lock()

@@ -9,6 +9,9 @@ import (
 )
 
 func (model *Model) handleMouse(message tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if model.form != nil && model.form.saving {
+		return model, nil
+	}
 	event := tea.MouseEvent(message)
 	if model.drag != nil && event.Action != tea.MouseActionPress {
 		switch {
@@ -57,6 +60,21 @@ func (model *Model) handleMouseWheel(event tea.MouseEvent) (tea.Model, tea.Cmd) 
 	}
 	if model.help || model.loading {
 		return model, nil
+	}
+	if model.screen == boardScreen {
+		width, height := model.dimensions()
+		layout := model.workspaceLayout(width, height)
+		if event.Y >= height-3 || event.Y < 1 {
+			return model, nil
+		}
+		if layout.inspectorWidth > 0 && event.X >= layout.inspectorX {
+			model.scrollInspector(delta * 3)
+			return model, nil
+		}
+		if layout.navigationWidth > 0 && event.X < layout.navigationWidth {
+			model.workspace.navigationIndex = clampIndex(model.workspace.navigationIndex+delta, len(model.boards)+3)
+			return model, nil
+		}
 	}
 	if model.screen == boardScreen && (event.Button == tea.MouseButtonWheelLeft || event.Button == tea.MouseButtonWheelRight) {
 		model.columnIndex = clampIndex(model.columnIndex+delta, len(model.columns))
@@ -123,22 +141,17 @@ func (model *Model) handleMouseClick(event tea.MouseEvent) (tea.Model, tea.Cmd) 
 	case model.help:
 		return model, nil
 	}
-	if event.Y >= height-1 {
-		switch {
-		case event.X < 11:
-			model.help = true
-		case event.X < 22:
-			model.commandMode = true
-			model.command = ""
-			model.commandCursor = 0
-			model.commandIndex = 0
-			model.commandMenu = ""
-			return model, nil
-		case event.X < 33:
-			return model, tea.Quit
+	footerY := height - 2
+	if model.filterMode {
+		footerY = height - 1
+	}
+	if event.Y >= height-3 {
+		if event.Y == footerY {
+			return model.clickShortcut(event.X, width)
 		}
 		return model, nil
 	}
+
 	if model.loading || event.Y < 1 {
 		return model, nil
 	}
@@ -162,6 +175,15 @@ func (model *Model) handleMouseClick(event tea.MouseEvent) (tea.Model, tea.Cmd) 
 		}
 		model.boardIndex = index
 	case boardScreen:
+		layout := model.workspaceLayout(width, height)
+		if event.X < layout.navigationWidth {
+			return model.clickNavigation(event)
+		}
+		if layout.inspectorWidth > 0 && event.X >= layout.inspectorX {
+			model.workspace.focus = inspectorFocus
+			return model, nil
+		}
+		model.workspace.focus = boardFocus
 		return model.clickBoard(event)
 	}
 	return model, nil
@@ -171,9 +193,14 @@ func (model *Model) mouseListIndex(event tea.MouseEvent, total int) (int, bool) 
 	if total == 0 {
 		return 0, false
 	}
+	width, height := model.dimensions()
+	window := model.listWindow(width, total)
+	if event.Y >= height-3 {
+		return 0, false
+	}
 	if model.listLayout == tableLayout {
-		index := event.Y - 5
-		return index, index >= 0 && index < total
+		index := event.Y - 5 + window.start
+		return index, index >= window.start && index < window.end
 	}
 	columns := cardLayoutColumns(model.width)
 	cardWidth := cardLayoutWidth(model.width)
@@ -186,32 +213,13 @@ func (model *Model) mouseListIndex(event tea.MouseEvent, total int) (int, bool) 
 	}
 	column := event.X / (cardWidth + gap)
 	row := (event.Y - 2) / 7
-	index := row*columns + column
-	return index, column < columns && index >= 0 && index < total
+	index := window.start + row*columns + column
+	return index, column < columns && index >= window.start && index < window.end
 }
 
 func (model *Model) mouseColumnAt(x int) (int, bool) {
-	if len(model.columns) == 0 || x < 0 {
-		return 0, false
-	}
-	const minimumColumnWidth = 22
-	width, _ := model.dimensions()
-	visible := min(len(model.columns), max(1, width/minimumColumnWidth))
-	start := max(0, model.columnIndex-visible+1)
-	start = min(start, len(model.columns)-visible)
-	baseWidth, remainder := width/visible, width%visible
-	left := 0
-	for offset, index := 0, start; index < start+visible; offset, index = offset+1, index+1 {
-		columnWidth := baseWidth
-		if offset < remainder {
-			columnWidth++
-		}
-		if x >= left && x < left+columnWidth {
-			return index, true
-		}
-		left += columnWidth
-	}
-	return 0, false
+	width, height := model.dimensions()
+	return model.workspaceLayout(width, height).columnAt(x)
 }
 
 func (model *Model) clickBoard(event tea.MouseEvent) (tea.Model, tea.Cmd) {
@@ -253,22 +261,8 @@ func (model *Model) mouseCardAt(columnIndex, screenY int) (int, bool) {
 }
 
 func (model *Model) mouseColumnWidth(target int) int {
-	const minimumColumnWidth = 22
-	width, _ := model.dimensions()
-	visible := min(len(model.columns), max(1, width/minimumColumnWidth))
-	start := max(0, model.columnIndex-visible+1)
-	start = min(start, len(model.columns)-visible)
-	baseWidth, remainder := width/visible, width%visible
-	for offset, index := 0, start; index < start+visible; offset, index = offset+1, index+1 {
-		columnWidth := baseWidth
-		if offset < remainder {
-			columnWidth++
-		}
-		if index == target {
-			return columnWidth
-		}
-	}
-	return baseWidth
+	width, height := model.dimensions()
+	return model.workspaceLayout(width, height).columnWidth(target)
 }
 
 func (model *Model) clickForm(event tea.MouseEvent, width, height int) (tea.Model, tea.Cmd) {
@@ -278,11 +272,8 @@ func (model *Model) clickForm(event tea.MouseEvent, width, height int) (tea.Mode
 	if model.form.control != nil {
 		return model.clickFormControl(event, width, height)
 	}
-	lineCount := 3 + len(model.form.fields)
-	if model.form.err != "" {
-		lineCount += 2
-	}
-	top := centeredMouseTop(height, lineCount)
+	window := model.compactFormWindow(height)
+	top := centeredMouseTop(height, window.lineCount)
 	boxWidth := min(70, max(width-4, 26))
 	innerWidth := max(boxWidth-6, 20)
 	left := max((width-innerWidth)/2, 0)
@@ -299,8 +290,8 @@ func (model *Model) clickForm(event tea.MouseEvent, width, height int) (tea.Mode
 			return model.handleFormKey(tea.KeyMsg{Type: tea.KeyEsc})
 		}
 	}
-	index := event.Y - (top + 5)
-	if index < 0 || index >= len(model.form.fields) {
+	index := event.Y - (top + 5) + window.start
+	if index < window.start || index >= window.end {
 		return model, nil
 	}
 	wasFocused := model.form.focus == index
@@ -323,8 +314,9 @@ func (model *Model) clickFormControl(event tea.MouseEvent, width, height int) (t
 	switch control.kind {
 	case dropdownControl:
 		options := model.form.fields[control.field].options
-		index := event.Y - (centeredMouseTop(height, 3+len(options)) + 5)
-		if index >= 0 && index < len(options) {
+		start, end := controlWindow(len(options), control.selection, height-7)
+		index := start + event.Y - (centeredMouseTop(height, 3+end-start) + 5)
+		if index >= start && index < end {
 			if control.selection == index {
 				return model.handleDropdownKey(mouseKey("enter"))
 			}
@@ -353,16 +345,24 @@ func (model *Model) clickFormControl(event tea.MouseEvent, width, height int) (t
 		}
 	case linksControl:
 		matches := model.linkMatches(control.query)
-		count := min(len(matches), max(height-10, 1))
-		index := event.Y - (centeredMouseTop(height, 4+count) + 6)
-		if index >= 0 && index < count {
+		start, end := controlWindow(len(matches), control.selection, height-10)
+		index := start + event.Y - (centeredMouseTop(height, 4+end-start) + 6)
+		if index >= start && index < end {
 			control.selection = index
 			control.selected[matches[index].id] = !control.selected[matches[index].id]
 		}
 	case checklistControl:
 		count := min(len(control.checklist), max(height-11, 2))
-		index := event.Y - (centeredMouseTop(height, 3+count) + 5)
-		if index >= 0 && index < count {
+		start := max(control.selection-max(height-11, 2)+1, 0)
+		lineCount := 3 + count
+		if control.inputMode {
+			lineCount += 3
+		}
+		if count == 0 && !control.inputMode {
+			lineCount++
+		}
+		index := start + event.Y - (centeredMouseTop(height, lineCount) + 5)
+		if index >= start && index < min(start+count, len(control.checklist)) {
 			control.selection = index
 			control.checklist[index].Done = !control.checklist[index].Done
 		}
@@ -483,4 +483,30 @@ func mouseKey(value string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyCtrlS}
 	}
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)}
+}
+
+func (model *Model) clickShortcut(x, width int) (tea.Model, tea.Cmd) {
+	for _, region := range model.shortcutRegions(width) {
+		if x < region.start || x >= region.end {
+			continue
+		}
+		key := region.item.key
+		switch key {
+		case "Enter":
+			return model.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+		case "Esc":
+			return model.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+		case "Tab":
+			return model.handleKey(tea.KeyMsg{Type: tea.KeyTab})
+		case "Ctrl-U":
+			return model.handleKey(tea.KeyMsg{Type: tea.KeyCtrlU})
+		case "Ctrl-C":
+			return model.requestQuit()
+		}
+		if len([]rune(key)) == 1 {
+			return model.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)})
+		}
+		return model, nil
+	}
+	return model, nil
 }

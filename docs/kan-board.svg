@@ -1,30 +1,416 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
-  <rect width="1200" height="700" rx="18" fill="#171724"/>
-  <rect x="20" y="20" width="1160" height="660" rx="12" fill="#202033" stroke="#55557a" stroke-width="2"/>
-  <g font-family="Menlo,Consolas,monospace" fill="#e8e8f2">
-    <text x="48" y="62" font-size="26" font-weight="bold" fill="#7d7aff">kan</text>
-    <text x="110" y="62" font-size="18" fill="#909090">local kanban</text>
-
-    <rect x="45" y="90" width="350" height="500" rx="8" fill="#24243a" stroke="#4c8dff" stroke-width="5"/>
-    <rect x="55" y="102" width="330" height="38" rx="4" fill="#4c8dff"/>
-    <text x="70" y="128" font-size="18" font-weight="bold" fill="#000000">ACTIVE • Backlog  3/10</text>
-    <rect x="65" y="165" width="310" height="48" rx="4" fill="#4c8dff"/>
-    <text x="78" y="195" font-size="16" font-weight="bold" fill="#000000">&gt; M [ux] Review shortcuts [1/2]</text>
-    <text x="78" y="245" font-size="16"><tspan fill="#f59e42">H</tspan> @2026-07-01 Ship release</text>
-    <text x="78" y="285" font-size="16"><tspan fill="#42c77a">L</tspan> Write documentation</text>
-
-    <rect x="425" y="90" width="350" height="500" rx="8" fill="#24243a" stroke="#f59e42" stroke-width="2"/>
-    <text x="450" y="128" font-size="18" font-weight="bold" fill="#f59e42">In Progress  2/10</text>
-    <text x="450" y="185" font-size="16"><tspan fill="#f05b62">U</tspan> Fix import validation</text>
-    <text x="450" y="225" font-size="16"><tspan fill="#4c8dff">M</tspan> Add theme support [2/3]</text>
-
-    <rect x="805" y="90" width="350" height="500" rx="8" fill="#24243a" stroke="#42c77a" stroke-width="2"/>
-    <text x="830" y="128" font-size="18" font-weight="bold" fill="#42c77a">Done  2/10</text>
-    <text x="830" y="185" font-size="16"><tspan fill="#42c77a">L</tspan> SQLite migrations</text>
-    <text x="830" y="225" font-size="16"><tspan fill="#4c8dff">M</tspan> Automated backups</text>
-
-    <rect x="45" y="615" width="390" height="40" rx="4" fill="#5a56e0"/>
-    <text x="62" y="641" font-size="16" font-weight="bold">Projects › Platform › Delivery</text>
-    <text x="460" y="641" font-size="15" fill="#909090">3 columns · 7 cards · sort:position · group:none</text>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="1312" height="680" viewBox="0 0 1312 680" role="img" aria-labelledby="title desc">
+<title id="title">Kan responsive terminal workspace</title>
+<desc id="desc">Actual 160 by 36 terminal rendering of the seeded Product Board, with board navigation and card inspector.</desc>
+<rect width="1312" height="680" fill="#171724"/>
+<g font-family="Menlo,Consolas,monospace" font-size="14" xml:space="preserve">
+<text x="16.00" y="30" fill="#7d79ff" font-weight="bold">kan</text>
+<text x="40.00" y="30" fill="#909090" font-weight="normal">  /  Demo Project / Product Board</text>
+<text x="1208.00" y="30" fill="#909090" font-weight="normal">MCP enabled</text>
+<text x="16.00" y="48" fill="#909090" font-weight="normal">╭──────────────────────╮</text>
+<text x="208.00" y="48" fill="#4c8dff" font-weight="normal">╔═══════════════════════════════╗</text>
+<text x="472.00" y="48" fill="#f59e41" font-weight="normal">╭───────────────────────────────╮</text>
+<text x="736.00" y="48" fill="#41c779" font-weight="normal">╭──────────────────────────────╮</text>
+<text x="992.00" y="48" fill="#909090" font-weight="normal">╭────────────────────────────────────╮</text>
+<text x="16.00" y="66" fill="#909090" font-weight="normal">│</text>
+<text x="32.00" y="66" fill="#7d79ff" font-weight="bold">Boards</text>
+<text x="200.00" y="66" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="66" fill="#4c8dff" font-weight="normal">║</text>
+<rect x="224.00" y="52" width="8.00" height="18" fill="#4c8dff"/>
+<rect x="232.00" y="52" width="104.00" height="18" fill="#4c8dff"/>
+<text x="232.00" y="66" fill="#000000" font-weight="bold">Backlog  1/10</text>
+<rect x="336.00" y="52" width="8.00" height="18" fill="#4c8dff"/>
+<text x="464.00" y="66" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="66" fill="#f59e41" font-weight="normal">│</text>
+<text x="488.00" y="66" fill="#f59e41" font-weight="bold">In Progress  1/4</text>
+<text x="728.00" y="66" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="66" fill="#41c779" font-weight="normal">│</text>
+<text x="752.00" y="66" fill="#41c779" font-weight="bold">Done  1/20</text>
+<text x="984.00" y="66" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="66" fill="#909090" font-weight="normal">│</text>
+<text x="1008.00" y="66" fill="#7d79ff" font-weight="bold">Inspector</text>
+<text x="1288.00" y="66" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="84" fill="#909090" font-weight="normal">│</text>
+<text x="32.00" y="84" fill="#909090" font-weight="normal">Projects  [p]</text>
+<text x="200.00" y="84" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="84" fill="#4c8dff" font-weight="normal">║</text>
+<rect x="224.00" y="70" width="8.00" height="18" fill="#4c8dff"/>
+<rect x="232.00" y="70" width="200.00" height="18" fill="#4c8dff"/>
+<text x="232.00" y="84" fill="#c3c3d0" font-weight="normal">  [ux][keyboard] Review …</text>
+<rect x="432.00" y="70" width="8.00" height="18" fill="#4c8dff"/>
+<text x="464.00" y="84" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="84" fill="#f59e41" font-weight="normal">│</text>
+<text x="496.00" y="84" fill="#c3c3d0" font-weight="normal">  [storage] Implement re…</text>
+<text x="728.00" y="84" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="84" fill="#41c779" font-weight="normal">│</text>
+<text x="760.00" y="84" fill="#c3c3d0" font-weight="normal">  [foundation] Create p…</text>
+<text x="984.00" y="84" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="84" fill="#909090" font-weight="normal">│</text>
+<text x="1000.00" y="84" fill="#c4c4d0" font-weight="normal"> Review keyboard shortcuts          </text>
+<text x="1288.00" y="84" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="102" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="102" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="102" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="102" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="102" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="102" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="102" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="102" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="102" fill="#909090" font-weight="normal">│</text>
+<text x="1288.00" y="102" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="120" fill="#909090" font-weight="normal">│</text>
+<text x="24.00" y="120" fill="#c4c4d0" font-weight="normal"> Demo Project         </text>
+<text x="200.00" y="120" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="120" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="120" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="120" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="120" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="120" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="120" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="120" fill="#909090" font-weight="normal">│</text>
+<text x="1000.00" y="120" fill="#c4c4d0" font-weight="normal"> Status: Backlog                    </text>
+<text x="1288.00" y="120" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="138" fill="#909090" font-weight="normal">│</text>
+<text x="24.00" y="138" fill="#c4c4d0" font-weight="normal"> › Product Board      </text>
+<text x="200.00" y="138" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="138" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="138" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="138" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="138" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="138" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="138" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="138" fill="#909090" font-weight="normal">│</text>
+<text x="1000.00" y="138" fill="#c4c4d0" font-weight="normal"> Priority: none                     </text>
+<text x="1288.00" y="138" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="156" fill="#909090" font-weight="normal">│</text>
+<text x="24.00" y="156" fill="#c4c4d0" font-weight="normal">   Roadmap            </text>
+<text x="200.00" y="156" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="156" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="156" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="156" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="156" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="156" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="156" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="156" fill="#909090" font-weight="normal">│</text>
+<text x="1000.00" y="156" fill="#c4c4d0" font-weight="normal"> Due: No due date                   </text>
+<text x="1288.00" y="156" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="174" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="174" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="174" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="174" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="174" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="174" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="174" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="174" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="174" fill="#909090" font-weight="normal">│</text>
+<text x="1000.00" y="174" fill="#c4c4d0" font-weight="normal"> Tags: ux, keyboard                 </text>
+<text x="1288.00" y="174" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="192" fill="#909090" font-weight="normal">│</text>
+<text x="24.00" y="192" fill="#c4c4d0" font-weight="normal"> Views                </text>
+<text x="200.00" y="192" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="192" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="192" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="192" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="192" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="192" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="192" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="192" fill="#909090" font-weight="normal">│</text>
+<text x="1288.00" y="192" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="210" fill="#909090" font-weight="normal">│</text>
+<text x="24.00" y="210" fill="#c4c4d0" font-weight="normal"> Today                </text>
+<text x="200.00" y="210" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="210" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="210" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="210" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="210" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="210" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="210" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="210" fill="#909090" font-weight="normal">│</text>
+<text x="1000.00" y="210" fill="#c4c4d0" font-weight="normal"> Description                        </text>
+<text x="1288.00" y="210" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="228" fill="#909090" font-weight="normal">│</text>
+<text x="24.00" y="228" fill="#c4c4d0" font-weight="normal"> Overdue              </text>
+<text x="200.00" y="228" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="228" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="228" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="228" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="228" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="228" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="228" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="228" fill="#909090" font-weight="normal">│</text>
+<text x="1024.00" y="228" fill="#d0d0d0" font-weight="normal">Make every action discoverable</text>
+<text x="1288.00" y="228" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="246" fill="#909090" font-weight="normal">│</text>
+<text x="24.00" y="246" fill="#c4c4d0" font-weight="normal"> Blocked              </text>
+<text x="200.00" y="246" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="246" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="246" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="246" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="246" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="246" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="246" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="246" fill="#909090" font-weight="normal">│</text>
+<text x="1024.00" y="246" fill="#d0d0d0" font-weight="normal">from</text>
+<text x="1056.00" y="246" fill="#d0d0d0" font-weight="normal"> help.</text>
+<text x="1288.00" y="246" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="264" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="264" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="264" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="264" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="264" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="264" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="264" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="264" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="264" fill="#909090" font-weight="normal">│</text>
+<text x="1288.00" y="264" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="282" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="282" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="282" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="282" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="282" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="282" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="282" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="282" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="282" fill="#909090" font-weight="normal">│</text>
+<text x="1000.00" y="282" fill="#c4c4d0" font-weight="normal"> Checklist                          </text>
+<text x="1288.00" y="282" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="300" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="300" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="300" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="300" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="300" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="300" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="300" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="300" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="300" fill="#909090" font-weight="normal">│</text>
+<text x="1000.00" y="300" fill="#c4c4d0" font-weight="normal"> [x] Open the help overlay          </text>
+<text x="1288.00" y="300" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="318" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="318" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="318" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="318" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="318" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="318" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="318" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="318" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="318" fill="#909090" font-weight="normal">│</text>
+<text x="1000.00" y="318" fill="#c4c4d0" font-weight="normal"> [ ] Verify movement shortcuts      </text>
+<text x="1288.00" y="318" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="336" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="336" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="336" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="336" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="336" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="336" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="336" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="336" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="336" fill="#909090" font-weight="normal">│</text>
+<text x="1288.00" y="336" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="354" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="354" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="354" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="354" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="354" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="354" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="354" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="354" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="354" fill="#909090" font-weight="normal">│</text>
+<text x="1000.00" y="354" fill="#c4c4d0" font-weight="normal"> Fields                             </text>
+<text x="1288.00" y="354" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="372" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="372" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="372" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="372" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="372" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="372" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="372" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="372" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="372" fill="#909090" font-weight="normal">│</text>
+<text x="1000.00" y="372" fill="#c4c4d0" font-weight="normal"> area: TUI                          </text>
+<text x="1288.00" y="372" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="390" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="390" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="390" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="390" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="390" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="390" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="390" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="390" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="390" fill="#909090" font-weight="normal">│</text>
+<text x="1000.00" y="390" fill="#c4c4d0" font-weight="normal"> effort: 2                          </text>
+<text x="1288.00" y="390" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="408" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="408" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="408" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="408" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="408" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="408" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="408" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="408" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="408" fill="#909090" font-weight="normal">│</text>
+<text x="1288.00" y="408" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="426" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="426" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="426" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="426" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="426" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="426" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="426" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="426" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="426" fill="#909090" font-weight="normal">│</text>
+<text x="1000.00" y="426" fill="#c4c4d0" font-weight="normal"> d  Full details and IDs            </text>
+<text x="1288.00" y="426" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="444" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="444" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="444" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="444" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="444" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="444" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="444" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="444" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="444" fill="#909090" font-weight="normal">│</text>
+<text x="1288.00" y="444" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="462" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="462" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="462" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="462" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="462" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="462" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="462" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="462" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="462" fill="#909090" font-weight="normal">│</text>
+<text x="1000.00" y="462" fill="#c4c4d0" font-weight="normal"> 1–20/20 · e edit · i hide          </text>
+<text x="1288.00" y="462" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="480" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="480" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="480" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="480" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="480" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="480" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="480" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="480" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="480" fill="#909090" font-weight="normal">│</text>
+<text x="1288.00" y="480" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="498" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="498" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="498" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="498" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="498" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="498" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="498" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="498" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="498" fill="#909090" font-weight="normal">│</text>
+<text x="1288.00" y="498" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="516" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="516" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="516" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="516" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="516" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="516" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="516" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="516" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="516" fill="#909090" font-weight="normal">│</text>
+<text x="1288.00" y="516" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="534" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="534" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="534" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="534" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="534" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="534" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="534" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="534" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="534" fill="#909090" font-weight="normal">│</text>
+<text x="1288.00" y="534" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="552" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="552" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="552" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="552" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="552" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="552" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="552" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="552" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="552" fill="#909090" font-weight="normal">│</text>
+<text x="1288.00" y="552" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="570" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="570" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="570" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="570" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="570" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="570" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="570" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="570" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="570" fill="#909090" font-weight="normal">│</text>
+<text x="1288.00" y="570" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="588" fill="#909090" font-weight="normal">│</text>
+<text x="200.00" y="588" fill="#909090" font-weight="normal">│</text>
+<text x="208.00" y="588" fill="#4c8dff" font-weight="normal">║</text>
+<text x="464.00" y="588" fill="#4c8dff" font-weight="normal">║</text>
+<text x="472.00" y="588" fill="#f59e41" font-weight="normal">│</text>
+<text x="728.00" y="588" fill="#f59e41" font-weight="normal">│</text>
+<text x="736.00" y="588" fill="#41c779" font-weight="normal">│</text>
+<text x="984.00" y="588" fill="#41c779" font-weight="normal">│</text>
+<text x="992.00" y="588" fill="#909090" font-weight="normal">│</text>
+<text x="1288.00" y="588" fill="#909090" font-weight="normal">│</text>
+<text x="16.00" y="606" fill="#909090" font-weight="normal">╰──────────────────────╯</text>
+<text x="208.00" y="606" fill="#4c8dff" font-weight="normal">╚═══════════════════════════════╝</text>
+<text x="472.00" y="606" fill="#f59e41" font-weight="normal">╰───────────────────────────────╯</text>
+<text x="736.00" y="606" fill="#41c779" font-weight="normal">╰──────────────────────────────╯</text>
+<text x="992.00" y="606" fill="#909090" font-weight="normal">╰────────────────────────────────────╯</text>
+<rect x="16.00" y="610" width="8.00" height="18" fill="#7d79ff"/>
+<rect x="24.00" y="610" width="312.00" height="18" fill="#7d79ff"/>
+<text x="24.00" y="624" fill="#ffffff" font-weight="bold">Projects › Demo Project › Product Board</text>
+<rect x="336.00" y="610" width="8.00" height="18" fill="#7d79ff"/>
+<rect x="784.00" y="610" width="8.00" height="18" fill="#24243a"/>
+<rect x="792.00" y="610" width="496.00" height="18" fill="#24243a"/>
+<text x="792.00" y="624" fill="#909090" font-weight="normal">3 columns · 3 cards · untriaged:3 · sort:position · group:none</text>
+<rect x="1288.00" y="610" width="8.00" height="18" fill="#24243a"/>
+<rect x="16.00" y="628" width="24.00" height="18" fill="#5956e0"/>
+<text x="16.00" y="642" fill="#ffffff" font-weight="bold">&lt;?&gt;</text>
+<rect x="40.00" y="628" width="40.00" height="18" fill="#24243a"/>
+<text x="40.00" y="642" fill="#909090" font-weight="normal"> Help</text>
+<rect x="104.00" y="628" width="24.00" height="18" fill="#5956e0"/>
+<text x="104.00" y="642" fill="#ffffff" font-weight="bold">&lt;:&gt;</text>
+<rect x="128.00" y="628" width="32.00" height="18" fill="#24243a"/>
+<text x="128.00" y="642" fill="#909090" font-weight="normal"> Cmd</text>
+<rect x="184.00" y="628" width="24.00" height="18" fill="#5956e0"/>
+<text x="184.00" y="642" fill="#ffffff" font-weight="bold">&lt;q&gt;</text>
+<rect x="208.00" y="628" width="40.00" height="18" fill="#24243a"/>
+<text x="208.00" y="642" fill="#909090" font-weight="normal"> Quit</text>
+<rect x="272.00" y="628" width="40.00" height="18" fill="#5956e0"/>
+<text x="272.00" y="642" fill="#ffffff" font-weight="bold">&lt;j/k&gt;</text>
+<rect x="312.00" y="628" width="40.00" height="18" fill="#24243a"/>
+<text x="312.00" y="642" fill="#909090" font-weight="normal"> Card</text>
+<rect x="376.00" y="628" width="40.00" height="18" fill="#5956e0"/>
+<text x="376.00" y="642" fill="#ffffff" font-weight="bold">&lt;h/l&gt;</text>
+<rect x="416.00" y="628" width="56.00" height="18" fill="#24243a"/>
+<text x="416.00" y="642" fill="#909090" font-weight="normal"> Column</text>
+<rect x="496.00" y="628" width="40.00" height="18" fill="#5956e0"/>
+<text x="496.00" y="642" fill="#ffffff" font-weight="bold">&lt;Tab&gt;</text>
+<rect x="536.00" y="628" width="48.00" height="18" fill="#24243a"/>
+<text x="536.00" y="642" fill="#909090" font-weight="normal"> Focus</text>
+<rect x="608.00" y="628" width="24.00" height="18" fill="#5956e0"/>
+<text x="608.00" y="642" fill="#ffffff" font-weight="bold">&lt;a&gt;</text>
+<rect x="632.00" y="628" width="32.00" height="18" fill="#24243a"/>
+<text x="632.00" y="642" fill="#909090" font-weight="normal"> Add</text>
+<rect x="688.00" y="628" width="24.00" height="18" fill="#5956e0"/>
+<text x="688.00" y="642" fill="#ffffff" font-weight="bold">&lt;e&gt;</text>
+<rect x="712.00" y="628" width="40.00" height="18" fill="#24243a"/>
+<text x="712.00" y="642" fill="#909090" font-weight="normal"> Edit</text>
+<rect x="776.00" y="628" width="24.00" height="18" fill="#5956e0"/>
+<text x="776.00" y="642" fill="#ffffff" font-weight="bold">&lt;M&gt;</text>
+<rect x="800.00" y="628" width="40.00" height="18" fill="#24243a"/>
+<text x="800.00" y="642" fill="#909090" font-weight="normal"> Move</text>
+<rect x="864.00" y="628" width="24.00" height="18" fill="#5956e0"/>
+<text x="864.00" y="642" fill="#ffffff" font-weight="bold">&lt;/&gt;</text>
+<rect x="888.00" y="628" width="56.00" height="18" fill="#24243a"/>
+<text x="888.00" y="642" fill="#909090" font-weight="normal"> Filter</text>
+<rect x="968.00" y="628" width="24.00" height="18" fill="#5956e0"/>
+<text x="968.00" y="642" fill="#ffffff" font-weight="bold">&lt;i&gt;</text>
+<rect x="992.00" y="628" width="80.00" height="18" fill="#24243a"/>
+<text x="992.00" y="642" fill="#909090" font-weight="normal"> Inspector</text>
+<rect x="1096.00" y="628" width="24.00" height="18" fill="#5956e0"/>
+<text x="1096.00" y="642" fill="#ffffff" font-weight="bold">&lt;b&gt;</text>
+<rect x="1120.00" y="628" width="56.00" height="18" fill="#24243a"/>
+<text x="1120.00" y="642" fill="#909090" font-weight="normal"> Boards</text>
+<rect x="1200.00" y="628" width="96.00" height="18" fill="#24243a"/>
+</g>
 </svg>

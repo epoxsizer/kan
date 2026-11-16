@@ -11,6 +11,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/epoxsizer/kan/internal/domain"
 	"github.com/google/uuid"
 )
@@ -465,7 +466,7 @@ func (model *Model) renderChecklist(width, height int) string {
 		if item.Done {
 			mark = "[x]"
 		}
-		line := mark + " " + item.Text
+		line := selectionText(mark+" "+item.Text, index == control.selection)
 		if index == control.selection {
 			line = model.styles.selected.Copy().Padding(0).Render(line)
 		}
@@ -597,8 +598,10 @@ func (model *Model) renderDropdown(width, height int) string {
 	control := model.form.control
 	field := model.form.fields[control.field]
 	lines := []string{model.styles.header.Render(field.label), model.styles.subtle.Render("Arrows select · Enter apply · Esc cancel"), ""}
-	for index, option := range field.options {
-		line := option
+	start, end := controlWindow(len(field.options), control.selection, height-7)
+	for index := start; index < end; index++ {
+		option := field.options[index]
+		line := selectionText(option, index == control.selection)
 		if index == control.selection {
 			line = model.styles.selected.Copy().Padding(0).Render(line)
 		}
@@ -637,12 +640,14 @@ func (model *Model) renderLinks(width, height int) string {
 		lines = append(lines, "Loading cards...")
 	} else {
 		matches := model.linkMatches(control.query)
-		for index, candidate := range matches[:min(len(matches), max(height-10, 1))] {
+		start, end := controlWindow(len(matches), control.selection, height-10)
+		for index := start; index < end; index++ {
+			candidate := matches[index]
 			mark := "[ ]"
 			if control.selected[candidate.id] {
 				mark = "[x]"
 			}
-			line := mark + " " + candidate.label
+			line := selectionText(mark+" "+candidate.label, index == control.selection)
 			if index == control.selection {
 				line = model.styles.selected.Copy().Padding(0).Render(line)
 			}
@@ -654,6 +659,12 @@ func (model *Model) renderLinks(width, height int) string {
 
 func centeredControl(model *Model, width, height, maximum int, content string) string {
 	boxWidth := min(maximum, max(width-4, 24))
+	contentWidth := max(max(boxWidth-6, 18)-4, 1)
+	lines := strings.Split(content, "\n")
+	for index := range lines {
+		lines[index] = ansi.Truncate(lines[index], contentWidth, "…")
+	}
+	content = strings.Join(lines, "\n")
 	box := model.styles.help.Width(max(boxWidth-6, 18)).Render(content)
 	if model.cardEditorActive(width, height) {
 		return overlayCentered(model.renderCardEditor(width, height), box, width, height)

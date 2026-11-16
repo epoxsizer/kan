@@ -8,6 +8,14 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Responsive board navigation and card inspector, pane focus with Tab, a
+  `legacy_keymap` compatibility setting, and session-local agent activity.
+- `kan_get_status` database identity discovery and optional revision checks for
+  move, archive, restore, checklist, board, and column mutations.
+- Draft-preserving saves, confirmed card reload with Ctrl-R, and unsaved-work
+  protection on Ctrl-C.
+- Scrolling project/board lists, compact forms, dropdowns, related-card lists,
+  and help; cell-aware text sizing and monochrome selection markers.
 - `kan mcp`, a local stdio MCP server that model clients start themselves. It
   holds the database only during each tool call and sends calls through the
   running TUI when its HTTP MCP server is enabled.
@@ -24,6 +32,14 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- An unrelated agent change can no longer redirect an open editor's save into
+  another card or steal the human's selection. Same-card changes keep the draft.
+- Late board, search, and related-card responses cannot overwrite newer UI state.
+- MCP board discovery correctly describes select-field options as strings.
+- Ambiguous forwarded writes are not replayed, forwarding checks database
+  identity, and connected agent sessions no longer delay TUI shutdown.
+- TUI card creation and edits enforce the same serialized WIP rules as MCP.
+- Database symlinks share a canonical process lock.
 - MCP tool errors such as `not_found` and `conflict` are now returned as
   structured results instead of failing output-schema validation.
 - MCP clients can create and replace checklists without inventing item IDs and

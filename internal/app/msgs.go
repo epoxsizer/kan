@@ -29,6 +29,7 @@ type boardsLoadedMsg struct {
 }
 
 type boardLoadedMsg struct {
+	board   domain.Board
 	columns []domain.Column
 	cards   []domain.Card
 	err     error
@@ -57,6 +58,7 @@ type mutationDoneMsg struct {
 	scope  screen
 	notice string
 	err    error
+	form   *formModal
 }
 
 type linkCandidatesLoadedMsg struct {

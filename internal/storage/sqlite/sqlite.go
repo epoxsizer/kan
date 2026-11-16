@@ -14,7 +14,8 @@ import (
 )
 
 type Repository struct {
-	db *sql.DB
+	db       *sql.DB
+	identity string
 }
 
 func Open(ctx context.Context, path string) (*Repository, error) {
@@ -46,7 +47,7 @@ func Open(ctx context.Context, path string) (*Repository, error) {
 	if err = migrate(ctx, db); err != nil {
 		return cleanup(err)
 	}
-	return &Repository{db: db}, nil
+	return &Repository{db: db, identity: DatabaseIdentity(path)}, nil
 }
 
 func Migrate(ctx context.Context, path string) error {

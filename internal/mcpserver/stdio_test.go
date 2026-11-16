@@ -2,6 +2,8 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -15,6 +17,35 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )
+
+func TestForwardedWriteWithLostResponseIsNeverRepeatedLocally(t *testing.T) {
+	coordinator, project := openTestCoordinator(t)
+	opens := 0
+	open := func(context.Context, time.Duration) (*tasks.Coordinator, func() error, error) {
+		opens++
+		if opens == 1 {
+			return nil, nil, domain.ErrLocked
+		}
+		return coordinator, func() error { return nil }, nil
+	}
+	forward := func(ctx context.Context, _ *mcp.CallToolParamsRaw) (*mcp.CallToolResult, error) {
+		board := domain.Board{ProjectID: project.ID, Name: "Created once"}
+		if err := coordinator.CreateBoardAtEnd(ctx, &board); err != nil {
+			return nil, err
+		}
+		return nil, errors.New("response lost after commit")
+	}
+	session := connectStdioSession(t, open, forward)
+	var response result[singleBoardData]
+	failed := session.call("kan_create_board", map[string]any{"project_id": project.ID, "name": "Created once"}, &response)
+	require.True(t, failed.IsError)
+	require.Equal(t, "outcome_unknown", response.Error.Code)
+	require.False(t, response.Error.Retryable)
+	require.Equal(t, 1, opens, "an ambiguous write must not fall back to another database call")
+	boards, err := coordinator.ListBoards(context.Background(), project.ID)
+	require.NoError(t, err)
+	require.Len(t, boards, 1)
+}
 
 const testToken = "12345678901234567890123456789012"
 
@@ -119,4 +150,20 @@ func TestNewForwarderIsDisabledWithoutMCPConfiguration(t *testing.T) {
 	forward, closeForward := NewForwarder(config.MCP{}, "test")
 	require.Nil(t, forward)
 	require.NoError(t, closeForward())
+}
+
+func TestForwarderRejectsAnotherDatabase(t *testing.T) {
+	coordinator, project := openTestCoordinator(t)
+	server, err := Start(config.MCP{Enabled: true, Address: "127.0.0.1:0", Token: testToken}, "test", coordinator, nil, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, server.Shutdown(context.Background())) })
+	forward, closeForward := NewForwarder(config.MCP{Enabled: true, Address: server.Address(), Token: testToken}, "test", "another-database")
+	defer closeForward()
+	response, err := forward(context.Background(), &mcp.CallToolParamsRaw{Name: "kan_create_board", Arguments: json.RawMessage(`{"project_id":"` + project.ID + `","name":"Wrong database"}`)})
+	require.NoError(t, err)
+	require.True(t, response.IsError)
+	require.Contains(t, contentText(response), "wrong_database")
+	boards, err := coordinator.ListBoards(context.Background(), project.ID)
+	require.NoError(t, err)
+	require.Empty(t, boards)
 }

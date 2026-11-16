@@ -29,6 +29,7 @@ type Config struct {
 	ShowCardTags bool   `toml:"show_card_tags"`
 
 	ShowSelectedCardDetails bool `toml:"show_selected_card_details"`
+	LegacyKeymap            bool `toml:"legacy_keymap"`
 
 	Theme    Theme    `toml:"theme"`
 	MCP      MCP      `toml:"mcp"`
@@ -122,6 +123,7 @@ type fileConfig struct {
 	ShowCardTags *bool  `toml:"show_card_tags"`
 
 	ShowSelectedCardDetails *bool `toml:"show_selected_card_details"`
+	LegacyKeymap            *bool `toml:"legacy_keymap"`
 
 	Theme    *Theme        `toml:"theme"`
 	MCP      *MCP          `toml:"mcp"`
@@ -238,6 +240,7 @@ log_file = %q
 log_level = %q
 show_card_tags = %t
 show_selected_card_details = %t
+legacy_keymap = %t
 
 [mcp]
 enabled = %t
@@ -295,6 +298,7 @@ column_default = %q
 		cfg.LogLevel,
 		cfg.ShowCardTags,
 		cfg.ShowSelectedCardDetails,
+		cfg.LegacyKeymap,
 		cfg.MCP.Enabled,
 		cfg.MCP.Address,
 		cfg.MCP.Token,
@@ -365,6 +369,9 @@ func merge(dst *Config, src fileConfig) {
 	}
 	if src.ShowSelectedCardDetails != nil {
 		dst.ShowSelectedCardDetails = *src.ShowSelectedCardDetails
+	}
+	if src.LegacyKeymap != nil {
+		dst.LegacyKeymap = *src.LegacyKeymap
 	}
 	if src.Theme != nil {
 		mergeTheme(&dst.Theme, *src.Theme)

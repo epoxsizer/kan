@@ -1,7 +1,7 @@
 .PHONY: build install test test-race cover cover-check fmt fmt-check vet check cross-build snapshot clean
 
 VERSION ?= 0.1.18
-COVERAGE_MIN ?= 68
+COVERAGE_MIN ?= 70
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || printf none)
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS = -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)

@@ -190,10 +190,11 @@ func (model *Model) handleFilterKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	model.filterLoading = true
 	model.filterErr = nil
-	return model, searchBoardCards(model.ctx, model.repo, model.board.ID, model.filterText)
+	return model, model.searchBoardCards(model.filterText)
 }
 
 func (model *Model) clearBoardFilter() {
+	model.searchGeneration++
 	model.filterMode = false
 	model.filterText = ""
 	model.filterCursor = 0

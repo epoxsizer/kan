@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -26,6 +27,10 @@ type result[T any] struct {
 }
 
 type emptyInput struct{}
+
+type statusData struct {
+	DatabaseID string `json:"database_id"`
+}
 
 // coordinatorFunc returns the coordinator that serves one tool call.
 type coordinatorFunc func(context.Context) *tasks.Coordinator
@@ -53,9 +58,24 @@ type columnSummary struct {
 }
 
 type boardData struct {
-	Board     domain.Board      `json:"board"`
-	Columns   []columnSummary   `json:"columns"`
-	FieldDefs []domain.FieldDef `json:"field_defs"`
+	Board     domain.Board          `json:"board"`
+	Columns   []columnSummary       `json:"columns"`
+	FieldDefs []fieldDefinitionData `json:"field_defs"`
+}
+
+// Protocol types describe JSON values, rather than the storage representation
+// of json.RawMessage, which schema inference treats as an array of bytes.
+type fieldDefinitionData struct {
+	ID        string           `json:"id"`
+	BoardID   string           `json:"board_id"`
+	Key       string           `json:"key"`
+	Label     string           `json:"label"`
+	Type      domain.FieldType `json:"type"`
+	Options   []string         `json:"options"`
+	Required  bool             `json:"required"`
+	Position  float64          `json:"position"`
+	CreatedAt time.Time        `json:"created_at"`
+	UpdatedAt time.Time        `json:"updated_at"`
 }
 
 type listCardsInput struct {
@@ -117,19 +137,26 @@ type updateCardInput struct {
 }
 
 type moveCardInput struct {
-	CardID         string `json:"card_id" jsonschema:"required,ID of the card"`
-	TargetColumnID string `json:"target_column_id" jsonschema:"required,ID of the destination column"`
-	TargetIndex    *int   `json:"target_index,omitempty" jsonschema:"zero-based destination index; omit to append"`
+	ExpectedUpdatedAt *string `json:"expected_updated_at,omitempty" jsonschema:"updated_at from the card you read; reject changes if the card has changed"`
+	CardID            string  `json:"card_id" jsonschema:"required,ID of the card"`
+	TargetColumnID    string  `json:"target_column_id" jsonschema:"required,ID of the destination column"`
+	TargetIndex       *int    `json:"target_index,omitempty" jsonschema:"zero-based destination index; omit to append"`
 }
 
 type cardIDInput struct {
-	CardID string `json:"card_id" jsonschema:"required,ID of the card"`
+	ExpectedUpdatedAt *string `json:"expected_updated_at,omitempty" jsonschema:"updated_at from the card you read; reject changes if the card has changed"`
+	CardID            string  `json:"card_id" jsonschema:"required,ID of the card"`
 }
 
 func registerTools(server *mcp.Server, use coordinatorFunc, logger *slog.Logger, notify func(Change)) {
 	readAnnotations := annotations(true, false, true)
 	writeAnnotations := annotations(false, false, false)
+	replacementAnnotations := annotations(false, true, false)
 	archiveAnnotations := annotations(false, true, false)
+	mcp.AddTool(server, &mcp.Tool{Name: "kan_get_status", Description: "Get the database identity for this Kan connection. Compare it when connecting to another transport.", Annotations: readAnnotations},
+		func(ctx context.Context, _ *mcp.CallToolRequest, _ emptyInput) (*mcp.CallToolResult, result[statusData], error) {
+			return nil, result[statusData]{Data: &statusData{DatabaseID: use(ctx).DatabaseIdentity()}}, nil
+		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_list_projects", Description: "List Kan projects and their IDs.", Annotations: readAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, _ emptyInput) (*mcp.CallToolResult, result[projectsData], error) {
@@ -163,6 +190,19 @@ func registerTools(server *mcp.Server, use coordinatorFunc, logger *slog.Logger,
 			if err != nil {
 				return failure[boardData](err)
 			}
+			definitions := make([]fieldDefinitionData, 0, len(fields))
+			for _, field := range fields {
+				options := []string{}
+				if len(field.Options) > 0 {
+					if err := json.Unmarshal(field.Options, &options); err != nil {
+						return failure[boardData](fmt.Errorf("decode field options: %w", err))
+					}
+				}
+				definitions = append(definitions, fieldDefinitionData{
+					ID: field.ID, BoardID: field.BoardID, Key: field.Key, Label: field.Label, Type: field.Type,
+					Options: nonNilSlice(options), Required: field.Required, Position: field.Position, CreatedAt: field.CreatedAt, UpdatedAt: field.UpdatedAt,
+				})
+			}
 			cards, err := use(ctx).ListCardsIncludingDeleted(ctx, input.BoardID)
 			if err != nil {
 				return failure[boardData](err)
@@ -181,7 +221,7 @@ func registerTools(server *mcp.Server, use coordinatorFunc, logger *slog.Logger,
 					}
 				}
 			}
-			return nil, result[boardData]{Data: &boardData{Board: board, Columns: summaries, FieldDefs: fields}}, nil
+			return nil, result[boardData]{Data: &boardData{Board: board, Columns: summaries, FieldDefs: definitions}}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_list_cards", Description: "List active, archived, or all cards in a board with optional column filtering and pagination.", Annotations: readAnnotations},
@@ -258,7 +298,7 @@ func registerTools(server *mcp.Server, use coordinatorFunc, logger *slog.Logger,
 			return nil, result[cardData]{Data: &cardData{Card: card}}, nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "kan_update_card", Description: "Patch a card. Omitted fields stay unchanged; use clear flags for priority or due date.", Annotations: writeAnnotations},
+	mcp.AddTool(server, &mcp.Tool{Name: "kan_update_card", Description: "Patch a card. Omitted fields stay unchanged; use clear flags for priority or due date.", Annotations: replacementAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input updateCardInput) (*mcp.CallToolResult, result[cardData], error) {
 			if input.Priority != nil && input.ClearPriority {
 				return failure[cardData](fmt.Errorf("%w: priority and clear_priority are mutually exclusive", domain.ErrValidation))
@@ -270,13 +310,9 @@ func registerTools(server *mcp.Server, use coordinatorFunc, logger *slog.Logger,
 			if err != nil {
 				return failure[cardData](err)
 			}
-			var expected *time.Time
-			if input.ExpectedUpdatedAt != nil {
-				parsed, parseErr := time.Parse(time.RFC3339Nano, strings.TrimSpace(*input.ExpectedUpdatedAt))
-				if parseErr != nil {
-					return failure[cardData](fmt.Errorf("%w: expected_updated_at must use RFC 3339", domain.ErrValidation))
-				}
-				expected = &parsed
+			expected, err := parseExpectedRevision(input.ExpectedUpdatedAt)
+			if err != nil {
+				return failure[cardData](err)
 			}
 			var checklist *[]domain.ChecklistItem
 			if input.Checklist != nil {
@@ -295,12 +331,16 @@ func registerTools(server *mcp.Server, use coordinatorFunc, logger *slog.Logger,
 			return nil, result[cardData]{Data: &cardData{Card: card}}, nil
 		})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "kan_move_card", Description: "Move or reorder a card within its board. Omit target_index to append.", Annotations: writeAnnotations},
+	mcp.AddTool(server, &mcp.Tool{Name: "kan_move_card", Description: "Move or reorder a card within its board. Omit target_index to append.", Annotations: replacementAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input moveCardInput) (*mcp.CallToolResult, result[cardData], error) {
 			if input.TargetIndex != nil && *input.TargetIndex < 0 {
 				return failure[cardData](fmt.Errorf("%w: target_index must not be negative", domain.ErrValidation))
 			}
-			card, err := use(ctx).MoveCardTo(ctx, input.CardID, input.TargetColumnID, input.TargetIndex)
+			expected, err := parseExpectedRevision(input.ExpectedUpdatedAt)
+			if err != nil {
+				return failure[cardData](err)
+			}
+			card, err := use(ctx).MoveCardTo(ctx, input.CardID, input.TargetColumnID, input.TargetIndex, expected)
 			if err != nil {
 				return failure[cardData](err)
 			}
@@ -310,7 +350,11 @@ func registerTools(server *mcp.Server, use coordinatorFunc, logger *slog.Logger,
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_archive_card", Description: "Archive a card. This removes it from active views but can be reversed with kan_restore_card.", Annotations: archiveAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input cardIDInput) (*mcp.CallToolResult, result[cardData], error) {
-			card, err := use(ctx).ArchiveCard(ctx, input.CardID)
+			expected, err := parseExpectedRevision(input.ExpectedUpdatedAt)
+			if err != nil {
+				return failure[cardData](err)
+			}
+			card, err := use(ctx).ArchiveCard(ctx, input.CardID, expected)
 			if err != nil {
 				return failure[cardData](err)
 			}
@@ -320,7 +364,11 @@ func registerTools(server *mcp.Server, use coordinatorFunc, logger *slog.Logger,
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_restore_card", Description: "Restore an archived card to active views.", Annotations: writeAnnotations},
 		func(ctx context.Context, _ *mcp.CallToolRequest, input cardIDInput) (*mcp.CallToolResult, result[cardData], error) {
-			card, err := use(ctx).RestoreArchivedCard(ctx, input.CardID)
+			expected, err := parseExpectedRevision(input.ExpectedUpdatedAt)
+			if err != nil {
+				return failure[cardData](err)
+			}
+			card, err := use(ctx).RestoreArchivedCard(ctx, input.CardID, expected)
 			if err != nil {
 				return failure[cardData](err)
 			}
@@ -413,4 +461,15 @@ func nonNilMap[K comparable, V any](value map[K]V) map[K]V {
 		return map[K]V{}
 	}
 	return value
+}
+
+func parseExpectedRevision(value *string) (*time.Time, error) {
+	if value == nil {
+		return nil, nil
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(*value))
+	if err != nil {
+		return nil, fmt.Errorf("%w: expected_updated_at must use RFC 3339", domain.ErrValidation)
+	}
+	return &parsed, nil
 }

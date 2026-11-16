@@ -8,6 +8,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestLegacyKeymapCanBeEnabledExplicitly(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	require.NoError(t, os.WriteFile(path, []byte("legacy_keymap = true\n"), 0o600))
+	cfg, err := Load(Overrides{ConfigFile: path})
+	require.NoError(t, err)
+	require.True(t, cfg.LegacyKeymap)
+	require.False(t, Defaults().LegacyKeymap)
+}
+
 func TestDefaultLoadCreatesLocalConfigAndUsesLocalPaths(t *testing.T) {
 	t.Setenv(EnvConfig, "")
 	t.Setenv(EnvDB, "")
