@@ -66,11 +66,15 @@ func (repo *Repository) DeleteProject(ctx context.Context, id string) error {
 }
 
 func (repo *Repository) CreateBoard(ctx context.Context, value *domain.Board) error {
+	return insertBoard(ctx, repo.db, value)
+}
+
+func insertBoard(ctx context.Context, db execer, value *domain.Board) error {
 	prepareIdentity(&value.ID, &value.CreatedAt, &value.UpdatedAt)
 	if err := domain.ValidateBoard(*value); err != nil {
 		return err
 	}
-	_, err := repo.db.ExecContext(ctx, `INSERT INTO boards(id,project_id,name,description,position,created_at,updated_at) VALUES(?,?,?,?,?,?,?)`, value.ID, value.ProjectID, value.Name, value.Description, value.Position, encodeTime(value.CreatedAt), encodeTime(value.UpdatedAt))
+	_, err := db.ExecContext(ctx, `INSERT INTO boards(id,project_id,name,description,position,created_at,updated_at) VALUES(?,?,?,?,?,?,?)`, value.ID, value.ProjectID, value.Name, value.Description, value.Position, encodeTime(value.CreatedAt), encodeTime(value.UpdatedAt))
 	return mapError(err)
 }
 
@@ -120,6 +124,10 @@ func (repo *Repository) DeleteBoard(ctx context.Context, id string) error {
 }
 
 func (repo *Repository) CreateColumn(ctx context.Context, value *domain.Column) error {
+	return insertColumn(ctx, repo.db, value)
+}
+
+func insertColumn(ctx context.Context, db execer, value *domain.Column) error {
 	if value.ArchiveAfterDays == 0 {
 		value.ArchiveAfterDays = 14
 	}
@@ -127,7 +135,7 @@ func (repo *Repository) CreateColumn(ctx context.Context, value *domain.Column) 
 	if err := domain.ValidateColumn(*value); err != nil {
 		return err
 	}
-	_, err := repo.db.ExecContext(ctx, `INSERT INTO board_columns(id,board_id,name,position,wip_limit,color,auto_archive,archive_after_days,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)`, value.ID, value.BoardID, value.Name, value.Position, value.WIPLimit, value.Color, value.AutoArchive, value.ArchiveAfterDays, encodeTime(value.CreatedAt), encodeTime(value.UpdatedAt))
+	_, err := db.ExecContext(ctx, `INSERT INTO board_columns(id,board_id,name,position,wip_limit,color,auto_archive,archive_after_days,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)`, value.ID, value.BoardID, value.Name, value.Position, value.WIPLimit, value.Color, value.AutoArchive, value.ArchiveAfterDays, encodeTime(value.CreatedAt), encodeTime(value.UpdatedAt))
 	return mapError(err)
 }
 func scanColumn(row scanner) (domain.Column, error) {

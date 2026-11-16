@@ -222,7 +222,7 @@ var expectedToolNames = []string{
 	"kan_get_status",
 	"kan_list_projects", "kan_list_boards", "kan_get_board", "kan_list_cards", "kan_get_card", "kan_search_cards",
 	"kan_create_card", "kan_update_card", "kan_move_card", "kan_archive_card", "kan_restore_card",
-	"kan_create_board", "kan_update_board", "kan_create_column", "kan_update_column", "kan_move_column",
+	"kan_create_board", "kan_update_board", "kan_create_column", "kan_update_column", "kan_move_column", "kan_setup_board",
 	"kan_add_checklist_item", "kan_update_checklist_item", "kan_list_card_templates", "kan_create_card_from_template",
 }
 

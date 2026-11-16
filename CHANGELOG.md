@@ -27,8 +27,28 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   description preview and in-place checklist editing.
 - Mouse drag-and-drop of board cards between columns and positions, with `Esc`
   to cancel and `u` to undo.
-- Test-driven development guidelines, `CLAUDE.md` agent rules, race-detector and coverage
+- Test-driven development guidelines, `AGENTS.md` agent rules, race-detector and coverage
   gate targets, and CI checks for both.
+- `make test-run` for focused red-green test runs (`PKG`/`RUN`) and `make tdd`
+  watch mode that reruns the suite whenever Go sources change.
+- `kan_setup_board`, an MCP tool that creates a board with its columns and card
+  templates in one atomic call inside an existing project; any invalid part
+  fails the whole setup without creating anything.
+- A `mouse` configuration setting (enabled by default) to turn off mouse
+  capture for keyboard-only use, and double-click on a board card to open it
+  directly in the editor.
+- Drag auto-scroll: holding a card drag at the top or bottom edge of the board
+  scrolls the column so off-screen drop positions stay reachable.
+- Time-in-column display ("In column: 4d") in the inspector and card detail,
+  based on the retention timestamp that automatic archiving already tracks.
+- Single-card Markdown export: `kan card export <id>` prints a shareable
+  Markdown document (or writes it with `--out`), and `:card export` saves it
+  from the TUI.
+
+### Changed
+
+- Consolidated coding-agent instructions into a single `AGENTS.md`, replacing
+  `CLAUDE.md`.
 
 ### Fixed
 

@@ -21,6 +21,7 @@ type detailPopup struct {
 	markdownIndex int
 	offset        int
 	expanded      bool
+	clickOpened   bool
 }
 
 func (model *Model) openSelectedDetail() {
@@ -118,9 +119,14 @@ func cardDetail(card domain.Card, columnName string) *detailPopup {
 		"Status: " + columnName,
 		"Priority: " + priority,
 		"Due: " + due,
-		"Tags: " + fallbackValue(strings.Join(card.Tags, ", ")),
-		"Related cards: " + fallbackValue(strings.Join(card.RelatedCardIDs, ", ")),
 	}
+	if label := timeInColumnLabel(card, time.Now()); label != "" {
+		lines = append(lines, "In column: "+label)
+	}
+	lines = append(lines,
+		"Tags: "+fallbackValue(strings.Join(card.Tags, ", ")),
+		"Related cards: "+fallbackValue(strings.Join(card.RelatedCardIDs, ", ")),
+	)
 	markdownIndex := len(lines)
 	if strings.TrimSpace(card.Description) != "" {
 		lines = append(lines, "Description:")

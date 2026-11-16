@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -14,6 +15,12 @@ const timestampFormat = time.RFC3339Nano
 
 type scanner interface {
 	Scan(...any) error
+}
+
+// execer is satisfied by both *sql.DB and *sql.Tx so single inserts can run
+// inside or outside a transaction.
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
 func prepareIdentity(id *string, createdAt, updatedAt *time.Time) {

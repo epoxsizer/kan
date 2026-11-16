@@ -1,7 +1,10 @@
-.PHONY: build install test test-race cover cover-check fmt fmt-check vet check cross-build snapshot clean
+.PHONY: build install test test-run tdd test-race cover cover-check fmt fmt-check vet check cross-build snapshot clean
 
 VERSION ?= 0.1.18
-COVERAGE_MIN ?= 70
+COVERAGE_MIN ?= 70.9
+PKG ?= ./...
+RUN ?=
+GO_TEST_FLAGS = $(if $(RUN),-run '$(RUN)',)
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || printf none)
 DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS = -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
@@ -15,6 +18,27 @@ install:
 
 test:
 	CGO_ENABLED=0 go test ./...
+
+# Focused red-green run: make test-run PKG=./internal/tasks RUN=TestName
+test-run:
+	CGO_ENABLED=0 go test $(GO_TEST_FLAGS) $(PKG)
+
+# Watch mode for the red-green-refactor loop: reruns the focused (or full)
+# suite whenever a Go file under cmd/ or internal/ changes. Ctrl-C stops it.
+tdd:
+	@mkdir -p .cache; \
+	stamp=.cache/tdd.stamp; \
+	touch $$stamp; \
+	echo "TDD watch: go test $(GO_TEST_FLAGS) $(PKG) on every change under cmd/ and internal/ (Ctrl-C stops)"; \
+	CGO_ENABLED=0 go test $(GO_TEST_FLAGS) $(PKG); \
+	while true; do \
+		if [ -n "$$(find cmd internal -name '*.go' -type f -newer $$stamp -print -quit)" ]; then \
+			touch $$stamp; \
+			printf '\n=== %s ===\n' "$$(date +%H:%M:%S)"; \
+			CGO_ENABLED=0 go test $(GO_TEST_FLAGS) $(PKG); \
+		fi; \
+		sleep 1; \
+	done
 
 test-race:
 	CGO_ENABLED=1 go test -race ./...

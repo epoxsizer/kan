@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/epoxsizer/kan/internal/domain"
@@ -62,6 +63,8 @@ type Model struct {
 	movePicker       *movePicker
 	lastMove         *cardMoveRecord
 	drag             *cardDrag
+	lastCardClick    *cardClickRecord
+	now              func() time.Time
 	showCardTags     bool
 
 	showSelectedCardDetails bool
@@ -131,6 +134,7 @@ func NewWithOptions(ctx context.Context, repo domain.Repository, logger *slog.Lo
 		ctx:           ctx,
 		repo:          coordinator,
 		logger:        logger,
+		now:           time.Now,
 		styles:        stylesForTheme(themeOrDefault(options.Theme)),
 		planning:      planningOrDefault(options.Planning),
 		workspace:     workspaceState{navigation: true, inspector: true},
@@ -198,6 +202,15 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		return model.Update(message.message)
+	case cardExportFinishedMsg:
+		if message.err != nil {
+			model.err = message.err
+		} else {
+			model.notice = "Exported to " + message.path
+		}
+		return model, nil
+	case dragAutoScrollMsg:
+		return model, model.autoScrollDrag()
 	case NoticeMsg:
 		model.notice = message.Text
 		return model, nil
@@ -936,6 +949,12 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		return model, model.startCardForm(true)
+	case "card-export":
+		if model.screen != boardScreen || len(model.columns) == 0 || model.selectedCard().ID == "" {
+			model.err = fmt.Errorf("select a card on a board first")
+			return model, nil
+		}
+		return model, model.exportSelectedCardMarkdown()
 	case "card-archive":
 		if model.screen != boardScreen || len(model.columns) == 0 || model.selectedCard().ID == "" {
 			model.err = fmt.Errorf("select a card on a board first")

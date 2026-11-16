@@ -45,6 +45,38 @@ type createBoardInput struct {
 	Description string `json:"description,omitempty"`
 }
 
+type setupColumnInput struct {
+	Name             string  `json:"name" jsonschema:"required,column name"`
+	WIPLimit         *int    `json:"wip_limit,omitempty" jsonschema:"positive work-in-progress limit; omit for no limit"`
+	Color            *string `json:"color,omitempty" jsonschema:"column color: Blue, Green, Yellow, Orange, Red, Purple, or Gray"`
+	AutoArchive      bool    `json:"auto_archive,omitempty" jsonschema:"archive cards automatically after archive_after_days in this column"`
+	ArchiveAfterDays int     `json:"archive_after_days,omitempty" jsonschema:"days before automatic archival; defaults to 14"`
+}
+
+type setupTemplateInput struct {
+	Name          string   `json:"name" jsonschema:"required,template name"`
+	Title         string   `json:"title" jsonschema:"required,card title created from the template"`
+	Description   string   `json:"description,omitempty"`
+	Priority      *string  `json:"priority,omitempty" jsonschema:"Low, Medium, High, or Critical"`
+	DueOffsetDays *int     `json:"due_offset_days,omitempty" jsonschema:"whole days from creation until the card is due"`
+	Tags          []string `json:"tags,omitempty"`
+	Checklist     []string `json:"checklist,omitempty" jsonschema:"checklist item texts in order"`
+}
+
+type setupBoardInput struct {
+	ProjectID   string               `json:"project_id" jsonschema:"required,ID of the parent project"`
+	Name        string               `json:"name" jsonschema:"required,board name"`
+	Description string               `json:"description,omitempty"`
+	Columns     []setupColumnInput   `json:"columns" jsonschema:"required,columns in board order"`
+	Templates   []setupTemplateInput `json:"templates,omitempty" jsonschema:"card templates available on the new board"`
+}
+
+type setupBoardData struct {
+	Board     domain.Board          `json:"board"`
+	Columns   []domain.Column       `json:"columns"`
+	Templates []domain.CardTemplate `json:"templates"`
+}
+
 type updateBoardInput struct {
 	ExpectedUpdatedAt *string `json:"expected_updated_at,omitempty" jsonschema:"updated_at from the entity you read; reject stale changes"`
 	BoardID           string  `json:"board_id" jsonschema:"required,ID of the board"`
@@ -112,6 +144,29 @@ func registerStructureTools(server *mcp.Server, use coordinatorFunc, logger *slo
 			}
 			changed(logger, notify, Change{Action: "board created", BoardID: board.ID})
 			return nil, result[singleBoardData]{Data: &singleBoardData{Board: board}}, nil
+		})
+
+	mcp.AddTool(server, &mcp.Tool{Name: "kan_setup_board", Description: "Create a board with its columns and card templates in one atomic call. Any invalid part fails the whole setup without creating anything.", Annotations: writeAnnotations},
+		func(ctx context.Context, _ *mcp.CallToolRequest, input setupBoardInput) (*mcp.CallToolResult, result[setupBoardData], error) {
+			setup := tasks.BoardSetup{Name: input.Name, Description: input.Description}
+			for _, column := range input.Columns {
+				setup.Columns = append(setup.Columns, tasks.ColumnSetup{
+					Name: column.Name, WIPLimit: column.WIPLimit, Color: column.Color,
+					AutoArchive: column.AutoArchive, ArchiveAfterDays: column.ArchiveAfterDays,
+				})
+			}
+			for _, template := range input.Templates {
+				setup.Templates = append(setup.Templates, tasks.TemplateSetup{
+					Name: template.Name, Title: template.Title, Description: template.Description,
+					Priority: template.Priority, DueOffsetDays: template.DueOffsetDays, Tags: template.Tags, Checklist: template.Checklist,
+				})
+			}
+			created, err := use(ctx).SetupBoardInProject(ctx, input.ProjectID, setup)
+			if err != nil {
+				return failure[setupBoardData](err)
+			}
+			changed(logger, notify, Change{Action: "board setup", BoardID: created.Board.ID})
+			return nil, result[setupBoardData]{Data: &setupBoardData{Board: created.Board, Columns: nonNilSlice(created.Columns), Templates: nonNilSlice(created.Templates)}}, nil
 		})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "kan_update_board", Description: "Rename a board or change its description. Omitted fields stay unchanged.", Annotations: replacementAnnotations},

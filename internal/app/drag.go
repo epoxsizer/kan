@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -19,7 +20,14 @@ type cardDrag struct {
 	openedDetail bool
 	targetColumn int
 	targetIndex  int
+	pointerY     int
 }
+
+// dragAutoScrollMsg keeps the viewport moving while the pointer rests on the
+// top or bottom edge of the board during a drag.
+type dragAutoScrollMsg struct{}
+
+const dragAutoScrollInterval = 150 * time.Millisecond
 
 func (model *Model) startCardDrag(columnIndex, cardIndex int) {
 	column := model.columns[columnIndex]
@@ -51,13 +59,55 @@ func (model *Model) handleCardDragMotion(event tea.MouseEvent) (tea.Model, tea.C
 		drag.openedDetail = false
 	}
 	drag.active = true
+	model.lastCardClick = nil
+	drag.pointerY = event.Y
 	if columnIndex, ok := model.mouseColumnAt(event.X); ok {
 		drag.targetColumn = columnIndex
 	}
 	model.columnIndex = drag.targetColumn
 	drag.targetIndex = model.dropIndex(drag, event.Y)
-	model.notice = fmt.Sprintf("Drag %q → %s, position %d · release to drop · Esc cancel", drag.title, model.columns[drag.targetColumn].Name, drag.targetIndex+1)
-	return model, nil
+	model.notice = model.dragNotice(drag)
+	return model, model.autoScrollDrag()
+}
+
+func (model *Model) dragNotice(drag *cardDrag) string {
+	return fmt.Sprintf("Drag %q → %s, position %d · release to drop · Esc cancel", drag.title, model.columns[drag.targetColumn].Name, drag.targetIndex+1)
+}
+
+// autoScrollDrag scrolls the target column one card when the drag pointer
+// rests on the board's top or bottom edge, and schedules the next step so
+// off-screen drop positions stay reachable without moving the mouse.
+func (model *Model) autoScrollDrag() tea.Cmd {
+	drag := model.drag
+	if drag == nil || !drag.active || model.screen != boardScreen || model.loading || model.derivedBoardView() {
+		return nil
+	}
+	_, height := model.dimensions()
+	column := model.columns[drag.targetColumn]
+	cards := model.visibleCards(column.ID)
+	first, last := -1, -1
+	model.eachVisibleCardRow(drag.targetColumn, func(cardIndex, _, _ int) bool {
+		if first < 0 {
+			first = cardIndex
+		}
+		last = cardIndex
+		return true
+	})
+	delta := 0
+	switch {
+	case drag.pointerY <= 3 && first > 0:
+		delta = -1
+	case drag.pointerY >= height-4 && last >= 0 && last < len(cards)-1:
+		delta = 1
+	}
+	if delta == 0 {
+		return nil
+	}
+	index := clampIndex(model.cardIndexes[column.ID], len(cards))
+	model.cardIndexes[column.ID] = index + delta
+	drag.targetIndex = model.dropIndex(drag, drag.pointerY)
+	model.notice = model.dragNotice(drag)
+	return tea.Tick(dragAutoScrollInterval, func(time.Time) tea.Msg { return dragAutoScrollMsg{} })
 }
 
 // dropIndex returns the insertion index among the target column's cards
@@ -108,6 +158,7 @@ func (model *Model) indexWithout(cards []domain.Card, index int, draggedID strin
 func (model *Model) finishCardDrag() (tea.Model, tea.Cmd) {
 	drag := model.drag
 	model.drag = nil
+	model.lastCardClick = nil
 	if !drag.active || model.screen != boardScreen || model.loading || model.derivedBoardView() {
 		return model, nil
 	}
@@ -143,6 +194,7 @@ func (model *Model) finishCardDrag() (tea.Model, tea.Cmd) {
 }
 
 func (model *Model) cancelCardDrag() {
+	model.lastCardClick = nil
 	if model.drag.active {
 		model.columnIndex = model.drag.fromColumn
 		model.notice = "Drag cancelled"

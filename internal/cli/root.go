@@ -102,9 +102,7 @@ func New(version, commit, date string) *cobra.Command {
 				}, Planning: app.PlanningOptions{
 					StaleAfterDays: res.config.Planning.StaleAfterDays, BlockedTags: res.config.Planning.BlockedTags, UntriagedWithoutPriority: res.config.Planning.UntriagedWithoutPriority,
 				}}),
-				tea.WithAltScreen(),
-				tea.WithMouseCellMotion(),
-				tea.WithContext(cmd.Context()),
+				programOptions(res.config, cmd.Context())...,
 			)
 
 			mcpService, startMCPErr := mcpserver.Start(res.config.MCP, version, res.tasks, res.logger, func(change mcpserver.Change) {
@@ -220,6 +218,16 @@ func New(version, commit, date string) *cobra.Command {
 		newCardCommand(&opts),
 	)
 	return root
+}
+
+// programOptions builds the Bubble Tea startup options. Mouse capture is
+// optional so keyboard-only users can keep native terminal selection.
+func programOptions(cfg config.Config, ctx context.Context) []tea.ProgramOption {
+	options := []tea.ProgramOption{tea.WithAltScreen(), tea.WithContext(ctx)}
+	if cfg.Mouse {
+		options = append(options, tea.WithMouseCellMotion())
+	}
+	return options
 }
 
 func open(ctx context.Context, opts options) (*resources, error) {

@@ -70,6 +70,24 @@ func calendarDayDelta(value, now time.Time) int {
 	return int(valueDay.Sub(today) / (24 * time.Hour))
 }
 
+// timeInColumnLabel reports how long a card has stayed in its current column,
+// using the retention timestamp that automatic archiving already tracks. It
+// falls back to the creation time and returns "" for unsaved cards.
+func timeInColumnLabel(card domain.Card, now time.Time) string {
+	entered := card.ColumnEnteredAt
+	if entered.IsZero() {
+		entered = card.CreatedAt
+	}
+	if entered.IsZero() {
+		return ""
+	}
+	days := int(now.Sub(entered) / (24 * time.Hour))
+	if days < 1 {
+		return "<1d"
+	}
+	return fmt.Sprintf("%dd", days)
+}
+
 func (model *Model) cardMetadata(card domain.Card, now time.Time) string {
 	parts := []string{}
 	if card.Priority != nil && *card.Priority != "" {

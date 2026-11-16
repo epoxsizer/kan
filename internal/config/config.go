@@ -30,6 +30,7 @@ type Config struct {
 
 	ShowSelectedCardDetails bool `toml:"show_selected_card_details"`
 	LegacyKeymap            bool `toml:"legacy_keymap"`
+	Mouse                   bool `toml:"mouse"`
 
 	Theme    Theme    `toml:"theme"`
 	MCP      MCP      `toml:"mcp"`
@@ -124,6 +125,7 @@ type fileConfig struct {
 
 	ShowSelectedCardDetails *bool `toml:"show_selected_card_details"`
 	LegacyKeymap            *bool `toml:"legacy_keymap"`
+	Mouse                   *bool `toml:"mouse"`
 
 	Theme    *Theme        `toml:"theme"`
 	MCP      *MCP          `toml:"mcp"`
@@ -149,6 +151,7 @@ func Defaults() Config {
 		ShowCardTags: true,
 
 		ShowSelectedCardDetails: false,
+		Mouse:                   true,
 		Theme: Theme{
 			Primary: "#7D7AFF", Muted: "#909090", Text: "#C4C4D0", Background: "#24243A", SelectedForeground: "#000000", SelectedBackground: "#4C8DFF", Danger: "#FF6B6B", Border: "rounded",
 			SelectedColumnForeground: "#000000", SelectedColumnBackground: "#4C8DFF", SelectedColumnBorder: "#4C8DFF", SelectedCardForeground: "#000000", SelectedCardBackground: "#4C8DFF",
@@ -241,6 +244,7 @@ log_level = %q
 show_card_tags = %t
 show_selected_card_details = %t
 legacy_keymap = %t
+mouse = %t
 
 [mcp]
 enabled = %t
@@ -299,6 +303,7 @@ column_default = %q
 		cfg.ShowCardTags,
 		cfg.ShowSelectedCardDetails,
 		cfg.LegacyKeymap,
+		cfg.Mouse,
 		cfg.MCP.Enabled,
 		cfg.MCP.Address,
 		cfg.MCP.Token,
@@ -372,6 +377,9 @@ func merge(dst *Config, src fileConfig) {
 	}
 	if src.LegacyKeymap != nil {
 		dst.LegacyKeymap = *src.LegacyKeymap
+	}
+	if src.Mouse != nil {
+		dst.Mouse = *src.Mouse
 	}
 	if src.Theme != nil {
 		mergeTheme(&dst.Theme, *src.Theme)

@@ -69,6 +69,10 @@ func (coordinator *Coordinator) CreateBoard(ctx context.Context, value *domain.B
 	return coordinator.mutate(func() error { return coordinator.Repository.CreateBoard(ctx, value) })
 }
 
+func (coordinator *Coordinator) SetupBoard(ctx context.Context, board *domain.Board, columns []domain.Column, templates []domain.CardTemplate) error {
+	return coordinator.mutate(func() error { return coordinator.Repository.SetupBoard(ctx, board, columns, templates) })
+}
+
 func (coordinator *Coordinator) UpdateBoard(ctx context.Context, value *domain.Board) error {
 	return coordinator.mutate(func() error {
 		current, err := coordinator.Repository.GetBoard(ctx, value.ID)

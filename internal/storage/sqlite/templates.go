@@ -11,6 +11,10 @@ import (
 const cardTemplateColumns = `id,board_id,name,title,description,priority,due_offset_days,tags,checklist,position,created_at,updated_at`
 
 func (repo *Repository) CreateCardTemplate(ctx context.Context, value *domain.CardTemplate) error {
+	return insertCardTemplate(ctx, repo.db, value)
+}
+
+func insertCardTemplate(ctx context.Context, db execer, value *domain.CardTemplate) error {
 	if value.Tags == nil {
 		value.Tags = []string{}
 	}
@@ -29,7 +33,7 @@ func (repo *Repository) CreateCardTemplate(ctx context.Context, value *domain.Ca
 	if err != nil {
 		return err
 	}
-	_, err = repo.db.ExecContext(ctx, `INSERT INTO card_templates(id,board_id,name,title,description,priority,due_offset_days,tags,checklist,position,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, value.ID, value.BoardID, value.Name, value.Title, value.Description, value.Priority, value.DueOffsetDays, tags, checklist, value.Position, encodeTime(value.CreatedAt), encodeTime(value.UpdatedAt))
+	_, err = db.ExecContext(ctx, `INSERT INTO card_templates(id,board_id,name,title,description,priority,due_offset_days,tags,checklist,position,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, value.ID, value.BoardID, value.Name, value.Title, value.Description, value.Priority, value.DueOffsetDays, tags, checklist, value.Position, encodeTime(value.CreatedAt), encodeTime(value.UpdatedAt))
 	return mapError(err)
 }
 

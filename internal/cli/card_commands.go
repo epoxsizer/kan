@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"strings"
 
 	"github.com/epoxsizer/kan/internal/domain"
@@ -13,6 +15,7 @@ func newCardCommand(opts *options) *cobra.Command {
 	command.AddCommand(
 		newCardListCommand(opts),
 		newCardGetCommand(opts),
+		newCardExportCommand(opts),
 		newCardSearchCommand(opts),
 		newCardCreateCommand(opts),
 		newCardUpdateCommand(opts),
@@ -83,6 +86,34 @@ func newCardGetCommand(opts *options) *cobra.Command {
 			return writeJSON(cmd, value)
 		})
 	}}
+}
+
+func newCardExportCommand(opts *options) *cobra.Command {
+	var out string
+	command := &cobra.Command{Use: "export <id>", Short: "Export one card as Markdown", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		return withRepository(cmd, opts, func(ctx context.Context, repo domain.Repository) error {
+			card, err := repo.GetCard(ctx, args[0])
+			if err != nil {
+				return err
+			}
+			column, err := repo.GetColumn(ctx, card.ColumnID)
+			if err != nil {
+				return err
+			}
+			markdown := domain.CardMarkdown(card, column.Name)
+			if out == "" {
+				_, err := fmt.Fprint(cmd.OutOrStdout(), markdown)
+				return err
+			}
+			if err := os.WriteFile(out, []byte(markdown), 0o600); err != nil {
+				return fmt.Errorf("write markdown %q: %w", out, err)
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "exported to %s\n", out)
+			return err
+		})
+	}}
+	command.Flags().StringVar(&out, "out", "", "write Markdown to this file instead of stdout")
+	return command
 }
 
 func newCardSearchCommand(opts *options) *cobra.Command {

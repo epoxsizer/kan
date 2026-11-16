@@ -8,6 +8,17 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// doubleClickWindow is the longest gap between two presses on the same card
+// that still counts as a double-click and opens the card editor.
+const doubleClickWindow = 400 * time.Millisecond
+
+// cardClickRecord remembers the last pressed board card for double-click
+// detection. Dragging clears it so a drag never turns into a double-click.
+type cardClickRecord struct {
+	cardID string
+	at     time.Time
+}
+
 func (model *Model) handleMouse(message tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if model.form != nil && model.form.saving {
 		return model, nil
@@ -137,6 +148,10 @@ func (model *Model) handleMouseClick(event tea.MouseEvent) (tea.Model, tea.Cmd) 
 	case model.commandMode:
 		return model.clickPalette(event, height)
 	case model.detail != nil:
+		if model.detail.clickOpened && model.lastCardClick != nil && model.now().Sub(model.lastCardClick.at) <= doubleClickWindow {
+			model.lastCardClick = nil
+			return model.openSelectedCardEdit()
+		}
 		return model.clickDetail(event, width, height)
 	case model.help:
 		return model, nil
@@ -242,12 +257,24 @@ func (model *Model) clickBoard(event tea.MouseEvent) (tea.Model, tea.Cmd) {
 		return model, nil
 	}
 	column := model.columns[columnIndex]
+	card := model.visibleCards(column.ID)[cardIndex]
+	if model.lastCardClick != nil && model.lastCardClick.cardID == card.ID && model.now().Sub(model.lastCardClick.at) <= doubleClickWindow {
+		model.lastCardClick = nil
+		model.drag = nil
+		model.columnIndex = columnIndex
+		model.cardIndexes[column.ID] = cardIndex
+		return model.openSelectedCardEdit()
+	}
+	model.lastCardClick = &cardClickRecord{cardID: card.ID, at: model.now()}
 	wasSelected := columnIndex == model.columnIndex && model.cardIndexes[column.ID] == cardIndex
 	model.columnIndex = columnIndex
 	model.cardIndexes[column.ID] = cardIndex
 	model.startCardDrag(columnIndex, cardIndex)
 	if wasSelected {
 		model.openSelectedDetail()
+		if model.detail != nil {
+			model.detail.clickOpened = true
+		}
 		if model.drag != nil {
 			model.drag.openedDetail = model.detail != nil
 		}

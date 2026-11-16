@@ -180,7 +180,12 @@ func (model *Model) inspectorLines(width int) []string {
 			if card.DueDate != nil {
 				due = card.DueDate.Format("2006-01-02")
 			}
-			lines := wrappedDetailLines([]string{card.Title, "", "Status: " + column.Name, "Priority: " + priority, "Due: " + due, "Tags: " + strings.Join(card.Tags, ", "), ""}, width)
+			summary := []string{card.Title, "", "Status: " + column.Name, "Priority: " + priority, "Due: " + due}
+			if label := timeInColumnLabel(card, time.Now()); label != "" {
+				summary = append(summary, "In column: "+label)
+			}
+			summary = append(summary, "Tags: "+strings.Join(card.Tags, ", "), "")
+			lines := wrappedDetailLines(summary, width)
 			if card.Description != "" {
 				lines = append(lines, "Description")
 				rendered, err := renderMarkdown(card.Description, width)

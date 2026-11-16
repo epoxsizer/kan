@@ -7,6 +7,9 @@ log_level = "info"
 # show_selected_card_details = false
 # Tab focuses panes by default. Enable to keep Tab/Shift-Tab moving cards.
 # legacy_keymap = false
+# Mouse capture (clicks, wheel, drag-and-drop) is on by default. Disable for
+# keyboard-only use and native terminal text selection.
+# mouse = true
 
 [mcp]
 # Disabled by default. When enabled, the TUI serves Streamable HTTP on /mcp,

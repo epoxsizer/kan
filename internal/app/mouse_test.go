@@ -2,6 +2,7 @@ package app
 
 import (
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/epoxsizer/kan/internal/domain"
@@ -40,11 +41,16 @@ func TestMouseSelectsAndOpensBoardCards(t *testing.T) {
 		{ID: "one", ColumnID: "todo", Title: "One"},
 		{ID: "two", ColumnID: "todo", Title: "Two"},
 	}
+	// Two presses within the double-click window open the editor, so this
+	// single-click behavior test spaces its presses beyond that window.
+	clock := time.Now()
+	model.now = func() time.Time { return clock }
 
 	model.Update(mousePress(5, 4, tea.MouseButtonLeft))
 	require.Equal(t, 1, model.cardIndexes["todo"])
 	require.Nil(t, model.detail)
 
+	clock = clock.Add(doubleClickWindow + time.Millisecond)
 	model.Update(mousePress(5, 4, tea.MouseButtonLeft))
 	require.NotNil(t, model.detail)
 	require.Equal(t, "Two", model.detail.title)

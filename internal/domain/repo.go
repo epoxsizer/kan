@@ -10,6 +10,7 @@ type Repository interface {
 	DeleteProject(context.Context, string) error
 
 	CreateBoard(context.Context, *Board) error
+	SetupBoard(ctx context.Context, board *Board, columns []Column, templates []CardTemplate) error
 	GetBoard(context.Context, string) (Board, error)
 	ListBoards(context.Context, string) ([]Board, error)
 	UpdateBoard(context.Context, *Board) error

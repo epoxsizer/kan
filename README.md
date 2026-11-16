@@ -107,6 +107,7 @@ kan upgrade check
 | Key | Action |
 |---|---|
 | Left click | Select an item; click the selected item again to open it |
+| Double click | Open a board card directly in the editor |
 | Left drag | Drag a board card to another column or position; `Esc` cancels, `u` undoes the drop |
 | Mouse wheel | Navigate lists/cards or scroll the active detail/control |
 | Right click | Back, close, or cancel like `Esc` |
@@ -128,6 +129,7 @@ kan upgrade check
 | `/` | Search within the current board |
 | `:` | Open hierarchical action menus for cards, columns, boards, projects, settings, and views |
 | `:card archive` | Archive the selected card with confirmation |
+| `:card export` | Write the selected card as a Markdown file in the working directory |
 | `:column archive` | Archive every active card in the selected column |
 | `:view archived` | Show archived cards for the current board |
 | `:column settings` | Configure the selected column |
@@ -142,11 +144,16 @@ Set `legacy_keymap = true` at the top of `config.toml` to keep the previous
 `Tab` / `Shift-Tab` card-movement bindings. `H`, `L`, and `M` remain available in
 both keymaps. Help supports `j` / `k`, arrows, and `PgUp` / `PgDn` for scrolling.
 
-Mouse support is enabled automatically. Drag a card with the left button to
-move it to another column or position; the target column is highlighted and the
-status line shows the drop position. Dropping is disabled while a filter, sort,
-or grouping is active, because the visible order then differs from the stored
-order. Hold `Shift` while dragging when you need to select terminal text.
+Mouse support is enabled automatically; set `mouse = false` at the top of
+`config.toml` to turn it off for keyboard-only use and native terminal text
+selection. Double-click a board card to open it in the editor. Drag a card with
+the left button to move it to another column or position; the target column is
+highlighted and the status line shows the drop position. Holding the drag at
+the top or bottom edge of the board scrolls the column automatically, so
+off-screen drop positions stay reachable. Dropping is disabled
+while a filter, sort, or grouping is active, because the visible order then
+differs from the stored order. Hold `Shift` while dragging when you need to
+select terminal text.
 
 New cards have no due date by default. Open the due-date field to choose a date,
 or press `x` in the calendar to remove the due date.
@@ -154,6 +161,8 @@ or press `x` in the calendar to remove the due date.
 Columns can enable automatic archiving and set how many days cards remain in
 that column before archival; new columns default to 14 days with automation
 disabled. The retention timer resets whenever a card enters a different column.
+The inspector and the card detail window show how long the selected card has
+been in its current column ("In column: 4d").
 
 On terminals at least 100 columns wide and 24 rows tall, adding or editing a
 card opens a full-screen editor: fields on the left, the rendered Markdown
@@ -194,8 +203,9 @@ still require `Ctrl-S` to apply and save.
 ## CLI Commands
 
 The app can be used without the TUI from shell scripts, CI jobs, and automation
-agents. Successful data-management commands write JSON to standard output.
-Names and titles containing spaces must be quoted in the shell.
+agents. Successful data-management commands write JSON to standard output
+(`card export` writes Markdown). Names and titles containing spaces must be
+quoted in the shell.
 
 ```sh
 kan project list
@@ -205,6 +215,8 @@ kan board create --project PROJECT_ID --name "Development"
 kan column create --board BOARD_ID --name "In Progress"
 kan card create --board BOARD_ID --column COLUMN_ID --title "Prepare release"
 kan card search --board BOARD_ID --query "release"
+kan card export CARD_ID                  # shareable Markdown on stdout
+kan card export CARD_ID --out card.md    # Markdown into a file
 kan card update CARD_ID --priority high
 kan card archive CARD_ID
 kan card archived --board BOARD_ID --column COLUMN_ID
@@ -320,6 +332,9 @@ Both servers expose the same tools:
   `kan_restore_card`;
 - board structure: `kan_create_board`, `kan_update_board`,
   `kan_create_column`, `kan_update_column`, `kan_move_column`;
+- one-shot setup: `kan_setup_board` creates a board with its columns and card
+  templates in a single atomic call inside an existing project; any invalid
+  part fails the whole setup without creating anything;
 - checklists: `kan_add_checklist_item`, `kan_update_checklist_item`;
 - templates: `kan_list_card_templates`, `kan_create_card_from_template`.
 
@@ -462,11 +477,13 @@ priority and due date.
 
 Kan is developed test-first (red → green → refactor); see
 [CONTRIBUTING.md](CONTRIBUTING.md). Coding agents follow the same rules in
-[CLAUDE.md](CLAUDE.md).
+[AGENTS.md](AGENTS.md).
 
 ```sh
 make fmt         # format code
 make test        # run tests
+make test-run    # focused run: make test-run PKG=./internal/tasks RUN=TestName
+make tdd         # watch mode: rerun tests on every change (PKG/RUN apply too)
 make test-race   # run tests with the race detector (requires CGO)
 make cover-check # fail when coverage drops below COVERAGE_MIN
 make check       # format check, go vet, tests with coverage gate, and build

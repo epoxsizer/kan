@@ -8,6 +8,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMouseDefaultsEnabledAndCanBeDisabled(t *testing.T) {
+	require.True(t, Defaults().Mouse)
+
+	path := filepath.Join(t.TempDir(), "config.toml")
+	require.NoError(t, os.WriteFile(path, []byte("mouse = false\n"), 0o600))
+	cfg, err := Load(Overrides{ConfigFile: path})
+	require.NoError(t, err)
+	require.False(t, cfg.Mouse)
+
+	require.NoError(t, os.WriteFile(path, []byte("mouse = true\n"), 0o600))
+	cfg, err = Load(Overrides{ConfigFile: path})
+	require.NoError(t, err)
+	require.True(t, cfg.Mouse)
+}
+
 func TestLegacyKeymapCanBeEnabledExplicitly(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	require.NoError(t, os.WriteFile(path, []byte("legacy_keymap = true\n"), 0o600))
@@ -46,6 +61,7 @@ func TestDefaultLoadCreatesLocalConfigAndUsesLocalPaths(t *testing.T) {
 	require.Contains(t, string(contents), `database = "kan.db"`)
 	require.Contains(t, string(contents), `log_file = "kan.log"`)
 	require.Contains(t, string(contents), `show_selected_card_details = false`)
+	require.Contains(t, string(contents), `mouse = true`)
 	require.Contains(t, string(contents), `[mcp]`)
 	require.Contains(t, string(contents), `address = "127.0.0.1:7337"`)
 	require.Contains(t, string(contents), `[planning]`)
