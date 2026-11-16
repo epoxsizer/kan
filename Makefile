@@ -1,6 +1,6 @@
 .PHONY: build install test test-run tdd test-race cover cover-check fmt fmt-check vet check cross-build snapshot clean
 
-VERSION ?= 0.1.18
+VERSION ?= 0.1.19
 COVERAGE_MIN ?= 70.9
 PKG ?= ./...
 RUN ?=

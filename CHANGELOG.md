@@ -6,6 +6,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.19] - 2026-11-16
+
 ### Added
 
 - Responsive board navigation and card inspector, pane focus with Tab, a
@@ -64,7 +66,7 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   structured results instead of failing output-schema validation.
 - MCP clients can create and replace checklists without inventing item IDs and
   positions.
-- `make build`, `go install`, and the README now report version 0.1.18.
+- `make build`, `go install`, and the README now report version 0.1.19.
 
 ## [0.1.18] - 2026-07-22
 
@@ -254,7 +256,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Theme configuration, inline shortcut help, and accessible empty states.
 - Scriptable CLI commands for projects, boards, columns, cards, and data exchange.
 
-[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.18...main
+[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.19...main
+[0.1.19]: https://github.com/epoxsizer/kan/compare/v0.1.18...v0.1.19
 [0.1.18]: https://github.com/epoxsizer/kan/compare/v0.1.17...v0.1.18
 [0.1.17]: https://github.com/epoxsizer/kan/compare/v0.1.16...v0.1.17
 [0.1.8]: https://github.com/epoxsizer/kan/compare/v0.1.7...v0.1.8
