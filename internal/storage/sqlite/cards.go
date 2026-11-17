@@ -52,6 +52,9 @@ func (repo *Repository) CreateCard(ctx context.Context, value *domain.Card) erro
 	if err = replaceCardLinks(ctx, tx, value.ID, value.RelatedCardIDs); err != nil {
 		return err
 	}
+	if err = recordMovement(ctx, tx, value.ID, "", value.ColumnID); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 
@@ -173,6 +176,10 @@ func (repo *Repository) UpdateCard(ctx context.Context, value *domain.Card) erro
 		return err
 	}
 	defer tx.Rollback()
+	var previousColumn string
+	if err = tx.QueryRowContext(ctx, `SELECT column_id FROM cards WHERE id=? AND deleted_at IS NULL`, updated.ID).Scan(&previousColumn); err != nil {
+		return mapError(err)
+	}
 	result, err := tx.ExecContext(ctx, `UPDATE cards SET board_id=?,column_id=?,title=?,description=?,position=?,priority=?,due_date=?,tags=?,fields=?,checklist=?,updated_at=?,column_entered_at=CASE WHEN column_id<>? THEN ? ELSE column_entered_at END,agent_status=?,agent_name=?,agent_result=? WHERE id=? AND deleted_at IS NULL AND updated_at=?`, updated.BoardID, updated.ColumnID, updated.Title, updated.Description, updated.Position, updated.Priority, encodeOptionalTime(updated.DueDate), tags, fields, checklist, encodeTime(updated.UpdatedAt), updated.ColumnID, encodeTime(updated.UpdatedAt), updated.AgentStatus, updated.AgentName, updated.AgentResult, updated.ID, encodeTime(previousUpdatedAt))
 	if err != nil {
 		return mapError(err)
@@ -192,6 +199,9 @@ func (repo *Repository) UpdateCard(ctx context.Context, value *domain.Card) erro
 		return fmt.Errorf("%w: card changed since it was loaded", domain.ErrConflict)
 	}
 	if err = replaceCardLinks(ctx, tx, updated.ID, updated.RelatedCardIDs); err != nil {
+		return err
+	}
+	if err = recordMovement(ctx, tx, updated.ID, previousColumn, updated.ColumnID); err != nil {
 		return err
 	}
 	if err = tx.Commit(); err != nil {

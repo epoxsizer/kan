@@ -47,6 +47,8 @@ type Repository interface {
 	DeleteFieldDef(context.Context, string) error
 
 	SearchCards(context.Context, string, string) ([]Card, error)
+	ListCardMovements(context.Context, string) ([]CardMovement, error)
+	ListBoardMovements(context.Context, string) ([]CardMovement, error)
 	ImportDocument(context.Context, ExportDocument, bool) error
 	Close() error
 }

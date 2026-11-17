@@ -90,6 +90,17 @@ const (
 	AgentFailed  = "failed"
 )
 
+// CardMovement records one column transition; FromColumnID is empty for the
+// card's creation.
+type CardMovement struct {
+	ID           string    `json:"id"`
+	CardID       string    `json:"card_id"`
+	FromColumnID string    `json:"from_column_id"`
+	ToColumnID   string    `json:"to_column_id"`
+	Actor        string    `json:"actor,omitempty"`
+	MovedAt      time.Time `json:"moved_at"`
+}
+
 type CardTemplate struct {
 	ID            string          `json:"id"`
 	BoardID       string          `json:"board_id"`

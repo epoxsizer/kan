@@ -83,6 +83,7 @@ var commandMenus = []commandMenuSpec{
 		{name: "stale", description: "Show stale cards", command: "stale"},
 		{name: "untriaged", description: "Show cards without priority and due date", command: "untriaged"},
 		{name: "archived", description: "Show archived cards on the current board", command: "archived"},
+		{name: "flow", description: "Throughput, archive time, and aging WIP", command: "flow"},
 		{name: "clear", description: "Clear the current filter or planning view", command: "clear-filter"},
 		{name: "sort", description: "Cycle card sorting", command: "sort"},
 		{name: "group", description: "Cycle card grouping", command: "group"},

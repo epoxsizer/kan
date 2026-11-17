@@ -211,6 +211,21 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		return model.Update(message.message)
+	case flowLoadedMsg:
+		if message.err != nil {
+			model.err = message.err
+			return model, nil
+		}
+		columnNames := make(map[string]string, len(model.columns))
+		for _, column := range model.columns {
+			columnNames[column.ID] = column.Name
+		}
+		title := "Flow"
+		if model.board != nil {
+			title = "Flow — " + model.board.Name
+		}
+		model.detail = &detailPopup{kind: "flow", title: title, lines: flowLines(summarizeFlow(message.cards, time.Now()), columnNames)}
+		return model, nil
 	case cardQueuedMsg:
 		if message.err != nil {
 			model.err = message.err
@@ -978,6 +993,12 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		return model, model.startCardForm(true)
+	case "flow":
+		if model.screen != boardScreen || model.board == nil {
+			model.err = fmt.Errorf("open a board first")
+			return model, nil
+		}
+		return model, loadFlowCards(model.ctx, model.repo, model.board.ID)
 	case "card-queue":
 		if model.screen != boardScreen || len(model.columns) == 0 || model.selectedCard().ID == "" {
 			model.err = fmt.Errorf("select a card on a board first")

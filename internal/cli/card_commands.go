@@ -15,6 +15,7 @@ func newCardCommand(opts *options) *cobra.Command {
 	command.AddCommand(
 		newCardListCommand(opts),
 		newCardGetCommand(opts),
+		newCardHistoryCommand(opts),
 		newCardExportCommand(opts),
 		newCardSearchCommand(opts),
 		newCardCreateCommand(opts),
@@ -84,6 +85,18 @@ func newCardGetCommand(opts *options) *cobra.Command {
 				return err
 			}
 			return writeJSON(cmd, value)
+		})
+	}}
+}
+
+func newCardHistoryCommand(opts *options) *cobra.Command {
+	return &cobra.Command{Use: "history <id>", Short: "List a card's column movements as JSON", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		return withRepository(cmd, opts, func(ctx context.Context, repo domain.Repository) error {
+			movements, err := repo.ListCardMovements(ctx, args[0])
+			if err != nil {
+				return err
+			}
+			return writeJSON(cmd, movements)
 		})
 	}}
 }

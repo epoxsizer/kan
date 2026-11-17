@@ -378,6 +378,7 @@ func registerTools(server *mcp.Server, use coordinatorFunc, logger *slog.Logger,
 
 	registerStructureTools(server, use, logger, notify)
 	registerAgentTools(server, use, logger, notify)
+	registerHistoryTools(server, use, logger, notify)
 }
 
 func annotations(readOnly, destructive, idempotent bool) *mcp.ToolAnnotations {

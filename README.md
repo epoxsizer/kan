@@ -135,6 +135,7 @@ kan upgrade check
 | `:card queue` | Queue the selected card for agent processing (`kan agent run`) |
 | `:column archive` | Archive every active card in the selected column |
 | `:view archived` | Show archived cards for the current board |
+| `:view flow` | Throughput sparkline, average days to archive, and aging WIP |
 | `:column settings` | Configure the selected column |
 | `:view today`, `:view overdue`, `:view blocked`, `:view stale`, `:view untriaged` | Show planning views for the current board |
 | `:card new-template`, `:card save-template`, `:card from-template`, `:card templates` | Create and use board-only card templates |
@@ -165,7 +166,11 @@ Columns can enable automatic archiving and set how many days cards remain in
 that column before archival; new columns default to 14 days with automation
 disabled. The retention timer resets whenever a card enters a different column.
 The inspector and the card detail window show how long the selected card has
-been in its current column ("In column: 4d").
+been in its current column ("In column: 4d"). Every column transition is
+recorded, so `kan card history` and `kan_get_card_history` expose a card's
+full movement trail, and `:view flow` summarizes the board: an eight-week
+throughput sparkline, average days from creation to archive, and the five
+oldest active cards (aging WIP).
 
 On terminals at least 100 columns wide and 24 rows tall, adding or editing a
 card opens a full-screen editor: fields on the left, the rendered Markdown
@@ -222,6 +227,7 @@ kan card create --board BOARD_ID --column COLUMN_ID --title "Prepare release"
 kan card search --board BOARD_ID --query "release"
 kan card export CARD_ID                  # shareable Markdown on stdout
 kan card export CARD_ID --out card.md    # Markdown into a file
+kan card history CARD_ID                 # column movements as JSON
 kan card update CARD_ID --priority high
 kan card archive CARD_ID
 kan card archived --board BOARD_ID --column COLUMN_ID
@@ -382,6 +388,7 @@ Both servers expose the same tools:
 - agent queue: `kan_queue_card`, `kan_claim_card`, `kan_complete_card` drive
   the queued → running → done/failed lifecycle; claiming is atomic, so
   concurrent runners never share a card;
+- history: `kan_get_card_history` returns a card's recorded column movements;
 - checklists: `kan_add_checklist_item`, `kan_update_checklist_item`;
 - templates: `kan_list_card_templates`, `kan_create_card_from_template`.
 

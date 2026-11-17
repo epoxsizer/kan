@@ -83,8 +83,8 @@ func (repo *Repository) MoveCard(ctx context.Context, cardID, targetColumnID str
 	}
 	defer tx.Rollback()
 
-	var boardID string
-	if err = tx.QueryRowContext(ctx, `SELECT board_id FROM cards WHERE id=? AND deleted_at IS NULL`, cardID).Scan(&boardID); err != nil {
+	var boardID, sourceColumnID string
+	if err = tx.QueryRowContext(ctx, `SELECT board_id,column_id FROM cards WHERE id=? AND deleted_at IS NULL`, cardID).Scan(&boardID, &sourceColumnID); err != nil {
 		return mapError(err)
 	}
 	var targetBoardID string
@@ -129,6 +129,9 @@ func (repo *Repository) MoveCard(ctx context.Context, cardID, targetColumnID str
 	now := encodeTime(domain.UTCNow())
 	result, err := tx.ExecContext(ctx, `UPDATE cards SET column_id=?,position=?,updated_at=?,column_entered_at=? WHERE id=? AND deleted_at IS NULL`, targetColumnID, position, now, now, cardID)
 	if err = ensureAffected(result, err); err != nil {
+		return err
+	}
+	if err = recordMovement(ctx, tx, cardID, sourceColumnID, targetColumnID); err != nil {
 		return err
 	}
 	if err = tx.Commit(); err != nil {

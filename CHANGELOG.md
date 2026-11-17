@@ -21,6 +21,10 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   tools `kan_queue_card`, `kan_claim_card`, `kan_complete_card`; TUI
   `:card queue`, board markers (⏳ ⚙ ✗), and agent results in the inspector
   and detail window.
+- Movement history: every column transition is recorded (migration 007).
+  `kan card history <id>` and the `kan_get_card_history` MCP tool expose the
+  trail, and `:view flow` shows an eight-week throughput sparkline, average
+  days to archive, and the five oldest active cards.
 - `wrap_card_titles` setting (enabled by default): board card titles wrap onto
   extra lines with the priority marker kept on the first line, instead of
   truncating to the column width.

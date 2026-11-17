@@ -53,7 +53,7 @@ func TestMigrationsAreRepeatableAndEnableFeatures(t *testing.T) {
 	require.NoError(t, err)
 	var migrationCount int
 	require.NoError(t, repo.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&migrationCount))
-	require.Equal(t, 6, migrationCount)
+	require.Equal(t, 7, migrationCount)
 	require.NoError(t, repo.Close())
 }
 
