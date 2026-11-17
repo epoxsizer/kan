@@ -68,6 +68,9 @@ type Model struct {
 	showCardTags     bool
 
 	showSelectedCardDetails bool
+	wrapCardTitles          bool
+	mouseEnabled            bool
+	configFile              string
 	planning                PlanningOptions
 
 	filterMode     bool
@@ -106,7 +109,7 @@ type Model struct {
 }
 
 func New(ctx context.Context, repo domain.Repository, logger *slog.Logger) *Model {
-	return NewWithOptions(ctx, repo, logger, Options{ShowCardTags: true})
+	return NewWithOptions(ctx, repo, logger, Options{ShowCardTags: true, Mouse: true, WrapCardTitles: true})
 }
 
 type Options struct {
@@ -117,6 +120,9 @@ type Options struct {
 	Planning                PlanningOptions
 	LegacyKeymap            bool
 	MCPEnabled              bool
+	Mouse                   bool
+	WrapCardTitles          bool
+	ConfigFile              string
 }
 
 func NewWithOptions(ctx context.Context, repo domain.Repository, logger *slog.Logger, options Options) *Model {
@@ -151,6 +157,9 @@ func NewWithOptions(ctx context.Context, repo domain.Repository, logger *slog.Lo
 		notice:        options.StartupNotice,
 
 		showSelectedCardDetails: options.ShowSelectedCardDetails,
+		wrapCardTitles:          options.WrapCardTitles,
+		mouseEnabled:            options.Mouse,
+		configFile:              options.ConfigFile,
 	}
 }
 
@@ -202,6 +211,13 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		return model.Update(message.message)
+	case settingsSavedMsg:
+		if message.err != nil {
+			model.err = message.err
+		} else {
+			model.notice = "Settings saved"
+		}
+		return model, nil
 	case cardExportFinishedMsg:
 		if message.err != nil {
 			model.err = message.err

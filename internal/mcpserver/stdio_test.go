@@ -115,7 +115,7 @@ func TestStdioServerForwardsToRunningTUIServer(t *testing.T) {
 	coordinator, project := openTestCoordinator(t)
 	var changes []Change
 	httpServer, err := Start(config.MCP{Enabled: true, Address: "127.0.0.1:0", Token: testToken}, "test", coordinator,
-		slog.New(slog.NewTextHandler(io.Discard, nil)), func(change Change) { changes = append(changes, change) })
+		slog.New(slog.NewTextHandler(io.Discard, nil)), func(change Change) { changes = append(changes, change) }, Intake{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, httpServer.Shutdown(context.Background())) })
 
@@ -154,7 +154,7 @@ func TestNewForwarderIsDisabledWithoutMCPConfiguration(t *testing.T) {
 
 func TestForwarderRejectsAnotherDatabase(t *testing.T) {
 	coordinator, project := openTestCoordinator(t)
-	server, err := Start(config.MCP{Enabled: true, Address: "127.0.0.1:0", Token: testToken}, "test", coordinator, nil, nil)
+	server, err := Start(config.MCP{Enabled: true, Address: "127.0.0.1:0", Token: testToken}, "test", coordinator, nil, nil, Intake{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, server.Shutdown(context.Background())) })
 	forward, closeForward := NewForwarder(config.MCP{Enabled: true, Address: server.Address(), Token: testToken}, "test", "another-database")

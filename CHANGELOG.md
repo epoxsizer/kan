@@ -6,6 +6,22 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Zero-friction capture: `kan add <title>` drops a card into the configured
+  inbox (`inbox.board` / `inbox.column`) or a chosen column, and `POST /cards`
+  on the MCP HTTP server captures cards from scripts, phones, and shortcuts
+  with the same bearer token.
+- Desktop notifications (macOS and Linux, `notifications.enabled`) for
+  webhook-captured cards.
+- `wrap_card_titles` setting (enabled by default): board card titles wrap onto
+  extra lines with the priority marker kept on the first line, instead of
+  truncating to the column width.
+- General parameters in the `:settings open` menu — title wrapping, mouse
+  capture, and legacy keymap alongside the existing options. Saving writes
+  them to `config.toml` without touching other settings, and mouse capture
+  changes apply immediately.
+
 ## [0.1.19] - 2026-11-16
 
 ### Added

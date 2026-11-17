@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/epoxsizer/kan/internal/config"
 	"github.com/epoxsizer/kan/internal/domain"
 	"github.com/epoxsizer/kan/internal/tasks"
 )
@@ -235,21 +236,29 @@ func (model *Model) startCardFromTemplateForm(templates []domain.CardTemplate) {
 }
 
 func (model *Model) startSettingsForm() {
-	showTags := "Disabled"
-	if model.showCardTags {
-		showTags = "Enabled"
-	}
-	showSelectedDetails := "Disabled"
-	if model.showSelectedCardDetails {
-		showSelectedDetails = "Enabled"
-	}
 	model.activateForm(&formModal{kind: settingsForm, title: "Settings", fields: []formField{
 		{label: "Projects/boards layout", value: titleCase(model.listLayout.String()), kind: dropdownField, options: layoutOptions},
-		{label: "Card title tags", value: showTags, kind: dropdownField, options: booleanOptions},
+		{label: "Card title tags", value: enabledLabel(model.showCardTags), kind: dropdownField, options: booleanOptions},
 		{label: "Card sort", value: titleCase(model.sortMode.String()), kind: dropdownField, options: sortOptions},
 		{label: "Card group", value: titleCase(model.groupMode.String()), kind: dropdownField, options: groupOptions},
-		{label: "Selected card details", value: showSelectedDetails, kind: dropdownField, options: booleanOptions},
+		{label: "Selected card details", value: enabledLabel(model.showSelectedCardDetails), kind: dropdownField, options: booleanOptions},
+		{label: "Wrap card titles", value: enabledLabel(model.wrapCardTitles), kind: dropdownField, options: booleanOptions},
+		{label: "Mouse capture", value: enabledLabel(model.mouseEnabled), kind: dropdownField, options: booleanOptions},
+		{label: "Legacy keymap", value: enabledLabel(model.legacyKeymap), kind: dropdownField, options: booleanOptions},
 	}})
+}
+
+func enabledLabel(value bool) string {
+	if value {
+		return "Enabled"
+	}
+	return "Disabled"
+}
+
+// settingsSavedMsg reports the result of writing general settings to the
+// configuration file.
+type settingsSavedMsg struct {
+	err error
 }
 
 func (model *Model) activateForm(form *formModal) {
@@ -372,15 +381,47 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		if err != nil {
 			return invalid(err)
 		}
+		wrapTitles, err := parseEnabled(value(5))
+		if err != nil {
+			return invalid(err)
+		}
+		mouse, err := parseEnabled(value(6))
+		if err != nil {
+			return invalid(err)
+		}
+		legacyKeymap, err := parseEnabled(value(7))
+		if err != nil {
+			return invalid(err)
+		}
 		model.listLayout = layout
 		model.showCardTags = showTags
 		model.sortMode = sortMode
 		model.groupMode = groupMode
 		model.showSelectedCardDetails = showSelectedDetails
+		model.wrapCardTitles = wrapTitles
+		model.legacyKeymap = legacyKeymap
+		mouseChanged := mouse != model.mouseEnabled
+		model.mouseEnabled = mouse
 		model.cardIndexes = make(map[string]int, len(model.columns))
 		model.form = nil
 		model.notice = "Settings applied"
-		return model, nil
+		var commands []tea.Cmd
+		if mouseChanged {
+			if mouse {
+				commands = append(commands, tea.EnableMouseCellMotion)
+			} else {
+				commands = append(commands, tea.DisableMouse)
+			}
+		}
+		if model.configFile != "" {
+			general := config.GeneralSettings{
+				ShowCardTags: model.showCardTags, ShowSelectedCardDetails: model.showSelectedCardDetails,
+				LegacyKeymap: model.legacyKeymap, Mouse: model.mouseEnabled, WrapCardTitles: model.wrapCardTitles,
+			}
+			path := model.configFile
+			commands = append(commands, func() tea.Msg { return settingsSavedMsg{err: config.SaveGeneral(path, general)} })
+		}
+		return model, tea.Batch(commands...)
 	case createProjectForm:
 		project := domain.Project{Name: value(0), Description: raw(1), Position: nextProjectPosition(model.projects)}
 		if err := domain.ValidateProject(project); err != nil {

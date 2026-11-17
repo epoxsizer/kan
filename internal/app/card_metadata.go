@@ -121,6 +121,9 @@ func (model *Model) selectedCardBlock(card domain.Card, width, maxLines int) str
 	maxLines = max(maxLines, 1)
 	contentWidth := max(width-2, 1)
 	lines := []string{truncate(card.Title, width)}
+	if model.wrapCardTitles {
+		lines = wrapDetailLine(card.Title, width)
+	}
 	metadata := model.cardMetadata(card, time.Now())
 	if metadata != "" && len(lines) < maxLines {
 		lines = append(lines, truncate(metadata, contentWidth))

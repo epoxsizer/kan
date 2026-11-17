@@ -13,6 +13,7 @@ import (
 	"github.com/epoxsizer/kan/internal/config"
 	"github.com/epoxsizer/kan/internal/logging"
 	"github.com/epoxsizer/kan/internal/mcpserver"
+	"github.com/epoxsizer/kan/internal/notify"
 	"github.com/epoxsizer/kan/internal/seed"
 	storage "github.com/epoxsizer/kan/internal/storage/sqlite"
 	"github.com/epoxsizer/kan/internal/tasks"
@@ -92,7 +93,7 @@ func New(version, commit, date string) *cobra.Command {
 			}
 			res.logger.Info("TUI starting")
 			program := tea.NewProgram(
-				app.NewWithOptions(cmd.Context(), res.tasks, res.logger, app.Options{LegacyKeymap: res.config.LegacyKeymap, MCPEnabled: res.config.MCP.Enabled, ShowCardTags: res.config.ShowCardTags, ShowSelectedCardDetails: res.config.ShowSelectedCardDetails, StartupNotice: startupNotice, Theme: app.Theme{
+				app.NewWithOptions(cmd.Context(), res.tasks, res.logger, app.Options{LegacyKeymap: res.config.LegacyKeymap, MCPEnabled: res.config.MCP.Enabled, ShowCardTags: res.config.ShowCardTags, ShowSelectedCardDetails: res.config.ShowSelectedCardDetails, Mouse: res.config.Mouse, WrapCardTitles: res.config.WrapCardTitles, ConfigFile: res.config.ConfigFile, StartupNotice: startupNotice, Theme: app.Theme{
 					Primary: res.config.Theme.Primary, Muted: res.config.Theme.Muted, Text: res.config.Theme.Text, Background: res.config.Theme.Background, SelectedForeground: res.config.Theme.SelectedForeground, SelectedBackground: res.config.Theme.SelectedBackground, Danger: res.config.Theme.Danger, Border: res.config.Theme.Border,
 					SelectedColumnForeground: res.config.Theme.SelectedColumnForeground, SelectedColumnBackground: res.config.Theme.SelectedColumnBackground, SelectedColumnBorder: res.config.Theme.SelectedColumnBorder,
 					SelectedCardForeground: res.config.Theme.SelectedCardForeground, SelectedCardBackground: res.config.Theme.SelectedCardBackground, PanelBorder: res.config.Theme.PanelBorder, FocusedPanelBorder: res.config.Theme.FocusedPanelBorder,
@@ -105,9 +106,13 @@ func New(version, commit, date string) *cobra.Command {
 				programOptions(res.config, cmd.Context())...,
 			)
 
+			var desktopNotify func(string, string)
+			if res.config.Notifications.Enabled {
+				desktopNotify = notify.Send
+			}
 			mcpService, startMCPErr := mcpserver.Start(res.config.MCP, version, res.tasks, res.logger, func(change mcpserver.Change) {
 				program.Send(app.ExternalChangeMsg{Action: change.Action, BoardID: change.BoardID, ColumnID: change.ColumnID, CardID: change.CardID})
-			})
+			}, mcpserver.Intake{BoardID: res.config.Inbox.BoardID, ColumnID: res.config.Inbox.ColumnID, Desktop: desktopNotify})
 			if startMCPErr != nil {
 				if cancelBackups != nil {
 					cancelBackups()
@@ -205,6 +210,7 @@ func New(version, commit, date string) *cobra.Command {
 			return nil
 		},
 	})
+	root.AddCommand(newAddCommand(&opts))
 	root.AddCommand(newBackupCommand(&opts))
 	root.AddCommand(newExportCommand(&opts))
 	root.AddCommand(newImportCommand(&opts))

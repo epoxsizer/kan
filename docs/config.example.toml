@@ -10,6 +10,8 @@ log_level = "info"
 # Mouse capture (clicks, wheel, drag-and-drop) is on by default. Disable for
 # keyboard-only use and native terminal text selection.
 # mouse = true
+# Wrap long card titles onto extra lines instead of truncating them.
+# wrap_card_titles = true
 
 [mcp]
 # Disabled by default. When enabled, the TUI serves Streamable HTTP on /mcp,
@@ -39,6 +41,15 @@ endpoint = ""
 access_key_id = ""
 secret_access_key = ""
 force_path_style = false
+
+[inbox]
+# Default capture destination for `kan add` and POST /cards webhook intake.
+board = ""
+column = ""
+
+[notifications]
+# Desktop notifications for captured cards and agent results (macOS/Linux).
+enabled = true
 
 [theme]
 # primary = "#7D7AFF"

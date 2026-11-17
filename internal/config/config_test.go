@@ -23,6 +23,55 @@ func TestMouseDefaultsEnabledAndCanBeDisabled(t *testing.T) {
 	require.True(t, cfg.Mouse)
 }
 
+func TestInboxAndNotificationsConfiguration(t *testing.T) {
+	require.True(t, Defaults().Notifications.Enabled)
+	require.Empty(t, Defaults().Inbox.BoardID)
+
+	path := filepath.Join(t.TempDir(), "config.toml")
+	require.NoError(t, os.WriteFile(path, []byte("[inbox]\nboard = \"b\"\ncolumn = \"c\"\n\n[notifications]\nenabled = false\n"), 0o600))
+	cfg, err := Load(Overrides{ConfigFile: path})
+	require.NoError(t, err)
+	require.Equal(t, "b", cfg.Inbox.BoardID)
+	require.Equal(t, "c", cfg.Inbox.ColumnID)
+	require.False(t, cfg.Notifications.Enabled)
+
+	require.NoError(t, os.WriteFile(path, []byte("[inbox]\nboard = \"b\"\n"), 0o600))
+	_, err = Load(Overrides{ConfigFile: path})
+	require.ErrorContains(t, err, "inbox.board and inbox.column must be set together")
+}
+
+func TestWrapCardTitlesDefaultsEnabledAndCanBeDisabled(t *testing.T) {
+	require.True(t, Defaults().WrapCardTitles)
+
+	path := filepath.Join(t.TempDir(), "config.toml")
+	require.NoError(t, os.WriteFile(path, []byte("wrap_card_titles = false\n"), 0o600))
+	cfg, err := Load(Overrides{ConfigFile: path})
+	require.NoError(t, err)
+	require.False(t, cfg.WrapCardTitles)
+}
+
+func TestSaveGeneralUpdatesOnlyGeneralKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	original := "# keep this comment\nshow_card_tags = true\nmouse = true\n\n[mcp]\nenabled = false\naddress = \"127.0.0.1:7337\"\n\n[theme]\nprimary = \"#123456\"\n"
+	require.NoError(t, os.WriteFile(path, []byte(original), 0o600))
+
+	require.NoError(t, SaveGeneral(path, GeneralSettings{ShowCardTags: false, ShowSelectedCardDetails: true, LegacyKeymap: true, Mouse: false, WrapCardTitles: false}))
+
+	cfg, err := Load(Overrides{ConfigFile: path})
+	require.NoError(t, err)
+	require.False(t, cfg.ShowCardTags)
+	require.True(t, cfg.ShowSelectedCardDetails)
+	require.True(t, cfg.LegacyKeymap)
+	require.False(t, cfg.Mouse)
+	require.False(t, cfg.WrapCardTitles)
+	require.Equal(t, "#123456", cfg.Theme.Primary)
+	require.Equal(t, "127.0.0.1:7337", cfg.MCP.Address)
+
+	contents, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Contains(t, string(contents), "# keep this comment")
+}
+
 func TestLegacyKeymapCanBeEnabledExplicitly(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	require.NoError(t, os.WriteFile(path, []byte("legacy_keymap = true\n"), 0o600))
@@ -62,6 +111,9 @@ func TestDefaultLoadCreatesLocalConfigAndUsesLocalPaths(t *testing.T) {
 	require.Contains(t, string(contents), `log_file = "kan.log"`)
 	require.Contains(t, string(contents), `show_selected_card_details = false`)
 	require.Contains(t, string(contents), `mouse = true`)
+	require.Contains(t, string(contents), `wrap_card_titles = true`)
+	require.Contains(t, string(contents), `[inbox]`)
+	require.Contains(t, string(contents), `[notifications]`)
 	require.Contains(t, string(contents), `[mcp]`)
 	require.Contains(t, string(contents), `address = "127.0.0.1:7337"`)
 	require.Contains(t, string(contents), `[planning]`)

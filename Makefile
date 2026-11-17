@@ -1,7 +1,7 @@
 .PHONY: build install test test-run tdd test-race cover cover-check fmt fmt-check vet check cross-build snapshot clean
 
 VERSION ?= 0.1.19
-COVERAGE_MIN ?= 70.9
+COVERAGE_MIN ?= 71.1
 PKG ?= ./...
 RUN ?=
 GO_TEST_FLAGS = $(if $(RUN),-run '$(RUN)',)

@@ -106,7 +106,7 @@ func TestAgentCardMutationsRejectStaleRevisions(t *testing.T) {
 
 func TestShutdownClosesConnectedAgentSessions(t *testing.T) {
 	coordinator, _ := openTestCoordinator(t)
-	server, err := Start(config.MCP{Enabled: true, Address: "127.0.0.1:0", Token: testToken}, "test", coordinator, nil, nil)
+	server, err := Start(config.MCP{Enabled: true, Address: "127.0.0.1:0", Token: testToken}, "test", coordinator, nil, nil, Intake{})
 	require.NoError(t, err)
 	client := mcp.NewClient(&mcp.Implementation{Name: "shutdown-test", Version: "test"}, nil)
 	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{
@@ -380,6 +380,6 @@ func TestStartReturnsListenerFailure(t *testing.T) {
 		Enabled: true,
 		Address: "127.0.0.1:99999",
 		Token:   "12345678901234567890123456789012",
-	}, "test", nil, slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
+	}, "test", nil, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, Intake{})
 	require.ErrorContains(t, err, "start MCP listener")
 }

@@ -28,7 +28,9 @@ highlighted, and contextual key hints are shown at the bottom of the screen.
 Selecting a card changes only its background by default, without changing its
 text, indentation, or height. Set `show_selected_card_details = true` to add an
 aligned second line with priority, due information, checklist progress, tags,
-and related-card count. Markdown descriptions remain in the scrollable detail
+and related-card count. Card titles wrap onto extra lines by default
+(`wrap_card_titles = true`); set it to `false` to truncate them to one line.
+Markdown descriptions remain in the scrollable detail
 window. Board lists summarize overdue or nearest-due work.
 
 The header keeps the project and board visible. At 110 columns the board can
@@ -208,6 +210,8 @@ agents. Successful data-management commands write JSON to standard output
 quoted in the shell.
 
 ```sh
+kan add "Buy milk"                       # capture into the configured inbox
+kan add "Fix login" --board BOARD_ID --column COLUMN_ID --priority high
 kan project list
 kan project create --name "New project" --comment "Project notes"
 kan board list --project PROJECT_ID
@@ -320,6 +324,24 @@ environment:
   }
 }
 ```
+
+### Capture cards over HTTP
+
+While the HTTP server is enabled, `POST /cards` with the same bearer token
+captures a card from anything that can speak HTTP — phones, scripts,
+Shortcuts, or email parsers:
+
+```sh
+curl -X POST http://127.0.0.1:7337/cards \
+  -H "Authorization: Bearer $KAN_MCP_TOKEN" \
+  -d '{"title":"Review the release","tags":["capture"]}'
+```
+
+The destination defaults to the configured inbox (`inbox.board` /
+`inbox.column`); `board_id` and `column_id` in the body override it. Optional
+fields: `description`, `priority`, `due_date` (YYYY-MM-DD), `tags`. The running
+TUI refreshes immediately, and a desktop notification is shown when
+`notifications.enabled = true` (macOS and Linux).
 
 ### Tools
 
@@ -467,6 +489,12 @@ use the prototype's light-blue `#4C8DFF` for focused borders and selected
 columns, cards, rows, and controls. Existing explicit theme overrides remain
 unchanged. `show_selected_card_details = false` keeps selected board cards at
 their normal one-line height; set it to `true` for the optional metadata line.
+
+The general parameters — card title tags, selected card details, title
+wrapping, mouse capture, and the legacy keymap — can also be changed from the
+`:settings open` menu. Saving writes them back to `config.toml`, preserving
+every other setting, comment, and section; mouse capture changes apply
+immediately.
 
 The planning section controls board health and planning views. By default,
 cards are stale after 7 days without updates, blocked cards are detected by the

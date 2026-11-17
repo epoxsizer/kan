@@ -214,11 +214,11 @@ func (model *Model) renderCardDisplayRow(row cardDisplayRow, selected bool, widt
 		return model.styles.subtle.Copy().Bold(true).Render("─ " + truncate(row.group, max(width-2, 1)))
 	}
 	label := model.cardLabel(row.card, max(width-4, 1), true)
-	content := "  " + label
+	content := "  " + strings.ReplaceAll(label, "\n", "\n  ")
 	if selected {
 		background := model.styles.selectedCard.GetBackground()
 		label = model.cardLabelWithBackground(row.card, max(width-4, 1), true, background)
-		content = "  " + label
+		content = "  " + strings.ReplaceAll(label, "\n", "\n  ")
 		if model.showSelectedCardDetails {
 			block := model.selectedCardBlock(row.card, max(width-4, 1), min(maxLines, 2))
 			content = "  " + strings.ReplaceAll(block, "\n", "\n  ")
@@ -320,6 +320,9 @@ func (model *Model) cardLabelWithBackground(card domain.Card, width int, colorPr
 		duePrefix = marker + card.DueDate.Format("2006-01-02") + " "
 	}
 	content := duePrefix + prefix + card.Title + suffix
+	if model.wrapCardTitles {
+		return model.wrappedCardLabel(card, content, width, colorPriority, background)
+	}
 	label := truncate(content, width)
 	if card.Priority == nil || *card.Priority == "" || width < 3 {
 		return label
@@ -336,6 +339,36 @@ func (model *Model) cardLabelWithBackground(card domain.Card, width int, colorPr
 	}
 	marker := markerStyle.Render(priority)
 	return marker + textStyle.Render(" "+truncate(content, max(width-2, 1)))
+}
+
+// wrappedCardLabel renders the full card label across as many lines as the
+// column width needs. The priority marker stays on the first line and
+// continuation lines align under the title.
+func (model *Model) wrappedCardLabel(card domain.Card, content string, width int, colorPriority bool, background lipgloss.TerminalColor) string {
+	hasPriority := card.Priority != nil && *card.Priority != "" && width >= 3
+	textWidth := width
+	if hasPriority {
+		textWidth = max(width-2, 1)
+	}
+	lines := wrapDetailLine(content, textWidth)
+	if !hasPriority {
+		return strings.Join(lines, "\n")
+	}
+	for index := 1; index < len(lines); index++ {
+		lines[index] = "  " + lines[index]
+	}
+	text := strings.Join(lines, "\n")
+	priority := strings.ToUpper((*card.Priority)[:1])
+	if !colorPriority {
+		return priority + " " + text
+	}
+	markerStyle := lipgloss.NewStyle().Bold(true).Foreground(priorityColor(*card.Priority))
+	textStyle := lipgloss.NewStyle()
+	if background != nil {
+		markerStyle = markerStyle.Background(background)
+		textStyle = textStyle.Background(background)
+	}
+	return markerStyle.Render(priority) + textStyle.Render(" "+text)
 }
 
 func isOverdueDate(value *time.Time) bool {

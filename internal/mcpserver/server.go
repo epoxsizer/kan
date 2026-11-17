@@ -34,7 +34,7 @@ type Server struct {
 	done       chan error
 }
 
-func Start(cfg config.MCP, version string, coordinator *tasks.Coordinator, logger *slog.Logger, notify func(Change)) (*Server, error) {
+func Start(cfg config.MCP, version string, coordinator *tasks.Coordinator, logger *slog.Logger, notify func(Change), intake Intake) (*Server, error) {
 	if !cfg.Enabled {
 		return nil, nil
 	}
@@ -52,6 +52,7 @@ func Start(cfg config.MCP, version string, coordinator *tasks.Coordinator, logge
 	handler := authenticate(cfg.Token, protectOrigin(streamable))
 	mux := http.NewServeMux()
 	mux.Handle("/mcp", handler)
+	mux.Handle("/cards", authenticate(cfg.Token, protectOrigin(intakeHandler(coordinator, intake, logger, notify))))
 	listener, err := net.Listen("tcp", cfg.Address)
 	if err != nil {
 		return nil, fmt.Errorf("start MCP listener on %s: %w", cfg.Address, err)

@@ -31,11 +31,25 @@ type Config struct {
 	ShowSelectedCardDetails bool `toml:"show_selected_card_details"`
 	LegacyKeymap            bool `toml:"legacy_keymap"`
 	Mouse                   bool `toml:"mouse"`
+	WrapCardTitles          bool `toml:"wrap_card_titles"`
 
-	Theme    Theme    `toml:"theme"`
-	MCP      MCP      `toml:"mcp"`
-	Planning Planning `toml:"planning"`
-	Sync     Sync     `toml:"sync"`
+	Theme         Theme         `toml:"theme"`
+	MCP           MCP           `toml:"mcp"`
+	Planning      Planning      `toml:"planning"`
+	Sync          Sync          `toml:"sync"`
+	Inbox         Inbox         `toml:"inbox"`
+	Notifications Notifications `toml:"notifications"`
+}
+
+// Inbox is the default capture destination for `kan add` and webhook intake.
+type Inbox struct {
+	BoardID  string `toml:"board"`
+	ColumnID string `toml:"column"`
+}
+
+// Notifications controls desktop notifications for capture and agent events.
+type Notifications struct {
+	Enabled bool `toml:"enabled"`
 }
 
 type MCP struct {
@@ -126,12 +140,15 @@ type fileConfig struct {
 	ShowSelectedCardDetails *bool `toml:"show_selected_card_details"`
 	LegacyKeymap            *bool `toml:"legacy_keymap"`
 	Mouse                   *bool `toml:"mouse"`
+	WrapCardTitles          *bool `toml:"wrap_card_titles"`
 
-	Theme    *Theme        `toml:"theme"`
-	MCP      *MCP          `toml:"mcp"`
-	Planning *filePlanning `toml:"planning"`
-	Backup   *fileBackup   `toml:"backup"`
-	Sync     *Sync         `toml:"sync"`
+	Theme         *Theme         `toml:"theme"`
+	MCP           *MCP           `toml:"mcp"`
+	Planning      *filePlanning  `toml:"planning"`
+	Backup        *fileBackup    `toml:"backup"`
+	Sync          *Sync          `toml:"sync"`
+	Inbox         *Inbox         `toml:"inbox"`
+	Notifications *Notifications `toml:"notifications"`
 }
 
 type Overrides struct {
@@ -152,6 +169,7 @@ func Defaults() Config {
 
 		ShowSelectedCardDetails: false,
 		Mouse:                   true,
+		WrapCardTitles:          true,
 		Theme: Theme{
 			Primary: "#7D7AFF", Muted: "#909090", Text: "#C4C4D0", Background: "#24243A", SelectedForeground: "#000000", SelectedBackground: "#4C8DFF", Danger: "#FF6B6B", Border: "rounded",
 			SelectedColumnForeground: "#000000", SelectedColumnBackground: "#4C8DFF", SelectedColumnBorder: "#4C8DFF", SelectedCardForeground: "#000000", SelectedCardBackground: "#4C8DFF",
@@ -161,6 +179,7 @@ func Defaults() Config {
 		MCP:      MCP{Address: "127.0.0.1:7337"},
 		Planning: Planning{StaleAfterDays: 7, BlockedTags: []string{"blocked", "blocker"}, UntriagedWithoutPriority: true},
 		Sync:     Sync{Interval: "10m", ObjectKey: "kan/sync.json"},
+		Notifications: Notifications{Enabled: true},
 	}
 }
 
@@ -231,6 +250,9 @@ func Load(overrides Overrides) (Config, error) {
 	if err := validateSync(cfg.Sync); err != nil {
 		return Config{}, err
 	}
+	if err := validateInbox(cfg.Inbox); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
 }
 
@@ -245,6 +267,7 @@ show_card_tags = %t
 show_selected_card_details = %t
 legacy_keymap = %t
 mouse = %t
+wrap_card_titles = %t
 
 [mcp]
 enabled = %t
@@ -268,6 +291,13 @@ endpoint = %q
 access_key_id = %q
 secret_access_key = %q
 force_path_style = %t
+
+[inbox]
+board = %q
+column = %q
+
+[notifications]
+enabled = %t
 
 [theme]
 primary = %q
@@ -304,6 +334,7 @@ column_default = %q
 		cfg.ShowSelectedCardDetails,
 		cfg.LegacyKeymap,
 		cfg.Mouse,
+		cfg.WrapCardTitles,
 		cfg.MCP.Enabled,
 		cfg.MCP.Address,
 		cfg.MCP.Token,
@@ -319,6 +350,9 @@ column_default = %q
 		cfg.Sync.S3.AccessKeyID,
 		cfg.Sync.S3.SecretAccessKey,
 		cfg.Sync.S3.ForcePathStyle,
+		cfg.Inbox.BoardID,
+		cfg.Inbox.ColumnID,
+		cfg.Notifications.Enabled,
 		cfg.Theme.Primary,
 		cfg.Theme.Muted,
 		cfg.Theme.Text,
@@ -381,6 +415,9 @@ func merge(dst *Config, src fileConfig) {
 	if src.Mouse != nil {
 		dst.Mouse = *src.Mouse
 	}
+	if src.WrapCardTitles != nil {
+		dst.WrapCardTitles = *src.WrapCardTitles
+	}
 	if src.Theme != nil {
 		mergeTheme(&dst.Theme, *src.Theme)
 	}
@@ -406,6 +443,12 @@ func merge(dst *Config, src fileConfig) {
 	}
 	if src.Sync != nil {
 		mergeSync(&dst.Sync, *src.Sync)
+	}
+	if src.Inbox != nil {
+		dst.Inbox = *src.Inbox
+	}
+	if src.Notifications != nil {
+		dst.Notifications = *src.Notifications
 	}
 }
 
@@ -574,6 +617,13 @@ func validatePlanning(value Planning) error {
 		if strings.TrimSpace(tag) == "" {
 			return errors.New("planning.blocked_tags must not contain empty values")
 		}
+	}
+	return nil
+}
+
+func validateInbox(value Inbox) error {
+	if (value.BoardID == "") != (value.ColumnID == "") {
+		return errors.New("inbox.board and inbox.column must be set together")
 	}
 	return nil
 }
