@@ -157,8 +157,14 @@ func (model *Model) handleMovePickerKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.String() {
 	case "esc":
 		model.movePicker = nil
+		model.batchMove = false
 		return model, nil
 	case "enter":
+		if model.batchMove {
+			target := model.columns[model.movePicker.targetColumnIndex].ID
+			model.movePicker = nil
+			return model, model.moveMarkedCardsTo(target)
+		}
 		return model.moveSelectedCardTo(model.movePicker.targetColumnIndex)
 	case "j", "down", "l", "right":
 		model.movePicker.targetColumnIndex = model.nextMoveTarget(1)
@@ -232,6 +238,8 @@ func (model *Model) renderMovePicker(width, height int) string {
 func (model *Model) clearUndoHistory() {
 	model.lastMove = nil
 	model.undoStack = nil
+	model.marked = nil
+	model.batchMove = false
 }
 
 func (model *Model) undoLastCardMove() (tea.Model, tea.Cmd) {

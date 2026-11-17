@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/epoxsizer/kan/internal/config"
 	"github.com/epoxsizer/kan/internal/domain"
 	"github.com/epoxsizer/kan/internal/tasks"
 )
@@ -46,29 +47,34 @@ type Model struct {
 	legacyKeymap bool
 	mcpEnabled   bool
 
-	screen           screen
-	width            int
-	height           int
-	loading          bool
-	loadGeneration   uint64
-	searchGeneration uint64
-	err              error
-	help             bool
-	helpOffset       int
-	notice           string
-	detail           *detailPopup
-	form             *formModal
-	confirm          *confirmModal
-	discard          *discardModal
-	movePicker       *movePicker
-	lastMove         *cardMoveRecord
-	undoStack        []cardMoveRecord
-	navHistory       []navPoint
-	navIndex         int
-	drag             *cardDrag
-	lastCardClick    *cardClickRecord
-	now              func() time.Time
-	showCardTags     bool
+	screen               screen
+	width                int
+	height               int
+	loading              bool
+	loadGeneration       uint64
+	searchGeneration     uint64
+	err                  error
+	help                 bool
+	helpOffset           int
+	notice               string
+	detail               *detailPopup
+	form                 *formModal
+	confirm              *confirmModal
+	discard              *discardModal
+	movePicker           *movePicker
+	lastMove             *cardMoveRecord
+	undoStack            []cardMoveRecord
+	navHistory           []navPoint
+	navIndex             int
+	switcher             *switcherState
+	pendingSwitcherBoard string
+	marked               map[string]bool
+	batchMove            bool
+	views                []config.View
+	drag                 *cardDrag
+	lastCardClick        *cardClickRecord
+	now                  func() time.Time
+	showCardTags         bool
 
 	showSelectedCardDetails bool
 	wrapCardTitles          bool
@@ -126,6 +132,7 @@ type Options struct {
 	Mouse                   bool
 	WrapCardTitles          bool
 	ConfigFile              string
+	Views                   []config.View
 }
 
 func NewWithOptions(ctx context.Context, repo domain.Repository, logger *slog.Logger, options Options) *Model {
@@ -163,6 +170,7 @@ func NewWithOptions(ctx context.Context, repo domain.Repository, logger *slog.Lo
 		wrapCardTitles:          options.WrapCardTitles,
 		mouseEnabled:            options.Mouse,
 		configFile:              options.ConfigFile,
+		views:                   options.Views,
 	}
 }
 
@@ -214,6 +222,29 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		return model.Update(message.message)
+	case batchMoveDoneMsg:
+		model.marked = nil
+		model.batchMove = false
+		model.notice = fmt.Sprintf("Moved %d cards", message.moved)
+		model.loading = true
+		return model, model.loadBoard(model.board.ID)
+	case batchArchiveDoneMsg:
+		model.marked = nil
+		model.notice = fmt.Sprintf("Archived %d cards", message.archived)
+		model.loading = true
+		return model, model.loadBoard(model.board.ID)
+	case switcherLoadedMsg:
+		if model.switcher == nil {
+			return model, nil
+		}
+		model.switcher.loading = false
+		if message.err != nil {
+			model.err = message.err
+			model.switcher = nil
+			return model, nil
+		}
+		model.switcher.matches = message.matches
+		return model, nil
 	case flowLoadedMsg:
 		if message.err != nil {
 			model.err = message.err
@@ -241,6 +272,13 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		model.notice = "Card queued for agents"
+		return model, nil
+	case viewsSavedMsg:
+		if message.err != nil {
+			model.err = message.err
+		} else {
+			model.notice = "Views saved"
+		}
 		return model, nil
 	case settingsSavedMsg:
 		if message.err != nil {
@@ -323,6 +361,16 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			for index, board := range model.boards {
 				if board.ID == selectedID {
 					model.boardIndex = index
+				}
+			}
+		}
+		if model.pendingSwitcherBoard != "" {
+			target := model.pendingSwitcherBoard
+			model.pendingSwitcherBoard = ""
+			for index, board := range model.boards {
+				if board.ID == target {
+					model.boardIndex = index
+					return model.openSelectedBoard()
 				}
 			}
 		}
@@ -539,7 +587,12 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if model.commandMode {
 		return model.handleCommandKey(key)
 	}
+	if model.switcher != nil {
+		return model.handleSwitcherKey(key)
+	}
 	switch key.String() {
+	case "ctrl+p":
+		return model.openSwitcher()
 	case "ctrl+o":
 		return model.navigateHistory(-1)
 	case "ctrl+i":
@@ -809,6 +862,9 @@ func (model *Model) handleBoardKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return model, nil
 	case "u":
 		return model.undoLastCardMove()
+	case " ":
+		model.toggleMarkedCard()
+		return model, nil
 	case "shift+left":
 		return model.moveSelectedColumn(-1)
 	case "shift+right":
@@ -940,6 +996,9 @@ func (model *Model) applyPendingPaletteFocus() {
 }
 
 func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
+	if strings.HasPrefix(command, "view-apply:") {
+		return model.applySavedView(strings.TrimPrefix(command, "view-apply:"))
+	}
 	switch command {
 	case "toggle-inspector", "toggle-navigation", "activity":
 		if model.screen != boardScreen {
@@ -1017,12 +1076,38 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		return model, model.startCardForm(true)
+	case "view-save":
+		if model.screen != boardScreen {
+			model.err = fmt.Errorf("open a board first")
+			return model, nil
+		}
+		model.startSaveViewForm()
+	case "view-forget":
+		if len(model.views) == 0 {
+			model.notice = "No saved views"
+			return model, nil
+		}
+		model.startForgetViewForm()
 	case "flow":
 		if model.screen != boardScreen || model.board == nil {
 			model.err = fmt.Errorf("open a board first")
 			return model, nil
 		}
 		return model, loadFlowCards(model.ctx, model.repo, model.board.ID)
+	case "card-move-marked":
+		if model.screen != boardScreen || len(model.markedCardIDs()) == 0 {
+			model.notice = "Mark cards with Space first"
+			return model, nil
+		}
+		model.batchMove = true
+		model.openMovePicker()
+		return model, nil
+	case "card-archive-marked":
+		if model.screen != boardScreen || len(model.markedCardIDs()) == 0 {
+			model.notice = "Mark cards with Space first"
+			return model, nil
+		}
+		return model, model.archiveMarkedCards()
 	case "card-queue":
 		if model.screen != boardScreen || len(model.columns) == 0 || model.selectedCard().ID == "" {
 			model.err = fmt.Errorf("select a card on a board first")

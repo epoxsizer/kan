@@ -41,6 +41,8 @@ var commandMenus = []commandMenuSpec{
 		{name: "edit", description: "Edit the selected card", command: "card-edit"},
 		{name: "export", description: "Export the selected card as a Markdown file", command: "card-export"},
 		{name: "queue", description: "Queue the selected card for agent processing", command: "card-queue"},
+		{name: "move-marked", description: "Move all Space-marked cards to a chosen column", command: "card-move-marked"},
+		{name: "archive-marked", description: "Archive all Space-marked cards", command: "card-archive-marked"},
 		{name: "archive", description: "Archive the selected card with confirmation", command: "card-archive"},
 		{name: "move", description: "Choose a destination column", command: "move"},
 		{name: "undo", description: "Undo the last card move or reorder", command: "undo"},
@@ -84,6 +86,8 @@ var commandMenus = []commandMenuSpec{
 		{name: "untriaged", description: "Show cards without priority and due date", command: "untriaged"},
 		{name: "archived", description: "Show archived cards on the current board", command: "archived"},
 		{name: "flow", description: "Throughput, archive time, and aging WIP", command: "flow"},
+		{name: "save", description: "Save the current filter, sort, group, and planning as a view", command: "view-save"},
+		{name: "forget", description: "Remove a saved view", command: "view-forget"},
 		{name: "clear", description: "Clear the current filter or planning view", command: "clear-filter"},
 		{name: "sort", description: "Cycle card sorting", command: "sort"},
 		{name: "group", description: "Cycle card grouping", command: "group"},
@@ -147,6 +151,18 @@ func (model *Model) paletteMatches() []paletteMatch {
 			score += 100
 		}
 		matches = append(matches, paletteMatch{kind: "action", label: action.name, description: action.description, score: score, command: action.command})
+	}
+	if menu.name == "view" {
+		for _, view := range model.views {
+			score := fuzzyScore(query, strings.ToLower(view.Name))
+			if score < 0 {
+				continue
+			}
+			if query == strings.ToLower(view.Name) {
+				score += 200
+			}
+			matches = append(matches, paletteMatch{kind: "view", label: view.Name, description: "Saved view", score: score, command: "view-apply:" + view.Name})
+		}
 	}
 	sortPaletteMatches(matches)
 	return matches

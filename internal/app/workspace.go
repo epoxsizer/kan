@@ -36,6 +36,9 @@ func (model *Model) view() string {
 	if model.confirm != nil {
 		return model.renderConfirm(width, height)
 	}
+	if model.switcher != nil {
+		return model.renderSwitcher(width, height)
+	}
 	if model.commandMode {
 		return model.renderCommandPalette(width, height)
 	}
@@ -328,7 +331,11 @@ func (model *Model) cardLabelWithBackground(card domain.Card, width int, colorPr
 	case domain.AgentFailed:
 		agentPrefix = "✗ "
 	}
-	content := agentPrefix + duePrefix + prefix + card.Title + suffix
+	markedPrefix := ""
+	if model.marked[card.ID] {
+		markedPrefix = "• "
+	}
+	content := markedPrefix + agentPrefix + duePrefix + prefix + card.Title + suffix
 	if model.wrapCardTitles {
 		return model.wrappedCardLabel(card, content, width, colorPriority, background)
 	}

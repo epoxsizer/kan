@@ -39,6 +39,16 @@ type Config struct {
 	Sync          Sync          `toml:"sync"`
 	Inbox         Inbox         `toml:"inbox"`
 	Notifications Notifications `toml:"notifications"`
+	Views         []View        `toml:"views"`
+}
+
+// View is a saved board view: filter, sort, group, and planning combination.
+type View struct {
+	Name     string `toml:"name"`
+	Filter   string `toml:"filter"`
+	Sort     string `toml:"sort"`
+	Group    string `toml:"group"`
+	Planning string `toml:"planning"`
 }
 
 // Inbox is the default capture destination for `kan add` and webhook intake.
@@ -149,6 +159,7 @@ type fileConfig struct {
 	Sync          *Sync          `toml:"sync"`
 	Inbox         *Inbox         `toml:"inbox"`
 	Notifications *Notifications `toml:"notifications"`
+	Views         []View         `toml:"views"`
 }
 
 type Overrides struct {
@@ -449,6 +460,9 @@ func merge(dst *Config, src fileConfig) {
 	}
 	if src.Notifications != nil {
 		dst.Notifications = *src.Notifications
+	}
+	if src.Views != nil {
+		dst.Views = src.Views
 	}
 }
 

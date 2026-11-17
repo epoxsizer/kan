@@ -23,6 +23,26 @@ func TestMouseDefaultsEnabledAndCanBeDisabled(t *testing.T) {
 	require.True(t, cfg.Mouse)
 }
 
+func TestSaveViewsRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	require.NoError(t, os.WriteFile(path, []byte("[theme]\nprimary = \"#123456\"\n\n[[views]]\nname = \"Old\"\nfilter = \"x\"\n"), 0o600))
+
+	require.NoError(t, SaveViews(path, []View{{Name: "Focus", Filter: "bug", Sort: "due date", Group: "priority", Planning: "overdue"}}))
+	cfg, err := Load(Overrides{ConfigFile: path})
+	require.NoError(t, err)
+	require.Len(t, cfg.Views, 1)
+	require.Equal(t, "Focus", cfg.Views[0].Name)
+	require.Equal(t, "bug", cfg.Views[0].Filter)
+	require.Equal(t, "due date", cfg.Views[0].Sort)
+	require.Equal(t, "overdue", cfg.Views[0].Planning)
+	require.Equal(t, "#123456", cfg.Theme.Primary, "other sections survive")
+
+	require.NoError(t, SaveViews(path, nil))
+	cfg, err = Load(Overrides{ConfigFile: path})
+	require.NoError(t, err)
+	require.Empty(t, cfg.Views)
+}
+
 func TestInboxAndNotificationsConfiguration(t *testing.T) {
 	require.True(t, Defaults().Notifications.Enabled)
 	require.Empty(t, Defaults().Inbox.BoardID)

@@ -31,6 +31,14 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   first; the history clears on external changes and board switches.
 - Back/forward navigation with `Ctrl-O` / `Ctrl-I` across visited projects
   and boards.
+- Global quick-switcher (`Ctrl-P`): fuzzy-jump to any project, board, or card
+  across the whole database, with the card selected on arrival.
+- Bulk operations: `Space` marks cards (• marker), `:card move-marked` moves
+  them through the column picker, and `:card archive-marked` archives them;
+  WIP-blocked cards are skipped and counted.
+- Saved views: `:view save` stores the current filter/sort/group/planning as
+  a named `[[views]]` entry in `config.toml`; saved views appear in the
+  `:view` menu and `:view forget` removes them.
 - `wrap_card_titles` setting (enabled by default): board card titles wrap onto
   extra lines with the priority marker kept on the first line, instead of
   truncating to the column width.

@@ -28,6 +28,8 @@ const (
 	createTemplateForm
 	createCardFromTemplateForm
 	settingsForm
+	saveViewForm
+	forgetViewForm
 )
 
 type formField struct {
@@ -441,6 +443,39 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 			commands = append(commands, func() tea.Msg { return settingsSavedMsg{err: config.SaveGeneral(path, general)} })
 		}
 		return model, tea.Batch(commands...)
+	case saveViewForm:
+		name := value(0)
+		if name == "" {
+			return invalid(fmt.Errorf("view name is required"))
+		}
+		view := config.View{Name: name, Filter: model.filterText, Sort: model.sortMode.String(), Group: model.groupMode.String(), Planning: string(model.planningFilter)}
+		views := append([]config.View{}, model.views...)
+		replaced := false
+		for index := range views {
+			if views[index].Name == name {
+				views[index] = view
+				replaced = true
+			}
+		}
+		if !replaced {
+			views = append(views, view)
+		}
+		model.views = views
+		model.form = nil
+		model.notice = "View saved"
+		return model, model.persistViews()
+	case forgetViewForm:
+		name := value(0)
+		views := []config.View{}
+		for _, view := range model.views {
+			if view.Name != name {
+				views = append(views, view)
+			}
+		}
+		model.views = views
+		model.form = nil
+		model.notice = "View removed"
+		return model, model.persistViews()
 	case createProjectForm:
 		project := domain.Project{Name: value(0), Description: raw(1), Position: nextProjectPosition(model.projects)}
 		if err := domain.ValidateProject(project); err != nil {

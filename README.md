@@ -129,6 +129,8 @@ kan upgrade check
 | `M` | Choose a destination column |
 | `u` | Undo recent moves and reorders (up to 20, newest first) |
 | `Ctrl-O`, `Ctrl-I` | Navigate back / forward through visited projects and boards |
+| `Ctrl-P` | Quick-switcher: fuzzy-jump to any project, board, or card |
+| `Space` | Mark/unmark the selected card for batch moves and archiving |
 | `/` | Search within the current board |
 | `:` | Open hierarchical action menus for cards, columns, boards, projects, settings, and views |
 | `:card archive` | Archive the selected card with confirmation |
@@ -137,6 +139,8 @@ kan upgrade check
 | `:column archive` | Archive every active card in the selected column |
 | `:view archived` | Show archived cards for the current board |
 | `:view flow` | Throughput sparkline, average days to archive, and aging WIP |
+| `:view save`, `:view forget` | Save the current filter/sort/group/planning as a named view; remove one |
+| `:card move-marked`, `:card archive-marked` | Move or archive all Space-marked cards |
 | `:column settings` | Configure the selected column |
 | `:view today`, `:view overdue`, `:view blocked`, `:view stale`, `:view untriaged` | Show planning views for the current board |
 | `:card new-template`, `:card save-template`, `:card from-template`, `:card templates` | Create and use board-only card templates |
@@ -531,6 +535,10 @@ wrapping, mouse capture, and the legacy keymap — can also be changed from the
 `:settings open` menu. Saving writes them back to `config.toml`, preserving
 every other setting, comment, and section; mouse capture changes apply
 immediately.
+
+Saved views (`:view save`) store the current filter, sort, group, and planning
+combination under a name in `config.toml` (`[[views]]`). They appear in the
+`:view` menu for one-keystroke application; `:view forget` removes them.
 
 The planning section controls board health and planning views. By default,
 cards are stale after 7 days without updates, blocked cards are detected by the
