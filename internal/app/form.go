@@ -317,6 +317,25 @@ func (model *Model) handleFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			toggleCheckboxField(&form.fields[form.focus])
 			return model, nil
 		}
+		if form.fields[form.focus].kind == calendarField && strings.TrimSpace(form.fields[form.focus].value) != "" {
+			if _, err := time.Parse("2006-01-02", form.fields[form.focus].value); err == nil {
+				form.openControl()
+				return model, nil
+			}
+			due, err := parseNaturalDue(form.fields[form.focus].value, time.Now())
+			if err != nil {
+				form.err = err.Error()
+				return model, nil
+			}
+			field := &form.fields[form.focus]
+			field.value = ""
+			if due != nil {
+				field.value = due.Format("2006-01-02")
+			}
+			field.cursor = len([]rune(field.value))
+			form.err = ""
+			return model, nil
+		}
 		if form.fields[form.focus].kind != textField {
 			form.openControl()
 			return model, nil
@@ -334,7 +353,7 @@ func (model *Model) handleFormKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		form.err = ""
 		return model, nil
 	}
-	if field.kind == textField {
+	if field.kind == textField || field.kind == calendarField {
 		result := editText(field.value, field.cursor, key, false)
 		if result.handled {
 			field.value, field.cursor = result.value, result.cursor
@@ -509,12 +528,11 @@ func (model *Model) submitForm() (tea.Model, tea.Cmd) {
 		if value(4) == "" {
 			card.DueDate = nil
 		} else {
-			due, err := time.Parse("2006-01-02", value(4))
+			due, err := parseNaturalDue(value(4), time.Now())
 			if err != nil {
-				return invalid(fmt.Errorf("due date must use YYYY-MM-DD"))
+				return invalid(err)
 			}
-			due = due.UTC()
-			card.DueDate = &due
+			card.DueDate = due
 		}
 		card.Tags = splitTags(value(5))
 		card.RelatedCardIDs = splitIDs(value(6))

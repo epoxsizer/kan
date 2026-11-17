@@ -176,9 +176,9 @@ func Defaults() Config {
 			PanelBorder: "#909090", FocusedPanelBorder: "#4C8DFF", StatusForeground: "#909090", StatusBackground: "#24243A", StatusAccentForeground: "#FFFFFF", StatusAccentBackground: "#7D7AFF",
 			ShortcutKeyForeground: "#FFFFFF", ShortcutKeyBackground: "#5A56E0", ShortcutText: "#909090", HelpText: "#C4C4D0", HelpBorder: "#7D7AFF", Command: "#7D7AFF", ColumnDefault: "#4C8DFF",
 		},
-		MCP:      MCP{Address: "127.0.0.1:7337"},
-		Planning: Planning{StaleAfterDays: 7, BlockedTags: []string{"blocked", "blocker"}, UntriagedWithoutPriority: true},
-		Sync:     Sync{Interval: "10m", ObjectKey: "kan/sync.json"},
+		MCP:           MCP{Address: "127.0.0.1:7337"},
+		Planning:      Planning{StaleAfterDays: 7, BlockedTags: []string{"blocked", "blocker"}, UntriagedWithoutPriority: true},
+		Sync:          Sync{Interval: "10m", ObjectKey: "kan/sync.json"},
 		Notifications: Notifications{Enabled: true},
 	}
 }

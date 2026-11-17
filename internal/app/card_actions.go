@@ -227,8 +227,25 @@ func (model *Model) renderMovePicker(width, height int) string {
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, popup)
 }
 
+// clearUndoHistory drops the undo stack when the board context changes or an
+// external write invalidates recorded moves.
+func (model *Model) clearUndoHistory() {
+	model.lastMove = nil
+	model.undoStack = nil
+}
+
 func (model *Model) undoLastCardMove() (tea.Model, tea.Cmd) {
-	if model.lastMove == nil || model.board == nil || model.lastMove.boardID != model.board.ID {
+	var record cardMoveRecord
+	switch {
+	case len(model.undoStack) > 0:
+		record = model.undoStack[len(model.undoStack)-1]
+	case model.lastMove != nil:
+		record = *model.lastMove
+	default:
+		model.notice = "No card move to undo"
+		return model, nil
+	}
+	if model.board == nil || record.boardID != model.board.ID {
 		model.notice = "No card move to undo"
 		return model, nil
 	}
@@ -236,7 +253,6 @@ func (model *Model) undoLastCardMove() (tea.Model, tea.Cmd) {
 		model.notice = "Clear filter and use position/no grouping before undoing a move"
 		return model, nil
 	}
-	record := *model.lastMove
 	model.pendingColumn, model.pendingCard = record.fromColumn, record.cardID
 	model.loading = true
 	return model, model.moveCardCommand(record, true)

@@ -127,7 +127,8 @@ kan upgrade check
 | `:column move-left`, `:column move-right` | Reorder the selected column from the command menu |
 | `J`, `K` | Reorder cards |
 | `M` | Choose a destination column |
-| `u` | Undo the last successful move or reorder |
+| `u` | Undo recent moves and reorders (up to 20, newest first) |
+| `Ctrl-O`, `Ctrl-I` | Navigate back / forward through visited projects and boards |
 | `/` | Search within the current board |
 | `:` | Open hierarchical action menus for cards, columns, boards, projects, settings, and views |
 | `:card archive` | Archive the selected card with confirmation |
@@ -160,7 +161,10 @@ differs from the stored order. Hold `Shift` while dragging when you need to
 select terminal text.
 
 New cards have no due date by default. Open the due-date field to choose a date,
-or press `x` in the calendar to remove the due date.
+or press `x` in the calendar to remove the due date. You can also type the date
+directly: `YYYY-MM-DD`, `today`, `tomorrow`, `+3d`, `+2w`, or a weekday name
+(`fri`, `next mon`); `Enter` parses it, and `Enter` on a parsed date reopens the
+calendar.
 
 Columns can enable automatic archiving and set how many days cards remain in
 that column before archival; new columns default to 14 days with automation

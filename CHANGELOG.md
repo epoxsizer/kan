@@ -25,6 +25,12 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `kan card history <id>` and the `kan_get_card_history` MCP tool expose the
   trail, and `:view flow` shows an eight-week throughput sparkline, average
   days to archive, and the five oldest active cards.
+- Natural-language due dates in the card form: `today`, `tomorrow`, `+3d`,
+  `+2w`, and weekday names (`fri`, `next mon`) alongside `YYYY-MM-DD`.
+- Multi-level undo: `u` reverses up to 20 recent moves and reorders, newest
+  first; the history clears on external changes and board switches.
+- Back/forward navigation with `Ctrl-O` / `Ctrl-I` across visited projects
+  and boards.
 - `wrap_card_titles` setting (enabled by default): board card titles wrap onto
   extra lines with the priority marker kept on the first line, instead of
   truncating to the column width.

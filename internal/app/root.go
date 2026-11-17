@@ -62,6 +62,9 @@ type Model struct {
 	discard          *discardModal
 	movePicker       *movePicker
 	lastMove         *cardMoveRecord
+	undoStack        []cardMoveRecord
+	navHistory       []navPoint
+	navIndex         int
 	drag             *cardDrag
 	lastCardClick    *cardClickRecord
 	now              func() time.Time
@@ -263,7 +266,7 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.drag = nil
 		model.notice = "MCP: " + message.Action
 		model.err = nil
-		model.lastMove = nil
+		model.clearUndoHistory()
 		if model.form != nil && model.form.kind == editCardForm && model.form.entityID == message.CardID {
 			model.form.err = "Card changed externally. Draft kept; Ctrl-R reloads, Esc cancels."
 		}
@@ -444,7 +447,7 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.err = nil
 		model.loading = true
 		if message.scope == boardScreen {
-			model.lastMove = nil
+			model.clearUndoHistory()
 		}
 		switch message.scope {
 		case projectsScreen:
@@ -478,10 +481,21 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		if message.undo {
+			if len(model.undoStack) > 0 {
+				model.undoStack = model.undoStack[:len(model.undoStack)-1]
+			}
 			model.lastMove = nil
+			if len(model.undoStack) > 0 {
+				previous := model.undoStack[len(model.undoStack)-1]
+				model.lastMove = &previous
+			}
 			model.notice = "Card move undone"
 		} else {
 			record := message.record
+			model.undoStack = append(model.undoStack, record)
+			if len(model.undoStack) > 20 {
+				model.undoStack = model.undoStack[len(model.undoStack)-20:]
+			}
 			model.lastMove = &record
 			model.notice = record.notice
 		}
@@ -524,6 +538,12 @@ func (model *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if model.commandMode {
 		return model.handleCommandKey(key)
+	}
+	switch key.String() {
+	case "ctrl+o":
+		return model.navigateHistory(-1)
+	case "ctrl+i":
+		return model.navigateHistory(1)
 	}
 	if model.detail != nil {
 		switch key.String() {
@@ -694,6 +714,7 @@ func (model *Model) openSelectedProject() (tea.Model, tea.Cmd) {
 	if len(model.projects) == 0 {
 		return model, nil
 	}
+	model.pushNavOrigin()
 	selected := model.projects[model.projectIndex]
 	if model.project == nil || model.project.ID != selected.ID {
 		model.boards = nil
@@ -703,6 +724,7 @@ func (model *Model) openSelectedProject() (tea.Model, tea.Cmd) {
 	model.screen = boardsScreen
 	model.loading = true
 	model.err = nil
+	model.recordNavDestination()
 	return model, model.loadBoards(selected.ID)
 }
 
@@ -710,6 +732,7 @@ func (model *Model) openSelectedBoard() (tea.Model, tea.Cmd) {
 	if len(model.boards) == 0 {
 		return model, nil
 	}
+	model.pushNavOrigin()
 	selected := model.boards[model.boardIndex]
 	if model.board == nil || model.board.ID != selected.ID {
 		model.columns = nil
@@ -720,11 +743,12 @@ func (model *Model) openSelectedBoard() (tea.Model, tea.Cmd) {
 	model.workspace.focus = boardFocus
 	model.workspace.inspectorOffset = 0
 	model.workspace.navigationIndex = model.boardIndex
-	model.lastMove = nil
+	model.clearUndoHistory()
 	model.clearBoardFilter()
 	model.screen = boardScreen
 	model.loading = true
 	model.err = nil
+	model.recordNavDestination()
 	return model, model.loadBoard(selected.ID)
 }
 
@@ -1190,7 +1214,7 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 	case "project", "projects":
 		model.screen = projectsScreen
 		model.help = false
-		model.lastMove = nil
+		model.clearUndoHistory()
 	case "board", "boards":
 		if model.project == nil {
 			model.err = fmt.Errorf("open a project first")
@@ -1198,7 +1222,7 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 		}
 		model.screen = boardsScreen
 		model.help = false
-		model.lastMove = nil
+		model.clearUndoHistory()
 	case "reload":
 		model.loading = true
 		model.err = nil
@@ -1220,14 +1244,19 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 func (model *Model) goBack() (tea.Model, tea.Cmd) {
 	model.loadGeneration++
 	model.loading = false
+	if model.screen == projectsScreen {
+		return model, nil
+	}
+	model.pushNavOrigin()
 	switch model.screen {
 	case boardScreen:
 		model.clearBoardFilter()
-		model.lastMove = nil
+		model.clearUndoHistory()
 		model.screen = boardsScreen
 	case boardsScreen:
 		model.screen = projectsScreen
 	}
 	model.err = nil
+	model.recordNavDestination()
 	return model, nil
 }
