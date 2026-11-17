@@ -17,7 +17,7 @@ The app includes full-text search, tags, priorities, due dates, Markdown card
 descriptions, checklists, custom fields, linked cards, JSON import/export,
 automatic local backups, and optional S3 JSON synchronization.
 
-Current version: `0.1.19`.
+Current version: `0.1.20`.
 
 ## Interface
 

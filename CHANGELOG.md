@@ -6,6 +6,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.20] - 2026-11-17
+
 ### Added
 
 - Zero-friction capture: `kan add <title>` drops a card into the configured
@@ -39,6 +41,7 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Saved views: `:view save` stores the current filter/sort/group/planning as
   a named `[[views]]` entry in `config.toml`; saved views appear in the
   `:view` menu and `:view forget` removes them.
+- `make build`, `go install`, and the README now report version 0.1.20.
 - `wrap_card_titles` setting (enabled by default): board card titles wrap onto
   extra lines with the priority marker kept on the first line, instead of
   truncating to the column width.
@@ -297,7 +300,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Theme configuration, inline shortcut help, and accessible empty states.
 - Scriptable CLI commands for projects, boards, columns, cards, and data exchange.
 
-[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.19...main
+[Unreleased]: https://github.com/epoxsizer/kan/compare/v0.1.20...main
+[0.1.20]: https://github.com/epoxsizer/kan/compare/v0.1.19...v0.1.20
 [0.1.19]: https://github.com/epoxsizer/kan/compare/v0.1.18...v0.1.19
 [0.1.18]: https://github.com/epoxsizer/kan/compare/v0.1.17...v0.1.18
 [0.1.17]: https://github.com/epoxsizer/kan/compare/v0.1.16...v0.1.17
