@@ -77,7 +77,18 @@ type Card struct {
 	UpdatedAt       time.Time             `json:"updated_at"`
 	DeletedAt       *time.Time            `json:"deleted_at,omitempty"`
 	ColumnEnteredAt time.Time             `json:"column_entered_at,omitempty"`
+	AgentStatus     string                `json:"agent_status,omitempty"`
+	AgentName       string                `json:"agent_name,omitempty"`
+	AgentResult     string                `json:"agent_result,omitempty"`
 }
+
+// Agent lifecycle states for cards processed by an external agent runner.
+const (
+	AgentQueued  = "queued"
+	AgentRunning = "running"
+	AgentDone    = "done"
+	AgentFailed  = "failed"
+)
 
 type CardTemplate struct {
 	ID            string          `json:"id"`

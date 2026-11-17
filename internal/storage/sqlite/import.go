@@ -162,7 +162,7 @@ func (repo *Repository) ImportDocument(ctx context.Context, document domain.Expo
 					if encodeErr != nil {
 						return encodeErr
 					}
-					if _, err = tx.ExecContext(ctx, `INSERT INTO cards(id,board_id,column_id,title,description,position,priority,due_date,tags,fields,checklist,created_at,updated_at,deleted_at,column_entered_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, card.ID, card.BoardID, card.ColumnID, card.Title, card.Description, card.Position, card.Priority, encodeOptionalTime(card.DueDate), tags, fields, checklist, encodeTime(card.CreatedAt), encodeTime(card.UpdatedAt), encodeOptionalTime(card.DeletedAt), encodeTime(card.ColumnEnteredAt)); err != nil {
+					if _, err = tx.ExecContext(ctx, `INSERT INTO cards(id,board_id,column_id,title,description,position,priority,due_date,tags,fields,checklist,created_at,updated_at,deleted_at,column_entered_at,agent_status,agent_name,agent_result) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, card.ID, card.BoardID, card.ColumnID, card.Title, card.Description, card.Position, card.Priority, encodeOptionalTime(card.DueDate), tags, fields, checklist, encodeTime(card.CreatedAt), encodeTime(card.UpdatedAt), encodeOptionalTime(card.DeletedAt), encodeTime(card.ColumnEnteredAt), card.AgentStatus, card.AgentName, card.AgentResult); err != nil {
 						return mapError(err)
 					}
 					links[card.ID] = append([]string(nil), card.RelatedCardIDs...)

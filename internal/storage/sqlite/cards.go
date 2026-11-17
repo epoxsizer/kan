@@ -10,7 +10,7 @@ import (
 	"github.com/epoxsizer/kan/internal/domain"
 )
 
-const cardColumns = `c.id,c.board_id,c.column_id,c.title,c.description,c.position,c.priority,c.due_date,c.tags,c.fields,c.checklist,c.created_at,c.updated_at,c.deleted_at,c.column_entered_at`
+const cardColumns = `c.id,c.board_id,c.column_id,c.title,c.description,c.position,c.priority,c.due_date,c.tags,c.fields,c.checklist,c.created_at,c.updated_at,c.deleted_at,c.column_entered_at,c.agent_status,c.agent_name,c.agent_result`
 
 func (repo *Repository) CreateCard(ctx context.Context, value *domain.Card) error {
 	if value.Tags == nil {
@@ -46,7 +46,7 @@ func (repo *Repository) CreateCard(ctx context.Context, value *domain.Card) erro
 		return err
 	}
 	defer tx.Rollback()
-	if _, err = tx.ExecContext(ctx, `INSERT INTO cards(id,board_id,column_id,title,description,position,priority,due_date,tags,fields,checklist,created_at,updated_at,deleted_at,column_entered_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, value.ID, value.BoardID, value.ColumnID, value.Title, value.Description, value.Position, value.Priority, encodeOptionalTime(value.DueDate), tags, fields, checklist, encodeTime(value.CreatedAt), encodeTime(value.UpdatedAt), encodeOptionalTime(value.DeletedAt), encodeTime(value.ColumnEnteredAt)); err != nil {
+	if _, err = tx.ExecContext(ctx, `INSERT INTO cards(id,board_id,column_id,title,description,position,priority,due_date,tags,fields,checklist,created_at,updated_at,deleted_at,column_entered_at,agent_status,agent_name,agent_result) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, value.ID, value.BoardID, value.ColumnID, value.Title, value.Description, value.Position, value.Priority, encodeOptionalTime(value.DueDate), tags, fields, checklist, encodeTime(value.CreatedAt), encodeTime(value.UpdatedAt), encodeOptionalTime(value.DeletedAt), encodeTime(value.ColumnEnteredAt), value.AgentStatus, value.AgentName, value.AgentResult); err != nil {
 		return mapError(err)
 	}
 	if err = replaceCardLinks(ctx, tx, value.ID, value.RelatedCardIDs); err != nil {
@@ -59,7 +59,7 @@ func scanCard(row scanner) (domain.Card, error) {
 	var value domain.Card
 	var priority, due, deleted sql.NullString
 	var tags, fields, checklist, created, updated, entered string
-	err := row.Scan(&value.ID, &value.BoardID, &value.ColumnID, &value.Title, &value.Description, &value.Position, &priority, &due, &tags, &fields, &checklist, &created, &updated, &deleted, &entered)
+	err := row.Scan(&value.ID, &value.BoardID, &value.ColumnID, &value.Title, &value.Description, &value.Position, &priority, &due, &tags, &fields, &checklist, &created, &updated, &deleted, &entered, &value.AgentStatus, &value.AgentName, &value.AgentResult)
 	if err != nil {
 		return value, mapError(err)
 	}
@@ -173,7 +173,7 @@ func (repo *Repository) UpdateCard(ctx context.Context, value *domain.Card) erro
 		return err
 	}
 	defer tx.Rollback()
-	result, err := tx.ExecContext(ctx, `UPDATE cards SET board_id=?,column_id=?,title=?,description=?,position=?,priority=?,due_date=?,tags=?,fields=?,checklist=?,updated_at=?,column_entered_at=CASE WHEN column_id<>? THEN ? ELSE column_entered_at END WHERE id=? AND deleted_at IS NULL AND updated_at=?`, updated.BoardID, updated.ColumnID, updated.Title, updated.Description, updated.Position, updated.Priority, encodeOptionalTime(updated.DueDate), tags, fields, checklist, encodeTime(updated.UpdatedAt), updated.ColumnID, encodeTime(updated.UpdatedAt), updated.ID, encodeTime(previousUpdatedAt))
+	result, err := tx.ExecContext(ctx, `UPDATE cards SET board_id=?,column_id=?,title=?,description=?,position=?,priority=?,due_date=?,tags=?,fields=?,checklist=?,updated_at=?,column_entered_at=CASE WHEN column_id<>? THEN ? ELSE column_entered_at END,agent_status=?,agent_name=?,agent_result=? WHERE id=? AND deleted_at IS NULL AND updated_at=?`, updated.BoardID, updated.ColumnID, updated.Title, updated.Description, updated.Position, updated.Priority, encodeOptionalTime(updated.DueDate), tags, fields, checklist, encodeTime(updated.UpdatedAt), updated.ColumnID, encodeTime(updated.UpdatedAt), updated.AgentStatus, updated.AgentName, updated.AgentResult, updated.ID, encodeTime(previousUpdatedAt))
 	if err != nil {
 		return mapError(err)
 	}

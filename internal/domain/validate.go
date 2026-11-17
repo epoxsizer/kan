@@ -40,6 +40,11 @@ func ValidateCard(value Card) error {
 	if value.BoardID == "" || value.ColumnID == "" {
 		return validationError("card board and column IDs are required")
 	}
+	switch value.AgentStatus {
+	case "", AgentQueued, AgentRunning, AgentDone, AgentFailed:
+	default:
+		return validationError("card agent status must be queued, running, done, or failed")
+	}
 	if strings.TrimSpace(value.Title) == "" {
 		return validationError("card title is required")
 	}

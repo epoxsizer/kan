@@ -319,7 +319,16 @@ func (model *Model) cardLabelWithBackground(card domain.Card, width int, colorPr
 		}
 		duePrefix = marker + card.DueDate.Format("2006-01-02") + " "
 	}
-	content := duePrefix + prefix + card.Title + suffix
+	agentPrefix := ""
+	switch card.AgentStatus {
+	case domain.AgentQueued:
+		agentPrefix = "⏳ "
+	case domain.AgentRunning:
+		agentPrefix = "⚙ "
+	case domain.AgentFailed:
+		agentPrefix = "✗ "
+	}
+	content := agentPrefix + duePrefix + prefix + card.Title + suffix
 	if model.wrapCardTitles {
 		return model.wrappedCardLabel(card, content, width, colorPriority, background)
 	}

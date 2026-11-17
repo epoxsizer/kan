@@ -14,6 +14,13 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   with the same bearer token.
 - Desktop notifications (macOS and Linux, `notifications.enabled`) for
   webhook-captured cards.
+- Agent queue: cards carry a queued → running → done/failed lifecycle with
+  agent name and result. `kan agent run` drains a queue column through any
+  shell command (prompt on stdin/`KAN_PROMPT`), claims cards atomically,
+  moves results to done/failed columns, and notifies on completion. New MCP
+  tools `kan_queue_card`, `kan_claim_card`, `kan_complete_card`; TUI
+  `:card queue`, board markers (⏳ ⚙ ✗), and agent results in the inspector
+  and detail window.
 - `wrap_card_titles` setting (enabled by default): board card titles wrap onto
   extra lines with the priority marker kept on the first line, instead of
   truncating to the column width.

@@ -123,6 +123,13 @@ func cardDetail(card domain.Card, columnName string) *detailPopup {
 	if label := timeInColumnLabel(card, time.Now()); label != "" {
 		lines = append(lines, "In column: "+label)
 	}
+	if card.AgentStatus != "" {
+		lines = append(lines, "Agent: "+agentStatusLabel(card))
+		if strings.TrimSpace(card.AgentResult) != "" {
+			lines = append(lines, "Agent result:")
+			lines = append(lines, wrappedDetailLines(strings.Split(card.AgentResult, "\n"), 60)...)
+		}
+	}
 	lines = append(lines,
 		"Tags: "+fallbackValue(strings.Join(card.Tags, ", ")),
 		"Related cards: "+fallbackValue(strings.Join(card.RelatedCardIDs, ", ")),

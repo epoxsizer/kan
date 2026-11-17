@@ -40,6 +40,7 @@ var commandMenus = []commandMenuSpec{
 		{name: "add", description: "Add a card to the selected column", command: "card-add"},
 		{name: "edit", description: "Edit the selected card", command: "card-edit"},
 		{name: "export", description: "Export the selected card as a Markdown file", command: "card-export"},
+		{name: "queue", description: "Queue the selected card for agent processing", command: "card-queue"},
 		{name: "archive", description: "Archive the selected card with confirmation", command: "card-archive"},
 		{name: "move", description: "Choose a destination column", command: "move"},
 		{name: "undo", description: "Undo the last card move or reorder", command: "undo"},

@@ -211,6 +211,19 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		return model.Update(message.message)
+	case cardQueuedMsg:
+		if message.err != nil {
+			model.err = message.err
+			return model, nil
+		}
+		cards := model.cards[message.card.ColumnID]
+		for index := range cards {
+			if cards[index].ID == message.card.ID {
+				cards[index] = message.card
+			}
+		}
+		model.notice = "Card queued for agents"
+		return model, nil
 	case settingsSavedMsg:
 		if message.err != nil {
 			model.err = message.err
@@ -965,6 +978,12 @@ func (model *Model) executeCommand(command string) (tea.Model, tea.Cmd) {
 			return model, nil
 		}
 		return model, model.startCardForm(true)
+	case "card-queue":
+		if model.screen != boardScreen || len(model.columns) == 0 || model.selectedCard().ID == "" {
+			model.err = fmt.Errorf("select a card on a board first")
+			return model, nil
+		}
+		return model, model.queueSelectedCard()
 	case "card-export":
 		if model.screen != boardScreen || len(model.columns) == 0 || model.selectedCard().ID == "" {
 			model.err = fmt.Errorf("select a card on a board first")

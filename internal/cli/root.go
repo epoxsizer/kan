@@ -211,6 +211,7 @@ func New(version, commit, date string) *cobra.Command {
 		},
 	})
 	root.AddCommand(newAddCommand(&opts))
+	root.AddCommand(newAgentCommand(&opts))
 	root.AddCommand(newBackupCommand(&opts))
 	root.AddCommand(newExportCommand(&opts))
 	root.AddCommand(newImportCommand(&opts))

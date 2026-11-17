@@ -132,6 +132,7 @@ kan upgrade check
 | `:` | Open hierarchical action menus for cards, columns, boards, projects, settings, and views |
 | `:card archive` | Archive the selected card with confirmation |
 | `:card export` | Write the selected card as a Markdown file in the working directory |
+| `:card queue` | Queue the selected card for agent processing (`kan agent run`) |
 | `:column archive` | Archive every active card in the selected column |
 | `:view archived` | Show archived cards for the current board |
 | `:column settings` | Configure the selected column |
@@ -239,6 +240,27 @@ kan card create --help
 Do not run separate CLI write commands at the same time as the TUI. Use the
 built-in MCP server described below for supported model-driven changes while
 the TUI is running.
+
+## Run agents against a queue
+
+Kan can drain a queue column through any external command — a coding agent,
+a script, or a one-liner. Queue cards from the TUI (`:card queue`), MCP
+(`kan_queue_card`), or by setting `agent_status`, then run:
+
+```sh
+kan agent run --command 'claude -p "$KAN_PROMPT"' \
+  --column QUEUE_COLUMN_ID --agent claude \
+  --done-column DONE_COLUMN_ID --failed-column FAILED_COLUMN_ID --limit 3
+```
+
+Each queued card is claimed atomically (concurrent runners never share a
+card), rendered as a Markdown work order (title, description, checklist), and
+passed to the command on stdin and in `KAN_PROMPT` (with `KAN_CARD_ID` and
+`KAN_CARD_TITLE`). Exit code 0 marks the card `done`, anything else `failed`;
+the output tail is stored as the card's agent result and shown in the
+inspector and detail window. Cards show ⏳ queued, ⚙ running, and ✗ failed
+markers, and a desktop notification reports each result. `--limit` caps the
+batch (default 1); `--column` defaults to the configured inbox.
 
 ## Pair With A Model Over MCP
 
@@ -357,6 +379,9 @@ Both servers expose the same tools:
 - one-shot setup: `kan_setup_board` creates a board with its columns and card
   templates in a single atomic call inside an existing project; any invalid
   part fails the whole setup without creating anything;
+- agent queue: `kan_queue_card`, `kan_claim_card`, `kan_complete_card` drive
+  the queued → running → done/failed lifecycle; claiming is atomic, so
+  concurrent runners never share a card;
 - checklists: `kan_add_checklist_item`, `kan_update_checklist_item`;
 - templates: `kan_list_card_templates`, `kan_create_card_from_template`.
 

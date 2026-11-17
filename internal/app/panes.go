@@ -184,6 +184,12 @@ func (model *Model) inspectorLines(width int) []string {
 			if label := timeInColumnLabel(card, time.Now()); label != "" {
 				summary = append(summary, "In column: "+label)
 			}
+			if card.AgentStatus != "" {
+				summary = append(summary, "Agent: "+agentStatusLabel(card))
+				if strings.TrimSpace(card.AgentResult) != "" {
+					summary = append(summary, wrappedDetailLines(strings.Split(card.AgentResult, "\n"), width)...)
+				}
+			}
 			summary = append(summary, "Tags: "+strings.Join(card.Tags, ", "), "")
 			lines := wrappedDetailLines(summary, width)
 			if card.Description != "" {
